@@ -7,6 +7,11 @@
   var all = A.questions();
   var q = all.filter(function (x) { return x.id === A.param('id'); })[0] ||
           all.filter(function (x) { return x.status === 'pending'; })[0] || all[0];
+  if (!q) {
+    A.$('main').innerHTML = '<section class="card card--pad empty">Вопросов пока нет. <a href="upload">Загрузите материал</a> — агенты составят вопросы для банка.</section>';
+    return;
+  }
+  if (A.param('id') && q.id !== A.param('id')) A.toast('Вопрос ' + A.param('id') + ' не найден — открыт ' + q.id);
   // Рабочая копия, чтобы правки не терялись до сохранения
   var draft = JSON.parse(JSON.stringify(q));
   draft.options = draft.options || [];

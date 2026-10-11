@@ -14,7 +14,7 @@
     <div id="q-context"></div>
     <h1 class="player__q" id="q-text"></h1>
     <div id="q-body" style="margin-top: 28px"></div>
-    <div id="feedback" style="margin-top: 16px" hidden></div>
+    <div id="feedback" style="margin-top: 16px" aria-live="polite" hidden></div>
     <div class="between" style="margin-top: 32px">
       <button type="button" class="btn" id="prev">← Назад</button>
       <button type="button" class="btn btn--primary" id="next">Следующий вопрос →</button>

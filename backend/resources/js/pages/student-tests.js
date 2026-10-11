@@ -7,14 +7,25 @@
     var open = t.isOpen;
     var my = t.my;
     var submitted = my && my.status !== 'in_progress';
-    var meta = [t.count + ' ' + A.plural(t.count, 'вопрос', 'вопроса', 'вопросов'), t.minutes + ' минут', t.attempts + ' ' + A.plural(t.attempts, 'попытка', 'попытки', 'попыток')];
+    // 0 минут — без ограничения времени, 99 попыток — без ограничения (так их сохраняет сборщик теста)
+    var meta = [
+      t.count + ' ' + A.plural(t.count, 'вопрос', 'вопроса', 'вопросов'),
+      t.minutes > 0 ? t.minutes + ' ' + A.plural(t.minutes, 'минута', 'минуты', 'минут') : 'без ограничения времени',
+      t.attempts >= 99 ? 'попыток без ограничения' : t.attempts + ' ' + A.plural(t.attempts, 'попытка', 'попытки', 'попыток')
+    ];
     if (t.open) meta.push(t.open + ' ' + A.plural(t.open, 'открытый', 'открытых', 'открытых'));
     var action;
-    if (!open) action = '<button class="btn" disabled style="align-self: flex-start">Пока недоступен</button>';
+    if (!t.count) action = '<button class="btn" disabled style="align-self: flex-start">Вопросы ещё не добавлены</button>';
+    else if (!open) action = '<button class="btn" disabled style="align-self: flex-start">Пока недоступен</button>';
+    else if (submitted && my.left > 0) action = '<div class="row-wrap" style="gap: 8px">' +
+      '<a href="test?test=' + encodeURIComponent(t.id) + '" class="btn btn--primary">Пересдать · ' + my.left + ' ' + A.plural(my.left, 'попытка', 'попытки', 'попыток') + '</a>' +
+      '<a href="result?attempt=' + my.attemptId + '" class="btn">Смотреть результат</a></div>';
     else if (submitted) action = '<a href="result?attempt=' + my.attemptId + '" class="btn" style="align-self: flex-start">Смотреть результат</a>';
     else action = '<a href="test?test=' + encodeURIComponent(t.id) + '" class="btn btn--primary" style="align-self: flex-start">' + (my ? 'Продолжить тест' : 'Начать тест') + '</a>';
     return '<article class="card test-card' + (open && !submitted ? ' is-main' : '') + '">' +
-      '<div class="between">' + (open ? A.chip(submitted ? 'Сдан' : t.deadline, submitted ? 'green' : 'red') + A.chip(t.graded ? 'Оценивается' : 'Без оценки') : A.chip(t.deadline)) + '</div>' +
+      // Срока может не быть — тогда без пустой красной плашки
+      '<div class="between">' + (open ? (submitted ? A.chip('Сдан', 'green') : (t.deadline ? A.chip(t.deadline, 'red') : A.chip('Без срока'))) +
+        A.chip(t.graded ? 'Оценивается' : 'Без оценки') : A.chip(t.deadline || 'Ещё не открыт')) + '</div>' +
       '<h3>' + esc(t.title) + '</h3>' +
       '<div class="meta">' + meta.map(function (m) { return '<span>' + m + '</span>'; }).join('') + '</div>' +
       '<p style="margin: 0; font-size: 14px; color: var(--text-2); line-height: 1.5">' + esc(t.about || '') + '</p>' +

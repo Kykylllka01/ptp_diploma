@@ -31,7 +31,7 @@
     var r = current, q = M.questionTexts[r.questionId], c = crit(r);
     scores = r.scores ? r.scores.slice() : c.map(function (_, i) { return (r.agent[i] || [0])[0]; });
 
-    A.$('#q-label').textContent = 'Вопрос ' + r.questionId + ' · развёрнутый · ' + maxOf(r) + ' баллов';
+    A.$('#q-label').textContent = 'Вопрос ' + r.questionId + ' · развёрнутый · ' + maxOf(r) + ' ' + A.plural(maxOf(r), 'балл', 'балла', 'баллов');
     A.$('#q-text').textContent = q.text;
     A.$('#q-context').innerHTML = A.context(q.context);
     A.$('#q-ref').textContent = q.reference;
@@ -90,11 +90,14 @@
   A.$('#confirm').addEventListener('click', function () {
     var total = scores.reduce(function (s, x) { return s + x; }, 0);
     var id = current.id, name = current.student, max = maxOf(current);
+    var btn = A.$('#confirm');
+    btn.disabled = true;
+    // К следующему ответу — только когда оценка сохранена; при ошибке ответ остаётся на экране
     A.saveReview(id, { status: 'confirmed', final: total, scores: scores.slice(), comment: A.$('#comment').value }).then(function () {
       A.toast(name + ': ' + total + ' из ' + max + ' — подтверждено');
-    });
-    current = list().filter(function (r) { return r.id === id; })[0];
-    next();
+      current = list().filter(function (r) { return r.id === id; })[0];
+      next();
+    }, function () { renderQueue(); }).then(function () { btn.disabled = false; });
   });
   A.$('#skip').addEventListener('click', next);
 

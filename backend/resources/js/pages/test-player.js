@@ -2,7 +2,9 @@
    ?mode=training — тренировка: без таймера и оценки, с проверкой после каждого ответа. */
 (function () {
   var A = window.App, M = A.M, esc = A.esc;
-  var LETTERS = 'АБВГДЕ';
+  var LETTERS = 'АБВГДЕЖЗИК';
+  // Вариантов может быть больше, чем букв, — тогда номер, а не «undefined»
+  function letter(i) { return LETTERS[i] || String(i + 1); }
   // Режимы: экзамен; тренировка студента (и работа над ошибками); пробное прохождение преподавателем
   var preview = M.mode === 'preview';
   var training = preview || A.param('mode') === 'training';
@@ -57,8 +59,29 @@
     if (submitted) return saving;
     saving = A.api('PUT', 'attempts/' + M.attempt.attemptId, { answers: st.answers, flags: st.flags, current: st.current })
       .then(function () { markSaved(); })
-      .catch(function (err) { if (err && err.status === 409) finish(true); });
+      .catch(function (err) {
+        if (err && err.status === 409) { finish(true); return; }
+        // Сеть пропала или сервер ответил ошибкой — не делаем вид, что сохранили, и повторяем
+        var s = A.$('#saved');
+        if (s) s.textContent = 'Не сохранено — повторим через несколько секунд';
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(flush, 5000);
+      });
     return saving;
+  }
+
+  // Уход со страницы: обычный запрос браузер отменит, keepalive — доставит последние ответы
+  function flushOnLeave() {
+    if (!saveTimer || submitted || training || !M.attempt.attemptId) return;
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    try {
+      fetch('/api/attempts/' + M.attempt.attemptId, {
+        method: 'PUT', keepalive: true, credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': A.csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ answers: st.answers, flags: st.flags, current: st.current })
+      });
+    } catch (e) { /* страница уже закрывается */ }
   }
 
   var typeLabel = { single: 'один верный ответ', tf: 'верно или неверно', multiple: 'несколько верных ответов', match: 'сопоставление', sql: 'SQL-запрос', open: 'развёрнутый ответ' };
@@ -88,20 +111,20 @@
         orderOf(q).map(function (k, pos) {
           var on = sel.indexOf(k) >= 0;
           return '<button type="button" class="choice' + (multi ? ' choice--multi' : '') + (on ? ' is-on' : '') + '" role="' + (multi ? 'checkbox' : 'radio') + '" aria-checked="' + on + '" data-opt="' + k + '">' +
-            '<span class="choice__mark">' + LETTERS[pos] + '</span><span style="flex: 1">' + esc(q.options[k]) + '</span></button>';
+            '<span class="choice__mark">' + letter(pos) + '</span><span style="flex: 1">' + esc(q.options[k]) + '</span></button>';
         }).join('') + '</div>' +
         (training ? '<button type="button" class="btn" style="margin-top: 16px" id="check">Проверить</button>' : '');
     } else if (q.type === 'match') {
       // Определения длинные, поэтому они идут списком с буквами, а для термина выбирается буква
       var chosen = a || [];
       body.innerHTML = '<ol class="match-defs">' + q.definitions.map(function (d, j) {
-        return '<li><span class="mono strong">' + LETTERS[j] + '</span><span>' + esc(d) + '</span></li>';
+        return '<li><span class="mono strong">' + letter(j) + '</span><span>' + esc(d) + '</span></li>';
       }).join('') + '</ol>' +
         '<div class="stack-sm" style="gap: 10px; margin-top: 20px">' + q.terms.map(function (t, k) {
         var cur = chosen[k] == null ? -1 : chosen[k];
         return '<label class="match-row"><span class="strong">' + esc(t) + '</span>' +
           '<select class="select" data-match="' + k + '" aria-label="Определение для «' + esc(t) + '»"><option value="-1">— буква определения —</option>' +
-          q.definitions.map(function (d, j) { return '<option value="' + j + '"' + (cur === j ? ' selected' : '') + '>' + LETTERS[j] + '</option>'; }).join('') +
+          q.definitions.map(function (d, j) { return '<option value="' + j + '"' + (cur === j ? ' selected' : '') + '>' + letter(j) + '</option>'; }).join('') +
           '</select></label>';
       }).join('') + '</div>' +
         (training ? '<button type="button" class="btn" style="margin-top: 16px" id="check">Проверить</button>' : '');
@@ -183,6 +206,9 @@
       } else cur = [k];
       setAnswer(cur);
       render();
+      // render() пересоздаёт кнопки — возвращаем фокус клавиатуры на выбранный вариант
+      var again = A.$('[data-opt="' + k + '"]');
+      if (again) again.focus();
       return;
     }
     if (e.target.id === 'run') runSql();
@@ -199,12 +225,17 @@
     var status = A.$('#run-status'), out = A.$('#run-result');
     if (!t) { status.textContent = 'Напишите запрос'; return; }
     status.textContent = 'Выполняем…';
+    var runBtn = A.$('#run');
+    if (runBtn) runBtn.disabled = true;
     A.api('POST', 'sql/run', { sql: t }).then(function (r) {
       if (!r.ok) { status.textContent = r.error; out.innerHTML = ''; return; }
       status.textContent = 'Запрос выполнен · ' + r.rows.length + ' ' + A.plural(r.rows.length, 'строка', 'строки', 'строк') + ' · ' + r.ms + ' мс';
       out.innerHTML = '<table><thead><tr>' + r.columns.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
-        r.rows.map(function (row) { return '<tr>' + row.map(function (v) { return '<td>' + esc(v) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>';
-    });
+        r.rows.map(function (row) { return '<tr>' + row.map(function (v) { return '<td>' + (v === null ? '<span class="muted">NULL</span>' : esc(v)) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table>' +
+        (r.rows.length >= 200 ? '<p class="muted small">Показаны первые 200 строк</p>' : '');
+    }, function () {
+      status.textContent = 'Запрос не выполнен — проверьте соединение и попробуйте ещё раз';
+    }).then(function () { if (runBtn) runBtn.disabled = false; });
   }
 
   function checkTraining(withAgent) {
@@ -316,7 +347,10 @@
   }
 
   // Не теряем последние ответы при уходе со страницы
-  window.addEventListener('beforeunload', function () { if (saveTimer && !submitted) flush(); });
+  window.addEventListener('pagehide', flushOnLeave);
+  window.addEventListener('beforeunload', flushOnLeave);
+  // Переключился на другую вкладку — сохраняем сразу, вдруг дальше закроет браузер
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && saveTimer && !submitted) flush(); });
 
   if (!Q.length) {
     A.$('#q-text').textContent = /^Работа над ошибками/.test(M.attempt.title) ? 'Ошибок нет — повторять нечего' : 'В тесте пока нет вопросов';

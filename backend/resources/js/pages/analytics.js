@@ -11,7 +11,7 @@
     return;
   }
   var test = M.tests.filter(function (t) { return t.id === D.testId; })[0];
-  var waiting = A.reviews().filter(function (r) { return r.status === 'pending'; }).length;
+  var waiting = D.pending || 0;   // ответы этого теста, ждущие подтверждения
 
   A.$('#title').textContent = test.title;
 
@@ -28,8 +28,8 @@
 
   A.$('#stats').innerHTML =
     '<div class="card stat"><div class="lbl">Сдали</div><div class="stat__value">' + D.submitted + ' <small>/ ' + D.total + '</small></div></div>' +
-    '<div class="card stat"><div class="lbl">Средний балл</div><div class="stat__value">' + D.avg + '%</div></div>' +
-    '<div class="card stat"><div class="lbl">Медианное время</div><div class="stat__value">' + D.medianMinutes + ' мин</div></div>' +
+    '<div class="card stat"><div class="lbl">Средний балл</div><div class="stat__value">' + (D.avg === null ? '—' : D.avg + '%') + '</div></div>' +
+    '<div class="card stat"><div class="lbl">Медианное время</div><div class="stat__value">' + (D.medianMinutes === null ? '—' : D.medianMinutes + ' мин') + '</div></div>' +
     '<div class="card stat' + (waiting ? ' card--warn' : '') + '"><div class="lbl">Ждут подтверждения</div><div class="stat__value">' + waiting + '</div></div>';
 
   var max = Math.max.apply(null, D.histogram) || 1;
@@ -64,11 +64,18 @@
     var lines = [head].concat(D.students.map(function (s) {
       return [s.name, s.group || '', s.submitted || '', s.minutes, s.score, s.max, s.percent, s.status].concat(s.byQuestion);
     }));
-    var csv = '﻿' + lines.map(function (l) { return l.map(function (c) { return '"' + (typeof c === 'number' ? String(c).replace('.', ',') : String(c)).replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
+    var cell = function (c) {
+      var s = typeof c === 'number' ? String(c).replace('.', ',') : String(c);
+      if (typeof c !== 'number' && /^[=+\-@\t\r]/.test(s)) s = "'" + s;   // не формула для Excel
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
+    var csv = '﻿' + lines.map(function (l) { return l.map(cell).join(';'); }).join('\r\n');
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     a.download = test.title + ' — результаты.csv';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    // Firefox отменяет скачивание, если ссылку отозвать сразу
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   });
 })();

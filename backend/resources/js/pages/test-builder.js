@@ -116,6 +116,9 @@
     if (mode !== 'manual' && !+A.$('#s-count').textContent) { A.toast('Добавьте в тест хотя бы один вопрос'); return; }
     var title = A.$('#test-title').textContent.trim();
     var training = A.$('#training').getAttribute('aria-pressed') === 'true';
+    // Двойной клик создавал два теста — кнопка недоступна до ответа сервера
+    var submitBtn = e.submitter || A.$('#builder [type=submit]');
+    if (submitBtn) submitBtn.disabled = true;
     A.api('POST', 'tests', {
       title: title,
       mode: mode,
@@ -135,7 +138,7 @@
         : 'Тест «' + title + '» опубликован: подобрано ' + r.picked + ' из ' + r.requested + ' ' + A.plural(r.requested, 'вопроса', 'вопросов', 'вопросов');
       A.toast(msg);
       setTimeout(function () { location.href = 'tests'; }, 1500);
-    });
+    }, function () { if (submitBtn) submitBtn.disabled = false; });
   });
 
   renderMatrix(); renderTopics(); summary();
