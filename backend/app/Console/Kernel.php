@@ -12,7 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Брошенные попытки досдаются и без захода студента или преподавателя на страницы
+        $schedule->command('attempts:finalize')->everyMinute()->withoutOverlapping();
     }
 
     /**

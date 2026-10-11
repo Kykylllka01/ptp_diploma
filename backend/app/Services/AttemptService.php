@@ -10,6 +10,7 @@ use App\Models\Review;
 use App\Models\Test;
 use App\Models\User;
 use App\Support\QueueWorker;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /** Попытки прохождения теста: старт, автосохранение, сдача и пересчёт после проверки преподавателем. */
@@ -26,17 +27,46 @@ class AttemptService
 
     public function start(Test $test, User $user): Attempt
     {
-        $attempt = $this->current($test, $user);
-        if ($attempt && ! $attempt->isSubmitted()) {
-            return $attempt;
-        }
+        // Двойной клик или предзагрузка страницы не должны создать две попытки и съесть пересдачу
+        return Cache::lock('attempt-start:'.$test->id.':'.$user->id, 10)->block(5, function () use ($test, $user) {
+            $attempt = $this->current($test, $user);
+            if ($attempt && ! $attempt->isSubmitted()) {
+                return $attempt;
+            }
 
-        return $test->attempts()->create([
-            'user_id' => $user->id,
-            'status' => 'in_progress',
-            'flags' => [],
-            'started_at' => now(),
-        ]);
+            return $test->attempts()->create([
+                'user_id' => $user->id,
+                'status' => 'in_progress',
+                'flags' => [],
+                'started_at' => now(),
+            ]);
+        });
+    }
+
+    /**
+     * Брошенные попытки (закрыл вкладку, вышло время, приём закрыт) сдаются с тем, что успело
+     * сохраниться: иначе они навсегда «в процессе», не видны в аналитике и закрывают студенту разбор.
+     *
+     * @return int сколько попыток сдано
+     */
+    public function finalizeOverdue(?Test $test = null, ?User $user = null): int
+    {
+        $done = 0;
+        Attempt::with('test')->where('status', 'in_progress')
+            ->when($test, fn ($q) => $q->where('test_id', $test->id))
+            ->when($user, fn ($q) => $q->where('user_id', $user->id))
+            ->get()
+            ->filter(fn (Attempt $a) => $a->isOverdue())
+            ->each(function (Attempt $a) use (&$done) {
+                try {
+                    $this->submit($a);
+                    $done++;
+                } catch (\Throwable $e) {
+                    report($e);   // учебная база недоступна и т. п. — досдадим в следующий раз
+                }
+            });
+
+        return $done;
     }
 
     /** Автосохранение: ответы по кодам вопросов, отметки и текущий вопрос. */
@@ -45,10 +75,15 @@ class AttemptService
         $questions = $attempt->test->questions->keyBy('code');
 
         DB::transaction(function () use ($attempt, $answers, $flags, $current, $questions) {
+            // Автосохранение, пришедшее после сдачи, не должно переписать уже оценённые ответы
+            if (Attempt::whereKey($attempt->id)->lockForUpdate()->value('status') !== 'in_progress') {
+                return;
+            }
             foreach ($answers as $code => $value) {
                 if (! $q = $questions->get($code)) {
                     continue;
                 }
+                $value = self::normalize($q, $value);
                 Answer::updateOrCreate(
                     ['attempt_id' => $attempt->id, 'question_id' => $q->id],
                     ['value' => $value, 'max_score' => $q->points],
@@ -62,6 +97,23 @@ class AttemptService
     }
 
     public function submit(Attempt $attempt): Attempt
+    {
+        // Двойная отправка: вторая ждёт первую и видит уже сданную попытку — без повторной оценки
+        $claimed = DB::transaction(fn () => Attempt::whereKey($attempt->id)->where('status', 'in_progress')
+            ->update(['status' => 'grading']) === 1);
+        if (! $claimed) {
+            return $attempt->fresh();
+        }
+        try {
+            return $this->grade($attempt->fresh());
+        } catch (\Throwable $e) {
+            // Оценка не удалась (учебная база недоступна) — попытку можно сдать снова
+            Attempt::whereKey($attempt->id)->where('status', 'grading')->update(['status' => 'in_progress']);
+            throw $e;
+        }
+    }
+
+    private function grade(Attempt $attempt): Attempt
     {
         $test = $attempt->test;
         $answers = $attempt->answers()->get()->keyBy('question_id');
@@ -110,6 +162,31 @@ class AttemptService
     }
 
     /** После подтверждения преподавателем переносим итоговый балл в ответ и пересчитываем попытку. */
+    /**
+     * Ответ к виду, который понимает проверка: номера вариантов — целые в пределах вопроса,
+     * SQL и развёрнутый ответ — строка. Иначе массив в SQL-вопросе ронял сдачу целиком.
+     */
+    public static function normalize(Question $q, mixed $value): mixed
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (in_array($q->type, ['sql', 'open'], true)) {
+            return is_scalar($value) ? (string) $value : null;
+        }
+        if (! is_array($value)) {
+            return null;
+        }
+        if ($q->type === 'match') {
+            $defs = count($q->matchParts()['definitions']);
+
+            return array_map(fn ($v) => is_numeric($v) && (int) $v >= 0 && (int) $v < $defs ? (int) $v : -1, array_values($value));
+        }
+        $count = count($q->options ?? []);
+
+        return array_values(array_unique(array_filter(array_map('intval', array_filter($value, 'is_numeric')), fn ($v) => $v >= 0 && $v < $count)));
+    }
+
     public function applyReview(Review $review): void
     {
         if (! $answer = $review->answer) {

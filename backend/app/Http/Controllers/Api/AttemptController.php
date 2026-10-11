@@ -9,6 +9,7 @@ use App\Services\AttemptService;
 use App\Services\SqlSandbox;
 use App\Support\CurrentUser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AttemptController extends Controller
 {
@@ -27,7 +28,7 @@ class AttemptController extends Controller
             return response()->json(['message' => 'Попытка уже сдана'], 409);
         }
 
-        if ($this->timeIsUp($attempt)) {
+        if ($attempt->isOverdue()) {
             return response()->json(['message' => 'Время на попытку вышло'], 409);
         }
 
@@ -43,7 +44,7 @@ class AttemptController extends Controller
         $this->authorizeOwner($attempt);
         if (! $attempt->isSubmitted()) {
             // После окончания времени принимаем только то, что уже сохранено
-            if (! $this->timeIsUp($attempt)) {
+            if (! $attempt->isOverdue()) {
                 $data = $request->validate($this->rules());
                 $this->attempts->save($attempt, $data['answers'] ?? [], $data['flags'] ?? [], $data['current'] ?? 0);
             }
@@ -68,10 +69,14 @@ class AttemptController extends Controller
         $data = $request->validate(['text' => 'required|string|min:5|max:2000']);
         $review = $answer->review;
         abort_unless($review !== null, 422, 'Апелляция возможна только по развёрнутому ответу');
+        // Одна апелляция на ответ: повторная перетирала бы прежнюю и снова снимала подтверждённую оценку
+        abort_if($review->appealed_at !== null, 409, 'Апелляция по этому ответу уже подана');
 
-        $review->update(['appeal' => $data['text'], 'appealed_at' => now(), 'status' => 'pending']);
-        $answer->update(['is_final' => false]);
-        $this->attempts->recalculate($answer->attempt);
+        DB::transaction(function () use ($review, $answer, $data) {
+            $review->update(['appeal' => $data['text'], 'appealed_at' => now(), 'status' => 'pending']);
+            $answer->update(['is_final' => false]);
+            $this->attempts->recalculate($answer->attempt);
+        });
 
         return ['ok' => true];
     }
@@ -93,20 +98,6 @@ class AttemptController extends Controller
             'flags' => 'array|max:300',
             'current' => 'integer|min:0',
         ];
-    }
-
-    /**
-     * Ответы больше не принимаются: время попытки или срок сдачи вышли (с запасом в минуту на сеть),
-     * либо преподаватель закрыл приём — тогда разбор уже может быть открыт, и дописывать ответы нельзя.
-     */
-    private function timeIsUp(Attempt $attempt): bool
-    {
-        $test = $attempt->test;
-        $minutes = (int) $test->minutes;
-
-        return $test->status !== 'running'
-            || ($minutes > 0 && $attempt->started_at && $attempt->started_at->copy()->addMinutes($minutes + 1)->isPast())
-            || ($test->deadline_at && $test->deadline_at->copy()->addMinute()->isPast());
     }
 
     private function authorizeOwner(Attempt $attempt): void

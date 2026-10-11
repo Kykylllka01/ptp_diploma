@@ -14,12 +14,14 @@ class ReviewController extends Controller
     /** Подтверждение оценки развёрнутого ответа преподавателем. */
     public function update(Request $request, Review $review, AttemptService $attempts, FrontendData $data)
     {
-        $max = array_sum(array_column($review->question->criteria ?? [], 1)) ?: $review->question->points;
-        $valid = $request->validate([
-            'scores' => 'required|array',
-            'scores.*' => 'integer|min:0',
-            'comment' => 'nullable|string|max:5000',
-        ]);
+        $criteria = $review->question->criteria ?: [['Ответ', $review->question->points]];
+        $max = array_sum(array_column($criteria, 1));
+        // По баллу на каждый критерий и не больше его максимума — иначе студент увидит «5 / 2»
+        $rules = ['scores' => 'required|array|size:'.count($criteria), 'comment' => 'nullable|string|max:5000'];
+        foreach ($criteria as $i => [, $cmax]) {
+            $rules['scores.'.$i] = 'required|integer|min:0|max:'.(int) $cmax;
+        }
+        $valid = $request->validate($rules);
         $final = min($max, array_sum($valid['scores']));
 
         $review->update([

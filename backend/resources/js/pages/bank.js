@@ -185,7 +185,8 @@
       var draft = (M.tests || []).filter(function (t) { return t.status === 'draft'; }).pop();
       if (!draft) { A.toast('Нет черновика теста. Создайте его на странице «Тесты»'); return; }
       A.api('POST', 'tests/' + encodeURIComponent(draft.id) + '/questions', { ids: ids }).then(function (r) {
-        A.toast(r.added + ' ' + A.plural(r.added, 'вопрос', 'вопроса', 'вопросов') + ' добавлено в тест «' + draft.title + '»');
+        A.toast(r.added + ' ' + A.plural(r.added, 'вопрос', 'вопроса', 'вопросов') + ' добавлено в тест «' + draft.title + '»' +
+          (r.skipped ? ' · пропущено неодобренных: ' + r.skipped : ''));
       });
     }
   });
