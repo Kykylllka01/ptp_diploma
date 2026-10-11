@@ -81,6 +81,9 @@ fieldset { min-width: 0; }
 .page-title { margin-top: 8px; font-size: 34px; font-weight: 700; }
 .page-sub { margin: 8px 0 0; color: var(--muted); font-size: 16px; }
 .back { font-size: 14px; text-decoration: none; }
+/* Строка таблицы, по которой можно кликнуть целиком (список тестов в аналитике) */
+.table tr.is-clickable { cursor: pointer; }
+.table tr.is-clickable:hover td { background: var(--bg); }
 .actions { display: flex; flex-wrap: wrap; gap: 12px; }
 .actions--sm { gap: 10px; }
 

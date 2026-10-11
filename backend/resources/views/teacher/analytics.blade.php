@@ -8,7 +8,8 @@
 <main class="page">
   <div class="page-head">
     <div>
-      <div class="lbl" id="test-status">Тест</div>
+      <a href="analytics" class="back">← Все тесты</a>
+      <div class="lbl" id="test-status" style="margin-top: 10px">Тест</div>
       <h1 class="page-title" id="title"></h1>
     </div>
     <div class="actions">
@@ -30,7 +31,7 @@
       <h2 class="card-title">По темам</h2>
       <div class="stack small" style="margin-top: 18px" id="topics"></div>
       <div class="note" style="margin-top: 20px; color: var(--text)"><b class="strong">Вывод агента:</b> <span id="insight"></span>
-        <div style="margin-top: 10px"><a href="test-builder?training=1" class="strong">Создать тренировку</a></div></div>
+        <div style="margin-top: 10px" id="insight-training"><a href="test-builder?training=1" class="strong">Создать тренировку</a></div></div>
     </aside>
   </div>
 

@@ -63,7 +63,8 @@ class FlowTest extends TestCase
 
         $this->actingAs($this->teacher());
         foreach (['/teacher/dashboard', '/teacher/upload', '/teacher/pipeline', '/teacher/bank', '/teacher/question?id=Q-1',
-            '/teacher/test-builder', '/teacher/tests', '/teacher/preview?test=m1', '/teacher/analytics', '/teacher/review', '/profile'] as $url) {
+            '/teacher/test-builder', '/teacher/tests', '/teacher/preview?test=m1', '/teacher/analytics', '/teacher/analytics?test=m1',
+            '/teacher/review', '/profile'] as $url) {
             $this->get($url)->assertOk();
         }
         $this->actingAs($this->student());
@@ -124,6 +125,34 @@ class FlowTest extends TestCase
 
         $this->assertEquals(4, $answers['Q-044']->fresh()->score);
         $this->assertSame('confirmed', $attempt->fresh()->status);
+    }
+
+    public function test_analytics_lists_tests_and_opens_the_chosen_one(): void
+    {
+        $open = $this->question('Q-2', ['type' => 'open', 'points' => 2, 'text' => 'Опишите 1НФ', 'reference' => 'Атомарные значения']);
+        $this->makeTest('m1', [$this->singleQuestion('Q-1'), $open]);
+        $this->makeTest('m2', [$this->singleQuestion('Q-3')]);
+        $this->makeTest('d1', [$this->singleQuestion('Q-4')], ['status' => 'draft']);
+
+        $this->actingAs($this->student())->get('/student/test?test=m1')->assertOk();
+        $attempt = Attempt::firstOrFail();
+        $this->postJson("/api/attempts/{$attempt->id}/submit", ['answers' => ['Q-1' => [0], 'Q-2' => 'Каждое значение атомарно']])->assertOk();
+
+        $this->actingAs($this->teacher());
+        $list = $this->get('/teacher/analytics')->assertOk()->assertViewIs('teacher.analytics-tests')->viewData('appData');
+        $this->assertSame(1, $list['analyticsTests']['m1']['pending']);       // развёрнутый ответ ждёт преподавателя
+        $this->assertNotNull($list['analyticsTests']['m1']['lastSubmitted']);
+        $this->assertNull($list['analyticsTests']['m2']['lastSubmitted']);     // по m2 сдач нет
+
+        $detail = $this->get('/teacher/analytics?test=m1')->assertOk()->assertViewIs('teacher.analytics')->viewData('appData');
+        $this->assertSame('m1', $detail['analytics']['testId']);
+        $this->assertSame(1, $detail['analytics']['submitted']);
+        // По одной сдаче выводов «слабее всего тема…» не делаем
+        $this->assertFalse($detail['analytics']['insightReady']);
+        $this->assertStringContainsString('выводы появятся', $detail['analytics']['insight']);
+        // Тест без сдач: тем с «0 %» нет — по ним просто нет данных
+        $this->assertSame([], $this->get('/teacher/analytics?test=m2')->viewData('appData')['analytics']['topics']);
+        $this->get('/teacher/analytics?test=nope')->assertNotFound();
     }
 
     public function test_sql_sandbox_allows_only_select(): void
