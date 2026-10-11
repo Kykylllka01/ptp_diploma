@@ -100,6 +100,8 @@ class GenerationPipeline
                 foreach ($drafts as $draft) {
                     $this->guard($run);
                     $run->increment('written');
+                    $verdict = null;
+                    $failure = null;
                     try {
                         $verdict = $this->critic->review($draft);
 
@@ -117,10 +119,12 @@ class GenerationPipeline
                         throw $e;
                     } catch (Throwable $e) {
                         // Сбой модели — не «плохой вопрос»: черновик уже оплачен, сохраняем его спорным,
-                        // решает преподаватель. Подряд идущие сбои (нет баланса, сеть) останавливают запуск
-                        $this->failedStep($run, 'critic', 'вопрос не проверен, сохранён для проверки преподавателем', $e);
-                        $verdict = ['verdict' => 'dispute', 'score' => null, 'checks' => [],
-                            'flag' => ['text' => 'Критик не смог проверить вопрос — проверьте сами', 'level' => 'amber']];
+                        // решает преподаватель. Если упала доработка, остаётся последний вердикт Критика
+                        $failure = $e;
+                        $verdict = $verdict
+                            ? ['verdict' => 'dispute'] + $verdict
+                            : ['verdict' => 'dispute', 'score' => null, 'checks' => [],
+                                'flag' => ['text' => 'Критик не смог проверить вопрос — проверьте сами', 'level' => 'amber']];
                     }
                     $run->increment('checked');
                     $run->setAgentState('critic', ['work', 'Работает', 'Проверено '.$run->checked.' из '.$run->written]);
@@ -138,6 +142,10 @@ class GenerationPipeline
                     $created->push($q);
                     if ($verdict['verdict'] === 'dispute') {
                         $run->log('critic', $q->code.' спорный → к преподавателю');
+                    }
+                    // Подряд идущие сбои (нет баланса, сеть) останавливают запуск — но уже после сохранения черновика
+                    if ($failure) {
+                        $this->failedStep($run, 'critic', $q->code.' не проверен, сохранён для проверки преподавателем', $failure);
                     }
                 }
             }
@@ -185,7 +193,10 @@ class GenerationPipeline
             if ($this->errors) {
                 $run->log('analyst', 'запуск завершён с ошибками модели: '.$this->errors.' — подробности выше');
             }
-            $run->update(['status' => 'done', 'finished_at' => now()]);
+            // Только если запуск всё ещё наш: failed, записанный задачей очереди, не перезаписываем
+            GenerationRun::whereKey($run->id)->where('status', 'running')->update(['status' => 'done', 'finished_at' => now()]);
+        } catch (RunAborted) {
+            // Статус и причину уже записал markFailed
         } catch (RunCancelled) {
             // Остановлено преподавателем: уже сохранённые вопросы остаются в банке
             $states = $run->fresh()->agent_states ?? [];
@@ -252,7 +263,10 @@ class GenerationPipeline
     {
         report($e);
         $this->errors++;
-        $this->inARow++;
+        // Неверный JSON — сбой качества одного ответа; подряд считаем только недоступность модели
+        if (! $e instanceof \App\Agents\Llm\LlmInvalidAnswer) {
+            $this->inARow++;
+        }
         $this->lastError = mb_substr($e->getMessage(), 0, 200);
         $run->log($agent, $what.': '.$this->lastError);
         if ($this->inARow >= self::MAX_FAILURES_IN_A_ROW) {
@@ -263,8 +277,14 @@ class GenerationPipeline
     /** Проверка между шагами: не нажал ли преподаватель «Остановить». */
     private function guard(GenerationRun $run): void
     {
-        if (GenerationRun::whereKey($run->id)->value('status') === 'cancelling') {
+        $status = GenerationRun::whereKey($run->id)->value('status');
+        if ($status === 'cancelling') {
             throw new RunCancelled();
+        }
+        // Задачу уже признали упавшей (например, второй обработчик очереди по таймауту),
+        // а этот процесс ещё работает — дальше не тратим токены и не перезаписываем статус
+        if ($status === 'failed') {
+            throw new RunAborted();
         }
     }
 

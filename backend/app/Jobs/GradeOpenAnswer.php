@@ -26,10 +26,11 @@ class GradeOpenAnswer implements ShouldQueue
 
     public int $timeout = 600;
 
-    /** Повтор после сбоя (сеть, 5xx): уже готовую оценку повтор не трогает — проверка is_final и updateOrCreate */
-    public int $tries = 2;
-
-    public int $backoff = 60;
+    /**
+     * Одна попытка: сетевые сбои повторяет клиент модели, а упавший прогон Оценщик заменяет следующим.
+     * Отложенный повтор очереди не сработал бы — обработчик запускается с --stop-when-empty и выходит раньше.
+     */
+    public int $tries = 1;
 
     public function __construct(public int $answerId)
     {

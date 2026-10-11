@@ -82,7 +82,7 @@ class AgentLlm
             $messages[] = ['role' => 'user', 'content' => 'Ответ не соответствует требованиям: '.$error.'. Верни исправленный JSON целиком, без пояснений.'];
         }
 
-        throw new RuntimeException('Агент «'.$agent.'» вернул неверный ответ: '.$lastError);
+        throw new LlmInvalidAnswer('Агент «'.$agent.'» вернул неверный ответ: '.$lastError);
     }
 
     /** Токены, время и стоимость вызова для журнала. */
@@ -106,7 +106,8 @@ class AgentLlm
     public static function cost(string $model, int $in, int $cached, int $out, ?\DateTimeInterface $at = null): float
     {
         $prices = config('agents.prices');
-        $p = $prices[$model] ?? (str_contains($model, 'pro') ? ($prices['deepseek-v4-pro'] ?? null) : ($prices['deepseek-flash'] ?? null));
+        // Неизвестная модель (локальная, другой провайдер) — цены нет, не выдумываем
+        $p = $prices[$model] ?? (str_starts_with($model, 'deepseek') ? ($prices[str_contains($model, 'pro') ? 'deepseek-v4-pro' : 'deepseek-flash'] ?? null) : null);
         if (! $p) {
             return 0.0;
         }

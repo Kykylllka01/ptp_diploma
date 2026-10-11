@@ -53,9 +53,10 @@ class LlmGraderAgent implements GraderAgent
             $values = array_column(array_column($runs, 'criteria'), $i);
             $points = array_column($values, 'score');
             sort($points);
-            $median = $points[intdiv(count($points), 2)];
-            $statuses = array_column($values, 'status');
-            if (count(array_unique($statuses)) === 1) {
+            // Нижняя медиана: при двух разошедшихся прогонах сомнение не в пользу завышения
+            $median = $points[intdiv(count($points) - 1, 2)];
+            // Согласие — одинаковый балл, а не только статус («частично» на 1 и на 2 балла — разное)
+            if (count(array_unique($points)) === 1) {
                 $agreed++;
             }
             $status = $median >= $max ? 'ok' : ($median > 0 ? 'part' : 'no');
@@ -218,7 +219,8 @@ class LlmGraderAgent implements GraderAgent
     {
         $ranges = [];
         foreach (array_unique($evidence) as $e) {
-            $e = trim($e, " .…\"«»");
+            // Модель видела ответ с ‹ › вместо < > (см. message) — цитату ищем в исходном ответе
+            $e = trim(strtr($e, ['‹' => '<', '›' => '>']), " .…\"«»");
             if (mb_strlen($e) < 4) {
                 continue;
             }

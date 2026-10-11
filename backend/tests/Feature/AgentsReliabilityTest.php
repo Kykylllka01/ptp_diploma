@@ -37,7 +37,7 @@ class AgentsReliabilityTest extends TestCase
     {
         return $this->actingAs($this->teacher())->postJson('/api/materials', [
             'title' => 'Нормализация',
-            'text' => 'Нормализация — процесс приведения отношений к нормальным формам. Первая нормальная форма требует атомарных значений. '
+            'text' => 'Нормализация ('.uniqid().') — процесс приведения отношений к нормальным формам. Первая нормальная форма требует атомарных значений. '
                 .'Вторая нормальная форма устраняет частичные зависимости от составного ключа.',
         ])->assertOk()->json();
     }
@@ -205,6 +205,49 @@ class AgentsReliabilityTest extends TestCase
 
         $this->assertSame(3, $calls);
         $this->assertSame(3, array_sum(array_column($r['scores'], 0)));
+    }
+
+    public function test_two_disagreeing_runs_take_the_lower_score(): void
+    {
+        // Третий прогон упал: остались 2 и 1 балл — берём нижнюю медиану, согласия нет
+        [$r] = $this->grader([self::run2(2, 'ok', 1, 'ok'), self::run2(1, 'part', 1, 'ok'), new RuntimeException('HTTP 500')]);
+
+        $this->assertSame(1, $r['scores'][0][0]);
+        $this->assertLessThan(100, $r['confidence']);
+    }
+
+    public function test_run_marked_failed_from_outside_is_not_overwritten_by_done(): void
+    {
+        $material = $this->material();
+        // Пока Критик работает, «второй обработчик очереди» признаёт задачу упавшей
+        $this->app->bind(CriticAgent::class, fn () => new class implements CriticAgent
+        {
+            public function review(array $draft): array
+            {
+                GenerationRun::query()->update(['status' => 'failed', 'error' => 'Job has been attempted too many times']);
+
+                return ['verdict' => 'accept', 'score' => 90, 'checks' => [], 'flag' => null];
+            }
+        });
+
+        $run = $this->generate($material, 3);
+
+        $this->assertSame('failed', $run->status);
+        $this->assertSame(1, $run->written);   // после первого вопроса конвейер остановился
+    }
+
+    public function test_cost_uses_peak_and_off_peak_prices(): void
+    {
+        $monday9utc = new \DateTimeImmutable('2026-10-12 09:00:00', new \DateTimeZone('UTC'));
+        $monday12utc = new \DateTimeImmutable('2026-10-12 12:00:00', new \DateTimeZone('UTC'));
+
+        // 1 млн входа без кэша + 1 млн выхода на flash: 0,30 + 1,20 в пик, вдвое меньше вне пика
+        $this->assertEqualsWithDelta(1.5, AgentLlm::cost('deepseek-flash', 1_000_000, 0, 1_000_000, $monday9utc), 1e-6);
+        $this->assertEqualsWithDelta(0.75, AgentLlm::cost('deepseek-flash', 1_000_000, 0, 1_000_000, $monday12utc), 1e-6);
+        // Вход из кэша в 50 раз дешевле
+        $this->assertEqualsWithDelta(0.006, AgentLlm::cost('deepseek-flash', 1_000_000, 1_000_000, 0, $monday9utc), 1e-6);
+        // Неизвестная модель — цены нет
+        $this->assertSame(0.0, AgentLlm::cost('qwen-local', 1_000_000, 0, 1_000_000));
     }
 
     public function test_grader_treats_self_contradiction_as_doubt(): void

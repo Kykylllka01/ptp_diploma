@@ -83,7 +83,9 @@ class HttpLlmClient implements LlmClient
                     $body = $e instanceof RequestException ? mb_substr((string) $e->response->body(), 0, 500) : $e->getMessage();
                     throw new RuntimeException('Ошибка API модели'.($status ? ' (HTTP '.$status.')' : '').': '.$body, 0, $e);
                 }
-                sleep(2 ** ($attempt + 1));
+                // 429 — лимит частоты: ждём, сколько просит сервер, иначе дольше обычного
+                $wait = $status === 429 ? max(5, (int) ($e->response->header('Retry-After') ?: 0), 5 * 2 ** $attempt) : 2 ** ($attempt + 1);
+                sleep(min(60, $wait));
             }
         }
 
