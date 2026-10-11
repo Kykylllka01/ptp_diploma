@@ -58,7 +58,7 @@ return [
             'max_tokens' => 32000,
             // low вместо high: вопросы того же качества (Критик 9–10 из 10), рассуждения на треть меньше
             'effort' => 'low',
-            'prompt' => 'writer.v2',
+            'prompt' => 'writer.v3',
         ],
         // Критик на Flash: на контрольном наборе (agents:critic-eval, 12 исправных + 12 испорченных
         // вопросов) Flash поймал 12 из 12 ошибок против 11 у Pro при втрое меньшей цене. Рассуждение
@@ -69,7 +69,7 @@ return [
             'max_tokens' => 8000,
             'effort' => 'low',
             'thinking_types' => ['open', 'sql'],
-            'prompt' => 'critic.v1',
+            'prompt' => 'critic.v2',
         ],
         'catalog' => [
             'model' => env('LLM_MODEL_CATALOG', 'deepseek-flash'),
