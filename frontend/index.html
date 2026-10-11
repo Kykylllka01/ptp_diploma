@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Экраны прототипа — ТюмГУ</title>
+<link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body data-root="">
+<header class="site-header">
+  <div class="site-header__inner">
+    <span class="brand"><img src="assets/img/logo.png" alt=""><span>ТюмГУ</span></span>
+    <span class="muted small" style="flex: 1">Банк вопросов и тестирование · тестовый фронт на моковых данных</span>
+  </div>
+</header>
+
+<main class="page">
+  <div class="page-head">
+    <div>
+      <div class="lbl">Курс · Базы данных</div>
+      <h1 class="page-title">Все экраны</h1>
+      <p class="page-sub">Данные ненастоящие. Действия (одобрить вопрос, подтвердить оценку, пройти тест) сохраняются в браузере и видны на соседних экранах.</p>
+    </div>
+    <button type="button" class="btn" id="reset">Сбросить демо-данные</button>
+  </div>
+
+  <section class="stack">
+    <h2 class="card-title">Преподаватель</h2>
+    <div class="screens">
+      <a class="card" href="teacher/dashboard.html"><b>1. Обзор</b><span class="muted small">Сводка, материалы, агенты, тесты</span></a>
+      <a class="card" href="teacher/upload.html"><b>2. Загрузка материалов</b><span class="muted small">Файлы и параметры генерации</span></a>
+      <a class="card" href="teacher/pipeline.html"><b>3. Работа агентов</b><span class="muted small">Имитация конвейера и журнал</span></a>
+      <a class="card" href="teacher/bank.html"><b>4. Банк вопросов</b><span class="muted small">Фильтры, поиск, массовые действия</span></a>
+      <a class="card" href="teacher/question.html?id=Q-121"><b>5. Проверка вопроса</b><span class="muted small">Редактор и заключение критика</span></a>
+      <a class="card" href="teacher/test-builder.html"><b>6. Сборка теста</b><span class="muted small">Матрица состава, итог на лету</span></a>
+      <a class="card" href="teacher/analytics.html"><b>7. Результаты и аналитика</b><span class="muted small">Распределение, темы, проблемные вопросы</span></a>
+      <a class="card" href="teacher/review.html"><b>8. Проверка открытых ответов</b><span class="muted small">Балл агента и подтверждение</span></a>
+    </div>
+  </section>
+
+  <section class="stack">
+    <h2 class="card-title">Студент</h2>
+    <div class="screens">
+      <a class="card" href="student/tests.html"><b>9. Мои тесты</b><span class="muted small">Назначенные, тренировка, пройденные</span></a>
+      <a class="card" href="student/test.html"><b>10–11. Прохождение теста</b><span class="muted small">Варианты, SQL, развёрнутый ответ, таймер</span></a>
+      <a class="card" href="student/result.html"><b>12. Результат и разбор</b><span class="muted small">Баллы по темам и разбор ответов</span></a>
+    </div>
+  </section>
+</main>
+
+<script src="assets/js/mock-data.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  document.getElementById('reset').addEventListener('click', function () {
+    App.store.reset();
+    App.toast('Демо-данные сброшены');
+  });
+</script>
+</body>
+</html>

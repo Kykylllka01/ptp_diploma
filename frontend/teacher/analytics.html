@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Результаты и аналитика — ТюмГУ</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+</head>
+<body data-root="../">
+<header data-layout="teacher" data-active="analytics"></header>
+
+<main class="page">
+  <div class="page-head">
+    <div>
+      <div class="lbl">Тест · идёт до 10 октября</div>
+      <h1 class="page-title" id="title"></h1>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" id="export">Экспорт в Excel</button>
+      <a href="review.html" class="btn btn--primary" id="to-review"></a>
+    </div>
+  </div>
+
+  <div class="grid-stats" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr))" id="stats"></div>
+
+  <div class="split split--stretch">
+    <section class="card card--pad split__main" style="gap: 0">
+      <h2 class="card-title">Распределение баллов</h2>
+      <div class="hist" id="hist" role="img"></div>
+      <div class="hist-axis" id="hist-axis"></div>
+    </section>
+    <aside class="card card--pad split__side" style="flex-basis: 340px">
+      <h2 class="card-title">По темам</h2>
+      <div class="stack small" style="margin-top: 18px" id="topics"></div>
+      <div class="note" style="margin-top: 20px; color: var(--text)"><b class="strong">Вывод агента:</b> <span id="insight"></span>
+        <div style="margin-top: 10px"><a href="test-builder.html" class="strong">Создать тренировку</a></div></div>
+    </aside>
+  </div>
+
+  <section class="card card--pad">
+    <div class="between"><h2 class="card-title">Вопросы</h2><span class="muted small">Отсортировано: сначала проблемные</span></div>
+    <div class="table-wrap">
+      <table class="table" style="min-width: 820px">
+        <thead><tr><th>Вопрос</th><th>Тип</th><th style="width: 200px">Верно ответили</th><th>Сигнал</th><th></th></tr></thead>
+        <tbody id="problems"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="../assets/js/mock-data.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/pages/analytics.js"></script>
+</body>
+</html>

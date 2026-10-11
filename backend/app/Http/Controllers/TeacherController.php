@@ -1,0 +1,88 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\GenerationRun;
+use App\Models\Test;
+use App\Services\FrontendData;
+use Illuminate\Http\Request;
+
+/** Экраны преподавателя (1–8). Данные уходят в шаблон как window.APP_DATA. */
+class TeacherController extends Controller
+{
+    public function __construct(private FrontendData $data)
+    {
+    }
+
+    public function dashboard()
+    {
+        return $this->page('dashboard', 'Обзор');
+    }
+
+    public function upload()
+    {
+        return $this->page('upload', 'Загрузка материалов', 'materials');
+    }
+
+    public function pipeline(Request $request)
+    {
+        $run = $request->filled('run') ? GenerationRun::findOrFail($request->run) : GenerationRun::latest('id')->first();
+
+        return $this->page('pipeline', 'Работа агентов', 'materials', $this->data->pipeline($run));
+    }
+
+    public function bank()
+    {
+        return $this->page('bank', 'Банк вопросов');
+    }
+
+    public function question()
+    {
+        return $this->page('question', 'Проверка вопроса', 'bank');
+    }
+
+    public function testBuilder()
+    {
+        return $this->page('test-builder', 'Сборка теста', 'tests');
+    }
+
+    public function tests()
+    {
+        return $this->page('tests', 'Тесты', 'tests');
+    }
+
+    /** Пробное прохождение теста преподавателем: без попытки, с проверкой и ключами. */
+    public function preview(Request $request)
+    {
+        $test = Test::where('code', $request->query('test'))->firstOrFail();
+
+        return view('student.test', [
+            'title' => 'Проверка теста: '.$test->title,
+            'script' => 'test-player',
+            'testTitle' => $test->title,
+            'appData' => $this->data->teacher() + $this->data->attempt($test, null) + ['mode' => 'preview'],
+        ]);
+    }
+
+    public function analytics(Request $request)
+    {
+        $test = $request->filled('test') ? Test::where('code', $request->test)->firstOrFail() : null;
+
+        return $this->page('analytics', 'Результаты и аналитика', 'analytics', $this->data->analytics($test));
+    }
+
+    public function review()
+    {
+        return $this->page('review', 'Проверка открытых ответов', 'analytics');
+    }
+
+    private function page(string $view, string $title, ?string $active = null, array $extra = [])
+    {
+        return view('teacher.'.$view, [
+            'title' => $title,
+            'active' => $active ?? $view,
+            'appData' => $this->data->teacher() + $extra,
+            'script' => $view,
+        ]);
+    }
+}

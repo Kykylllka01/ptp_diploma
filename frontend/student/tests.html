@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мои тесты — ТюмГУ</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+</head>
+<body data-root="../">
+<header data-layout="student" data-active="tests"></header>
+
+<main class="page" style="gap: 32px">
+  <div>
+    <div class="lbl">Базы данных · осенний семестр</div>
+    <h1 class="page-title">Мои тесты</h1>
+  </div>
+
+  <section class="stack" style="gap: 14px">
+    <h2 class="card-title">Нужно пройти</h2>
+    <div class="grid-tests" id="todo"></div>
+  </section>
+
+  <section class="card card--pad card--dark row-wrap" id="training" style="gap: 20px">
+    <div style="flex: 1; min-width: 280px">
+      <h2 style="font-size: 22px">Тренировка по материалам курса</h2>
+      <p style="margin: 8px 0 0; font-size: 15px; line-height: 1.5">Выберите тему — агенты соберут вопросы из банка и дадут подсказку после каждой ошибки. Без оценки.</p>
+      <div class="row-wrap" style="margin-top: 14px" id="train-topics" role="group" aria-label="Тема тренировки">
+        <button type="button" class="chip chip--dark is-on" aria-pressed="true">Нормализация · рекомендовано</button>
+        <button type="button" class="chip chip--dark" aria-pressed="false">SQL-запросы</button>
+        <button type="button" class="chip chip--dark" aria-pressed="false">Все темы</button>
+      </div>
+    </div>
+    <a href="test.html?mode=training" class="btn btn--white">Начать тренировку</a>
+  </section>
+
+  <section class="stack" style="gap: 14px">
+    <h2 class="card-title">Пройдено</h2>
+    <div class="card card--clip" id="done"></div>
+  </section>
+</main>
+
+<script src="../assets/js/mock-data.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/pages/student-tests.js"></script>
+</body>
+</html>

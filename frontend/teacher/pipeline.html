@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Работа агентов — ТюмГУ</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+</head>
+<body data-root="../">
+<header data-layout="teacher" data-active="materials"></header>
+
+<main class="page" style="gap: 28px">
+  <div class="page-head">
+    <div>
+      <div class="lbl">Лекция 4 · Семинар 4 · 60 вопросов</div>
+      <h1 class="page-title" id="title">Агенты работают над вопросами</h1>
+      <p class="page-sub" id="eta">Осталось около 2 минут. Готовые вопросы появляются ниже сразу.</p>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn" id="stop">Остановить</button>
+      <a href="bank.html" class="btn btn--primary">Открыть банк вопросов</a>
+    </div>
+  </div>
+
+  <div class="card" style="padding: 20px 24px">
+    <div class="between small muted"><span>Общий прогресс</span><span class="mono" id="total-label">0 / 60</span></div>
+    <div class="progress progress--lg" style="margin-top: 10px"><div id="total-bar" style="width: 0%"></div></div>
+  </div>
+
+  <div class="grid-stats" id="agents"></div>
+
+  <div class="split">
+    <section class="card card--pad split__main" style="gap: 0">
+      <h2 class="card-title">Только что созданы</h2>
+      <div class="stack-sm" style="margin-top: 14px; gap: 12px" id="fresh"></div>
+    </section>
+    <aside class="card log split__side" style="flex-basis: 340px">
+      <div class="log__head"><span>Журнал агентов</span><span class="mono xsmall" style="color: #9AA1B0" id="live">live</span></div>
+      <div class="log__body" id="log" aria-live="polite"></div>
+    </aside>
+  </div>
+</main>
+
+<script src="../assets/js/mock-data.js"></script>
+<script src="../assets/js/app.js"></script>
+<script src="../assets/js/pages/pipeline.js"></script>
+</body>
+</html>

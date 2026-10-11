@@ -1,0 +1,9 @@
+# Системный мусор
+Thumbs.db
+desktop.ini
+.DS_Store
+~$*
+*.log
+
+# Локальные настройки Claude Code
+.claude/settings.local.json
