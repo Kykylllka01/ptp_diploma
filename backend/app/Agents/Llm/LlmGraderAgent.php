@@ -25,10 +25,25 @@ class LlmGraderAgent implements GraderAgent
         $user = $this->message($question, $criteria, $answer);
         $course = $question->course->title ?? 'Базы данных';
 
+        // Адаптивное число прогонов: сначала min_runs (2); если они разошлись хоть по одному
+        // критерию или модель сомневается — добираем до runs (3). Запрос у прогонов одинаковый,
+        // поэтому со второго прогона вход берётся из кэша DeepSeek почти целиком.
+        $maxRuns = max(1, (int) config('agents.agents.grader.runs', 3));
+        $minRuns = min($maxRuns, max(1, (int) config('agents.agents.grader.min_runs', 2)));
         $runs = [];
-        for ($i = 0; $i < (int) config('agents.agents.grader.runs', 3); $i++) {
-            $json = $this->llm->json('grader', $user, ['course' => $course], fn ($j) => $this->validate($j, $criteria));
-            $runs[] = $this->normalize($json, $criteria);
+        $failure = null;
+        for ($i = 0; $i < $maxRuns && ($i < $minRuns || ! $this->settled($runs)); $i++) {
+            try {
+                $json = $this->llm->json('grader', $user, ['course' => $course], fn ($j) => $this->validate($j, $criteria));
+                $runs[] = $this->normalize($json, $criteria);
+            } catch (\Throwable $e) {
+                // Сбой одного прогона не обесценивает уже оплаченные
+                $failure = $e;
+                $minRuns = min($maxRuns, $minRuns + 1);
+            }
+        }
+        if (! $runs) {
+            throw $failure ?? new \RuntimeException('Оценщик не дал ни одного ответа');
         }
 
         $scores = [];
@@ -38,9 +53,10 @@ class LlmGraderAgent implements GraderAgent
             $values = array_column(array_column($runs, 'criteria'), $i);
             $points = array_column($values, 'score');
             sort($points);
-            $median = $points[intdiv(count($points), 2)];
-            $statuses = array_column($values, 'status');
-            if (count(array_unique($statuses)) === 1) {
+            // Нижняя медиана: при двух разошедшихся прогонах сомнение не в пользу завышения
+            $median = $points[intdiv(count($points) - 1, 2)];
+            // Согласие — одинаковый балл, а не только статус («частично» на 1 и на 2 балла — разное)
+            if (count(array_unique($points)) === 1) {
                 $agreed++;
             }
             $status = $median >= $max ? 'ok' : ($median > 0 ? 'part' : 'no');
@@ -59,6 +75,10 @@ class LlmGraderAgent implements GraderAgent
         }
         if (mb_strlen(trim($answer)) < 40) {
             $confidence = min($confidence, 60);
+        }
+        if (count($runs) < 2) {
+            // Один прогон (остальные упали) — согласие не с чем сравнить
+            $confidence = min($confidence, 40);
         }
         if ($injection) {
             $confidence = 0;
@@ -93,7 +113,27 @@ class LlmGraderAgent implements GraderAgent
             $msg .= '<примеры_оценок_преподавателя>'."\n".implode("\n\n", $examples)."\n".'</примеры_оценок_преподавателя>'."\n";
         }
 
-        return $msg.'<ответ_студента>'."\n".$answer."\n".'</ответ_студента>';
+        // Угловые скобки в ответе заменены: студент не может «закрыть» тег и дописать инструкции проверяющему
+        return $msg.'<ответ_студента>'."\n".strtr($answer, ['<' => '‹', '>' => '›'])."\n".'</ответ_студента>';
+    }
+
+    /**
+     * Прогоны сошлись: по каждому критерию одинаковые балл и статус, никто не сомневается
+     * и не заметил попытки «уговорить» проверяющего. Тогда третий прогон ничего не добавит.
+     */
+    private function settled(array $runs): bool
+    {
+        if (count($runs) < 2 || collect($runs)->contains(fn ($r) => $r['uncertain'] || $r['injection'])) {
+            return false;
+        }
+        $first = array_map(fn ($c) => [$c['score'], $c['status']], $runs[0]['criteria']);
+        foreach (array_slice($runs, 1) as $r) {
+            if (array_map(fn ($c) => [$c['score'], $c['status']], $r['criteria']) !== $first) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** До трёх подтверждённых преподавателем ответов на этот вопрос: сильный, средний, слабый. */
@@ -143,10 +183,13 @@ class LlmGraderAgent implements GraderAgent
     {
         $byIndex = collect($j['criteria'])->keyBy(fn ($c) => (int) $c['index']);
         $out = [];
+        $conflict = false;
         foreach ($criteria as $i => [, $max]) {
             $c = $byIndex->get($i);
             $score = (int) round(min($max, max(0, (float) $c['score'])));
             $status = in_array($c['status'] ?? '', ['ok', 'part', 'no'], true) ? $c['status'] : 'no';
+            // Модель сама себе противоречит («выполнено», но 0 баллов) — это сомнение, а не уверенный ответ
+            $conflict = $conflict || ($status === 'ok' && $score < $max) || ($status === 'no' && $score > 0);
             // Балл и статус должны быть согласованы: ok — максимум, no — ноль
             if ($status === 'ok') {
                 $score = $max;
@@ -166,7 +209,7 @@ class LlmGraderAgent implements GraderAgent
         return [
             'criteria' => $out,
             'injection' => ! empty($j['injection']),
-            'uncertain' => ! empty($j['uncertain']),
+            'uncertain' => ! empty($j['uncertain']) || $conflict,
             'comment' => trim((string) ($j['comment'] ?? '')),
         ];
     }
@@ -176,7 +219,8 @@ class LlmGraderAgent implements GraderAgent
     {
         $ranges = [];
         foreach (array_unique($evidence) as $e) {
-            $e = trim($e, " .…\"«»");
+            // Модель видела ответ с ‹ › вместо < > (см. message) — цитату ищем в исходном ответе
+            $e = trim(strtr($e, ['‹' => '<', '›' => '>']), " .…\"«»");
             if (mb_strlen($e) < 4) {
                 continue;
             }

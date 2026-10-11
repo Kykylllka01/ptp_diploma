@@ -24,7 +24,8 @@
   }
 
   function render() {
-    var tones = { done: 'green', work: 'blue', wait: 'gray' };
+    // warn — шаг завершён, но часть работы не удалась (подробности в журнале); error — запуск упал
+    var tones = { done: 'green', work: 'blue', wait: 'gray', warn: 'amber', error: 'red' };
     A.$('#agents').innerHTML = agents.map(function (a) {
       var st = run.states[a.id] || ['wait', 'Ожидает', ''];
       return '<div class="card agent ' + (st[0] === 'done' ? 'is-done' : st[0] === 'work' ? 'is-work' : '') + (a.id === 'writer' && st[0] === 'work' ? ' is-focus' : '') + '">' +

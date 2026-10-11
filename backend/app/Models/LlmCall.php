@@ -9,6 +9,6 @@ class LlmCall extends Model
 {
     protected $fillable = [
         'agent', 'model', 'prompt_version', 'generation_run_id', 'answer_id',
-        'tokens_in', 'tokens_out', 'tokens_reasoning', 'ms', 'status', 'request', 'response', 'error',
+        'tokens_in', 'tokens_cached', 'tokens_out', 'tokens_reasoning', 'ms', 'cost_usd', 'status', 'request', 'response', 'error',
     ];
 }

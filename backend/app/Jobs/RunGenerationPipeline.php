@@ -9,6 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Throwable;
 
 /**
  * Запуск конвейера агентов в очереди. При QUEUE_CONNECTION=sync выполняется сразу
@@ -28,5 +29,14 @@ class RunGenerationPipeline implements ShouldQueue
     public function handle(GenerationPipeline $pipeline): void
     {
         $pipeline->run($this->run);
+    }
+
+    /**
+     * Задача упала или убита по таймауту — запуск не должен навсегда остаться «в работе»:
+     * экран «Работа агентов» покажет ошибку, материалы вернутся в обычный статус.
+     */
+    public function failed(?Throwable $e): void
+    {
+        GenerationPipeline::markFailed($this->run, $e?->getMessage() ?: 'Задача генерации прервана');
     }
 }

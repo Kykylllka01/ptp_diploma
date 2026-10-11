@@ -8,6 +8,7 @@ use App\Models\GenerationRun;
 use App\Models\Material;
 use App\Models\Question;
 use App\Services\FrontendData;
+use App\Services\GenerationPipeline;
 use App\Support\CurrentUser;
 use App\Support\QueueWorker;
 use Illuminate\Http\Request;
@@ -49,9 +50,15 @@ class GenerationRunController extends Controller
 
         try {
             RunGenerationPipeline::dispatch($run);
+        } catch (Throwable $e) {
+            // При синхронной очереди конвейер уже записал failed сам; при сбое постановки — записываем здесь
+            report($e);
+            GenerationPipeline::markFailed($run, 'Не удалось запустить агентов: '.$e->getMessage());
+        }
+        try {
             QueueWorker::ensureRunning();
         } catch (Throwable $e) {
-            report($e);  // статус failed и текст ошибки уже записаны в запуск
+            report($e);
         }
 
         return $this->data->run($run->fresh());
