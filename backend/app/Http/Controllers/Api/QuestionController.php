@@ -6,8 +6,9 @@ use App\Agents\Contracts\CriticAgent;
 use App\Agents\Contracts\WriterAgent;
 use App\Http\Controllers\Controller;
 use App\Models\AgentLog;
-use App\Models\Answer;
+use App\Models\Attempt;
 use App\Models\Question;
+use App\Models\Test;
 use App\Services\FrontendData;
 use App\Services\GradingService;
 use App\Support\CurrentUser;
@@ -284,16 +285,31 @@ class QuestionController extends Controller
 
     /**
      * Тренировка студента: проверить один ответ и вернуть пояснение.
-     * Только вопросы тренировочных тестов или уже сданных студентом попыток,
-     * иначе проверкой можно подобрать ответы к идущему тесту.
+     * {test: код тренировки} — вопрос из этой тренировки; {attempt: id} — работа над ошибками по своей сданной попытке.
+     * Проверка отвечает «верно/неверно», поэтому ею можно подобрать ответ: она закрыта для вопросов,
+     * которые студент ещё может получить в идущем тесте, и для попыток, после которых остались пересдачи.
      */
     public function check(Request $request, Question $question, GradingService $grading)
     {
         $student = CurrentUser::student();
-        $allowed = $question->tests()->where('status', 'training')->exists()
-            || Answer::where('question_id', $question->id)
-                ->whereHas('attempt', fn ($a) => $a->where('user_id', $student->id)->where('status', '!=', 'in_progress'))->exists();
-        abort_unless($allowed, 403, 'Проверка доступна только в тренировке');
+        $data = $request->validate([
+            'test' => 'nullable|string|max:20',
+            'attempt' => 'nullable|integer',
+            'answer' => 'nullable',
+            'answer.*' => 'nullable|integer',
+        ]);
+        abort_if(is_string($request->input('answer')) && mb_strlen($request->input('answer')) > 10000, 422, 'Ответ слишком длинный');
+
+        if (! empty($data['attempt'])) {
+            $attempt = Attempt::where('user_id', $student->id)->where('status', '!=', 'in_progress')->find($data['attempt']);
+            abort_unless($attempt && $attempt->answers()->where('question_id', $question->id)->exists(), 403, 'Вопроса нет в этой попытке');
+            abort_unless($attempt->test->reviewOpenFor($student), 403, 'Проверка откроется, когда закончатся попытки или тест закроется');
+        } else {
+            $test = Test::visibleTo($student)->where('status', 'training')->where('code', $data['test'] ?? '')->first();
+            abort_unless($test && $test->questions()->whereKey($question->id)->exists(), 403, 'Проверка доступна только в тренировке');
+        }
+        // Тот же вопрос может стоять в идущем или ещё не опубликованном тесте — там ответ пока секрет
+        abort_if(in_array($question->id, Test::secretQuestionIdsFor($student), true), 403, 'Этот вопрос есть в идущем тесте — проверка откроется после него');
 
         return $this->feedback($grading, $question, $request->input('answer'), false, false);
     }

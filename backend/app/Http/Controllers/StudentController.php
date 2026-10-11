@@ -33,9 +33,13 @@ class StudentController extends Controller
         // Работа над ошибками: вопросы, на которые в сданной попытке дан неверный ответ
         if ($training && $request->filled('attempt')) {
             $source = Attempt::where('user_id', $student->id)->where('status', '!=', 'in_progress')->findOrFail($request->query('attempt'));
+            // Пока остались попытки, проверка с ответами подсказала бы их для пересдачи
+            abort_unless($source->test->reviewOpenFor($student), 403, 'Работа над ошибками откроется, когда закончатся попытки или тест закроется');
             $wrong = $source->answers()->with('question')->get()
                 ->filter(fn ($a) => $a->question->type !== 'open' && (float) $a->score < (float) $a->max_score)
-                ->pluck('question_id');
+                ->pluck('question_id')
+                // Вопросы, которые стоят и в идущем тесте, проверка всё равно не пропустит
+                ->diff(Test::secretQuestionIdsFor($student, $source->test));
             $test = $source->test;
             $test->setRelation('questions', $test->questions()->whereIn('questions.id', $wrong)->get());
             $test->title = 'Работа над ошибками · '.$test->title;
@@ -46,9 +50,13 @@ class StudentController extends Controller
             ]);
         }
 
+        // Только тесты курса, которые студент видит в списке: не черновики, своей группы или без группы.
+        // Тренировка — только по тестам-тренировкам, иначе по ссылке видны вопросы контрольного теста.
+        $tests = Test::visibleTo($student)->where('course_id', CurrentUser::course()->id);
         $test = $request->filled('test')
-            ? Test::where('code', $request->query('test'))->firstOrFail()
-            : Test::where('status', $training ? 'training' : 'running')->firstOrFail();
+            ? $tests->where('code', $request->query('test'))->firstOrFail()
+            : $tests->where('status', $training ? 'training' : 'running')->orderBy('id')->firstOrFail();
+        abort_if($training && $test->status !== 'training', 403, 'Этот тест нельзя открыть как тренировку');
 
         if ($training) {
             $attempt = null;

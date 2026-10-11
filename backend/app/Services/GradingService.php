@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Agents\Contracts\GraderAgent;
+use App\Exceptions\SqlSandboxUnavailable;
 use App\Models\Question;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Оценка одного ответа. Варианты — сразу и окончательно; SQL — сравнением
@@ -67,11 +69,19 @@ class GradingService
         }
 
         $mine = $this->sandbox->run($sql);
+        if (! $mine['ok'] && ($mine['kind'] ?? 'sql') === 'infra') {
+            // Учебная база не запустилась — студент не виноват, 0 не ставим: сдача откатится
+            throw new SqlSandboxUnavailable($mine['error']);
+        }
         if (! $mine['ok']) {
             return ['score' => 0, 'max' => $max, 'final' => true, 'criteria' => [[0, $max, 'Запрос не выполнился: '.$mine['error']]]];
         }
 
-        $ref = $q->reference ? $this->sandbox->run($q->reference) : ['ok' => false];
+        $ref = $q->reference ? $this->reference($q->reference) : ['ok' => false, 'kind' => 'sql'];
+        if (! $ref['ok'] && ($ref['kind'] ?? 'sql') !== 'sql') {
+            // Эталон завис или база недоступна — сравнивать не с чем, но и ставить 0 нельзя
+            throw new SqlSandboxUnavailable($ref['error'] ?? '');
+        }
         if (! $ref['ok']) {
             // Эталон не выполняется на учебной базе — сравнить не с чем; Критик не пропускает такие вопросы,
             // но если эталон испортили вручную, честно ставим 0 с пояснением (у SQL нет очереди ручной проверки)
@@ -108,6 +118,22 @@ class GradingService
 
         // Результат сравнения на учебной базе окончательный: ручной проверки SQL нет
         return ['score' => $score, 'max' => $max, 'final' => true, 'criteria' => $criteria];
+    }
+
+    /** Результат эталона одинаков для всех студентов: успешный кэшируется, чтобы сдача не запускала его заново. */
+    private function reference(string $sql): array
+    {
+        $key = 'sql-ref:'.sha1($sql);
+        $cached = Cache::get($key);
+        if (is_array($cached)) {
+            return $cached;
+        }
+        $ref = $this->sandbox->run($sql);
+        if ($ref['ok']) {
+            Cache::put($key, $ref, now()->addDay());
+        }
+
+        return $ref;
     }
 
     private function gradeOpen(Question $q, string $text): array
