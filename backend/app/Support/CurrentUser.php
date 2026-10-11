@@ -27,8 +27,9 @@ class CurrentUser
     }
 
     /** Пока курс один; когда их станет несколько, курс будет выбираться по преподавателю и группе. */
+    /** Курс один; за запрос его спрашивают 4–6 раз — запоминаем (once() сбрасывается между запросами и тестами). */
     public static function course(): Course
     {
-        return Course::firstOrFail();
+        return once(fn () => Course::firstOrFail());
     }
 }
