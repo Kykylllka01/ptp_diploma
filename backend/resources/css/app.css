@@ -416,6 +416,8 @@ mark.good { background: #DDF1E5; }
 /* ---------- Тост ---------- */
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: var(--navy); color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 15px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 100; max-width: calc(100% - 32px); }
 .toast.is-show { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* Ошибка висит дольше и отличается цветом, чтобы её успели прочитать */
+.toast.is-error { background: var(--red-text); }
 
 /* ---------- Индекс экранов ---------- */
 .screens { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }

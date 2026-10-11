@@ -65,6 +65,8 @@ class StudentController extends Controller
             $attempt = null;
         } else {
             abort_unless($test->isOpenNow(), 403, 'Тест сейчас недоступен');
+            // Без вопросов попытка была бы потрачена на «0 из 0»
+            abort_unless($test->questions()->exists(), 403, 'В тесте ещё нет вопросов');
             $current = $this->attempts->current($test, $student);
             if ($current && $current->isSubmitted() && $test->attempts_allowed <= $test->attempts()->where('user_id', $student->id)->count()) {
                 return redirect()->route('student.result', ['attempt' => $current->id]);

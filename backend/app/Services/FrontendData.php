@@ -112,8 +112,11 @@ class FrontendData
             'student' => $this->user($student),
             'tests' => $tests->map(function (Test $t) use ($student) {
                 $row = $this->test($t);
-                $my = $t->attempts()->where('user_id', $student->id)->latest('id')->first();
-                $row['my'] = $my ? ['status' => $my->status, 'percent' => $my->percent, 'attemptId' => $my->id] : null;
+                $mine = $t->attempts()->where('user_id', $student->id)->orderByDesc('id')->get(['id', 'status', 'percent']);
+                $my = $mine->first();
+                $used = $mine->where('status', '!=', 'in_progress')->count();
+                $row['my'] = $my ? ['status' => $my->status, 'percent' => $my->percent, 'attemptId' => $my->id,
+                    'used' => $used, 'left' => max(0, (int) $t->attempts_allowed - $used)] : null;
 
                 return $row;
             })->all(),

@@ -10,7 +10,8 @@ use App\Models\User;
 /** Аналитика по тесту: распределение баллов, темы, проблемные вопросы. */
 class AnalyticsService
 {
-    public const HISTOGRAM_LABELS = ['0–10', '20', '30', '40', '50', '60', '70', '80', '90–100%'];
+    // Подписи совпадают с корзинами гистограммы: 0–19 %, затем по десяткам, последняя — 90–100 %
+    public const HISTOGRAM_LABELS = ['0–19', '20–29', '30–39', '40–49', '50–59', '60–69', '70–79', '80–89', '90–100'];
 
     public function forTest(Test $test): array
     {
@@ -71,8 +72,12 @@ class AnalyticsService
             'testId' => $test->code,
             'submitted' => $attempts->count(),
             'total' => max($total, $attempts->count()),
-            'avg' => $attempts->count() ? (int) round($attempts->avg('percent')) : 0,
-            'medianMinutes' => $median,
+            // Без сдач — null («—» на экране), а не «0 %» и «0 мин», будто кто-то сдал на ноль
+            'avg' => $attempts->count() ? (int) round($attempts->avg('percent')) : null,
+            'medianMinutes' => $attempts->count() ? $median : null,
+            // Ответы этого теста, которые ждут подтверждения преподавателем (а не очередь всех тестов)
+            'pending' => \App\Models\Review::where('status', 'pending')
+                ->whereHas('answer.attempt', fn ($q) => $q->where('test_id', $test->id))->count(),
             'histogram' => $histogram,
             'histogramLabels' => self::HISTOGRAM_LABELS,
             'topics' => $topicRows,

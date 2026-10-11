@@ -23,6 +23,8 @@
   var topics = {};
   Q.forEach(function (q) {
     var r = att.results[q.id];
+    // Ответ ещё не оценён преподавателем — не «0 баллов», в проценты по темам его не берём
+    if (!r.final) return;
     topics[q.topic] = topics[q.topic] || [0, 0];
     topics[q.topic][0] += r.score; topics[q.topic][1] += r.max;
   });
@@ -34,7 +36,7 @@
   }).join('');
 
   var weakest = tlist.slice().sort(function (a, b) { return a[1] - b[1]; })[0];
-  var wrong = Q.filter(function (q) { var r = att.results[q.id]; return r.score < r.max; });
+  var wrong = Q.filter(function (q) { var r = att.results[q.id]; return r.final && r.score < r.max; });
   var weakQ = weakest && wrong.filter(function (q) { return q.topic === weakest[0]; })[0];
   A.$('#advice').textContent = !weakest ? 'Подробного разбора по этому тесту нет.' : weakest[1] < 100
     ? 'Больше всего ошибок в теме «' + weakest[0] + '» (' + weakest[1] + '%). Перечитайте ' + (weakQ && weakQ.ref ? (/^(Лекция|Лаб\. работа|Семинар)/.test(weakQ.ref) ? weakQ.ref.replace(/^Лекция/, 'лекцию').replace(/^Лаб\. работа/, 'лабораторную работу').replace(/^Семинар/, 'семинар') : 'материал «' + weakQ.ref + '»') : 'материалы по теме') + ' и пройдите короткую тренировку.'
@@ -98,8 +100,8 @@
       } else {
         body = '<div class="ans ans--neutral' + (q.type === 'sql' ? ' mono' : '') + '" style="white-space: pre-wrap; font-size: 14px">' + esc(a || 'Нет ответа') + '</div>' +
           '<div class="stack-sm" style="margin-top: 12px; font-size: 15px">' + (r.criteria || []).map(function (c) {
-            var tone = c[0] === c[1] ? 'green' : c[0] === 0 ? 'red' : 'amber';
-            return '<div style="display: flex; gap: 12px; align-items: flex-start">' + A.chip(c[0] + ' / ' + c[1], tone, '') + '<span>' + esc(c[2]) + '</span></div>';
+            var tone = !r.final ? 'gray' : c[0] === c[1] ? 'green' : c[0] === 0 ? 'red' : 'amber';
+            return '<div style="display: flex; gap: 12px; align-items: flex-start">' + A.chip((r.final ? c[0] : '—') + ' / ' + c[1], tone, '') + '<span>' + esc(c[2]) + '</span></div>';
           }).join('') + '</div>' +
           '<div class="row-wrap" style="margin-top: 14px; gap: 10px"><button type="button" class="btn btn--sm" data-ref="' + q.id + '">Показать эталонный ответ</button>' +
           (r.canAppeal ? (r.appeal ? '<span class="chip chip--amber">Апелляция отправлена</span>' : '<button type="button" class="btn btn--sm" data-appeal="' + q.id + '">Оспорить оценку</button>') : '') + '</div>' +

@@ -45,7 +45,7 @@
 
   /* ---------- Тост ---------- */
   var toastEl, toastTimer;
-  function toast(text) {
+  function toast(text, isError) {
     if (!toastEl) {
       toastEl = document.createElement('div');
       toastEl.className = 'toast';
@@ -55,7 +55,8 @@
     toastEl.textContent = text;
     toastEl.classList.add('is-show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.classList.remove('is-show'); }, 2600);
+    toastEl.classList.toggle('is-error', !!isError);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('is-show'); }, isError ? 7000 : 2600);
   }
 
   /* ---------- Запросы к API ----------
@@ -81,8 +82,10 @@
       if (authFailed(r.status)) throw new Error('auth');
       return r.json().catch(function () { return {}; }).then(function (data) {
         if (!r.ok) {
-          var msg = (data && data.message) || ('Ошибка сервера: ' + r.status);
-          toast(msg);
+          // Laravel кладёт подробности проверки в errors: первая ошибка понятнее общего «The given data…»
+          var first = data && data.errors ? Object.keys(data.errors).map(function (k) { return data.errors[k][0]; })[0] : null;
+          var msg = first || (data && data.message) || ('Ошибка сервера: ' + r.status);
+          toast(msg, true);
           var err = new Error(msg); err.status = r.status; err.data = data;
           throw err;
         }
@@ -96,19 +99,31 @@
      а затем уходят на сервер. */
   function questions() { return M.questions || []; }
   function findQuestion(id) { return questions().filter(function (q) { return q.id === id; })[0]; }
+  // Правка видна сразу, но если сервер её не принял — экран возвращается к прежним данным
+  function snapshot(obj, patch) {
+    var before = {};
+    Object.keys(patch).forEach(function (k) { before[k] = obj[k]; });
+    return before;
+  }
   function saveQuestion(id, patch) {
-    var q = findQuestion(id);
+    var q = findQuestion(id), before = q ? snapshot(q, patch) : null;
     if (q) Object.assign(q, patch);
     return api('PATCH', 'questions/' + encodeURIComponent(id), patch).then(function (fresh) {
       if (q && fresh) Object.assign(q, fresh);
       return fresh;
+    }, function (err) {
+      if (q) Object.assign(q, before);
+      throw err;
     });
   }
   function reviews() { return M.reviews || []; }
   function saveReview(id, patch) {
-    var r = reviews().filter(function (x) { return x.id === id; })[0];
+    var r = reviews().filter(function (x) { return x.id === id; })[0], before = r ? snapshot(r, patch) : null;
     if (r) Object.assign(r, patch);
-    return api('PATCH', 'reviews/' + id, { scores: patch.scores, comment: patch.comment });
+    return api('PATCH', 'reviews/' + id, { scores: patch.scores, comment: patch.comment }).catch(function (err) {
+      if (r) Object.assign(r, before);
+      throw err;
+    });
   }
 
   // Переключатели-«свитчи»
