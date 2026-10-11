@@ -24,34 +24,53 @@ class FrontendData
     {
     }
 
-    /** Общие данные преподавателя: банк, материалы, тесты, агенты, очередь проверки. */
-    public function teacher(): array
+    /**
+     * Данные преподавателя для страницы. $only — какие части нужны (materials, agents, questions, groups,
+     * participants, tests, reviews); null — все. Раньше каждая страница получала весь банк и все проверки.
+     */
+    public function teacher(?array $only = null): array
     {
         $course = CurrentUser::course();
-        $teacher = CurrentUser::teacher();
-        $questions = Question::where('course_id', $course->id)->orderBy('code')->get();
+        $want = fn (string $part) => $only === null || in_array($part, $only, true);
+        $data = $this->base() + ['teacher' => $this->user(CurrentUser::teacher())];
 
-        $reviews = Review::with(['student', 'question'])->orderBy('id')->get();
-        $reviewQuestions = $reviews->pluck('question')->unique('id');
-
-        return $this->base() + [
-            'teacher' => $this->user($teacher),
-            'materials' => Material::where('course_id', $course->id)->orderByDesc('created_at')->orderByDesc('id')->get()->map(fn ($m) => $this->material($m))->all(),
-            'agents' => Agent::orderBy('id')->whereIn('code', ['analyst', 'writer', 'critic', 'grader'])->get()
-                ->map(fn ($a) => ['id' => $a->code, 'name' => $a->name, 'role' => $a->role, 'state' => $a->state, 'summary' => $a->summary])->all(),
-            'questions' => $questions->map(fn ($q) => $this->question($q))->all(),
-            // Студенты групп, которым открыт хотя бы один идущий тест или тренировка
-            'groups' => User::where('role', 'student')->whereNotNull('group_name')->distinct()->orderBy('group_name')->pluck('group_name')->all(),
+        if ($want('materials')) {
+            $data['materials'] = Material::where('course_id', $course->id)->orderByDesc('created_at')->orderByDesc('id')->get()->map(fn ($m) => $this->material($m))->all();
+        }
+        if ($want('agents')) {
+            $data['agents'] = Agent::orderBy('id')->whereIn('code', ['analyst', 'writer', 'critic', 'grader'])->get()
+                ->map(fn ($a) => ['id' => $a->code, 'name' => $a->name, 'role' => $a->role, 'state' => $a->state, 'summary' => $a->summary])->all();
+        }
+        if ($want('questions')) {
+            $data['questions'] = Question::where('course_id', $course->id)->orderBy('code')->get()->map(fn ($q) => $this->question($q))->all();
+        }
+        if ($want('groups')) {
+            $data['groups'] = User::where('role', 'student')->whereNotNull('group_name')->distinct()->orderBy('group_name')->pluck('group_name')->all();
+        }
+        if ($want('participants')) {
             // Тест без группы открыт всем студентам курса — тогда участвуют все
-            'participants' => Test::where('course_id', $course->id)->whereIn('status', ['running', 'training'])->whereNull('group_name')->exists()
+            $data['participants'] = Test::where('course_id', $course->id)->whereIn('status', ['running', 'training'])->whereNull('group_name')->exists()
                 ? User::where('role', 'student')->count()
                 : User::where('role', 'student')->whereIn('group_name',
-                    Test::where('course_id', $course->id)->whereIn('status', ['running', 'training'])->whereNotNull('group_name')->pluck('group_name'))->count(),
-            'tests' => Test::where('course_id', $course->id)->withCount('questions')->orderBy('id')->get()->map(fn ($t) => $this->test($t))->all(),
-            'reviews' => $reviews->map(fn ($r) => $this->review($r))->all(),
-            'criteria' => $reviewQuestions->mapWithKeys(fn ($q) => [$q->code => $q->criteria ?? []])->all(),
-            'questionTexts' => $reviewQuestions->mapWithKeys(fn ($q) => [$q->code => ['text' => $q->text, 'context' => $q->context, 'reference' => $q->reference]])->all(),
-        ];
+                    Test::where('course_id', $course->id)->whereIn('status', ['running', 'training'])->whereNotNull('group_name')->pluck('group_name'))->count();
+        }
+        if ($want('tests')) {
+            $data['tests'] = Test::where('course_id', $course->id)->withCount('questions')->orderBy('id')->get()->map(fn ($t) => $this->test($t))->all();
+        }
+        if ($want('reviews')) {
+            // Очередь проверки: ответы этого курса, которые ждут подтверждения, с апелляцией
+            // или подтверждены за последний месяц (для контекста), — а не все проверки за всё время
+            $reviews = Review::with(['student', 'question'])
+                ->whereHas('question', fn ($q) => $q->where('course_id', $course->id))
+                ->where(fn ($q) => $q->where('status', 'pending')->orWhereNotNull('appealed_at')->orWhere('confirmed_at', '>=', now()->subDays(30)))
+                ->orderBy('id')->get();
+            $reviewQuestions = $reviews->pluck('question')->unique('id');
+            $data['reviews'] = $reviews->map(fn ($r) => $this->review($r))->all();
+            $data['criteria'] = $reviewQuestions->mapWithKeys(fn ($q) => [$q->code => $q->criteria ?? []])->all();
+            $data['questionTexts'] = $reviewQuestions->mapWithKeys(fn ($q) => [$q->code => ['text' => $q->text, 'context' => $q->context, 'reference' => $q->reference]])->all();
+        }
+
+        return $data;
     }
 
     public function analytics(?Test $test = null): array
