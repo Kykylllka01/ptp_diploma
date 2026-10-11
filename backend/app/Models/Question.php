@@ -122,12 +122,11 @@ class Question extends Model
     }
 
     /** Следующий свободный код вида Q-152. */
+    /** Следующий код Q-NNN. Коды дополнены нулями, поэтому наибольший — самый длинный, а среди равных — последний по алфавиту. */
     public static function nextCode(): string
     {
-        $max = static::pluck('code')
-            ->map(fn ($c) => (int) preg_replace('/\D/', '', $c))
-            ->max() ?? 0;
+        $last = static::query()->orderByRaw('LENGTH(code) DESC')->orderByDesc('code')->value('code');
 
-        return sprintf('Q-%03d', $max + 1);
+        return sprintf('Q-%03d', (int) preg_replace('/\D/', '', (string) $last) + 1);
     }
 }

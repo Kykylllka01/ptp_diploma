@@ -34,11 +34,13 @@ return [
             'driver' => 'sync',
         ],
 
+        // retry_after больше самой долгой задачи (генерация — до 1800 с): иначе второй обработчик
+        // посчитает работающую задачу зависшей и пометит её упавшей
         'database' => [
             'driver' => 'database',
             'table' => 'jobs',
             'queue' => 'default',
-            'retry_after' => 90,
+            'retry_after' => (int) env('QUEUE_RETRY_AFTER', 1900),
             'after_commit' => false,
         ],
 
@@ -46,7 +48,7 @@ return [
             'driver' => 'beanstalkd',
             'host' => 'localhost',
             'queue' => 'default',
-            'retry_after' => 90,
+            'retry_after' => (int) env('QUEUE_RETRY_AFTER', 1900),
             'block_for' => 0,
             'after_commit' => false,
         ],
@@ -66,7 +68,7 @@ return [
             'driver' => 'redis',
             'connection' => 'default',
             'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => 90,
+            'retry_after' => (int) env('QUEUE_RETRY_AFTER', 1900),
             'block_for' => null,
             'after_commit' => false,
         ],

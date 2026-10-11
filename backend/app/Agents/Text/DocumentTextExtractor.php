@@ -47,10 +47,16 @@ class DocumentTextExtractor implements TextExtractor
 
     private function txt(Material $m): array
     {
-        $text = $this->clean((string) Storage::get($m->file_path));
-        if (! mb_check_encoding($text, 'UTF-8')) {
-            $text = mb_convert_encoding($text, 'UTF-8', 'Windows-1251');
+        // Сначала кодировка, потом чистка: регулярные выражения с /u на тексте в Windows-1251
+        // возвращают null, и файл превращался в «текста не найдено»
+        $raw = (string) Storage::get($m->file_path);
+        if (str_starts_with($raw, "\xEF\xBB\xBF")) {
+            $raw = substr($raw, 3);
         }
+        if (! mb_check_encoding($raw, 'UTF-8')) {
+            $raw = mb_convert_encoding($raw, 'UTF-8', 'Windows-1251');
+        }
+        $text = $this->clean($raw);
 
         return $this->result($text, mb_strlen($text).' символов');
     }
@@ -189,10 +195,11 @@ class DocumentTextExtractor implements TextExtractor
     private function clean(string $text): string
     {
         $text = str_replace(["\r\n", "\r", "\u{00A0}"], ["\n", "\n", ' '], $text);
-        $text = preg_replace('/[ \t]+/u', ' ', $text);
-        $text = preg_replace('/ *\n */u', "\n", $text);
+        // preg_replace возвращает null на невалидном UTF-8 — тогда оставляем текст как есть, а не теряем его
+        $text = preg_replace('/[ \t]+/u', ' ', $text) ?? $text;
+        $text = preg_replace('/ *\n */u', "\n", $text) ?? $text;
 
-        return trim(preg_replace('/\n{3,}/u', "\n\n", $text));
+        return trim(preg_replace('/\n{3,}/u', "\n\n", $text) ?? $text);
     }
 
     private function result(string $text, string $meta): array

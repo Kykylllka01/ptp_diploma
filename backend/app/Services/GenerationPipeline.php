@@ -11,6 +11,7 @@ use App\Models\Agent;
 use App\Models\GenerationRun;
 use App\Models\Material;
 use App\Models\Question;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Throwable;
 
 /**
@@ -39,13 +40,14 @@ class GenerationPipeline
         AgentLlm::context(['generation_run_id' => $run->id]);
 
         try {
-            $materials = Material::whereIn('id', $run->params['material_ids'] ?? [])->get();
+            // Материалы без текста (сканы, пустые файлы) агентам нечего дать — их не считаем в план
+            $materials = Material::whereIn('id', $run->params['material_ids'] ?? [])->where('has_text', true)->get();
             $courseTopics = $run->course->topics ?? [];
             $count = (int) ($run->params['count'] ?? config('agents.default_count'));
             $perMaterial = max(1, (int) ceil($count / max(1, $materials->count())));
             $run->update(['total' => $perMaterial * $materials->count()]);
 
-            // 1. Аналитик
+            // 1. Аналитик. Сбой на одном материале не останавливает остальные
             Agent::report('analyst', 'work', 'Разбирает материалы');
             $analyses = [];
             $topicsTotal = 0;
@@ -53,14 +55,26 @@ class GenerationPipeline
             foreach ($materials as $m) {
                 $this->guard($run);
                 $m->update(['status' => 'processing']);
-                $analyses[$m->id] = $this->analyst->analyze($m, $courseTopics);
+                try {
+                    $analyses[$m->id] = $this->analyst->analyze($m, $courseTopics);
+                    $this->succeeded();
+                } catch (RunCancelled $e) {
+                    throw $e;
+                } catch (Throwable $e) {
+                    $this->failedStep($run, 'analyst', '«'.$m->title.'» не разобран', $e);
+                    continue;
+                }
                 $topicsTotal += count($analyses[$m->id]['topics']);
                 $concepts += $analyses[$m->id]['concepts'];
-                $run->log('analyst', '«'.$m->title.'»: '.$analyses[$m->id]['concepts'].' понятий, '.$analyses[$m->id]['examples'].' примеров');
+                $run->log('analyst', '«'.$m->title.'»: '.$analyses[$m->id]['concepts'].' понятий, '.$analyses[$m->id]['examples'].' примеров'
+                    .(! empty($analyses[$m->id]['note']) ? ' ('.$analyses[$m->id]['note'].')' : ''));
                 $run->setAgentState('analyst', ['work', 'Работает', 'Разобрано материалов: '.count($analyses).' из '.$materials->count()]);
             }
+            if (! $analyses) {
+                throw new \RuntimeException('Аналитик не смог разобрать ни один материал'.($this->lastError ? ': '.$this->lastError : ''));
+            }
             $run->log('analyst', 'выделено тем: '.$topicsTotal);
-            $run->setAgentState('analyst', ['done', 'Готово', $topicsTotal.' '.self::plural($topicsTotal, 'тема', 'темы', 'тем').' · '.$concepts.' '.self::plural($concepts, 'понятие', 'понятия', 'понятий')]);
+            $run->setAgentState('analyst', [count($analyses) < $materials->count() ? 'warn' : 'done', 'Готово', $topicsTotal.' '.self::plural($topicsTotal, 'тема', 'темы', 'тем').' · '.$concepts.' '.self::plural($concepts, 'понятие', 'понятия', 'понятий')]);
             Agent::report('analyst', 'done', 'Выделил '.$concepts.' ключевых понятий');
 
             // 2–3. Составитель и Критик
@@ -68,9 +82,21 @@ class GenerationPipeline
             $run->setAgentState('critic', ['work', 'Работает', 'Проверяет вопросы']);
             $created = collect();
             foreach ($materials as $m) {
+                if (! isset($analyses[$m->id])) {
+                    continue;
+                }
                 $this->guard($run);
-                $drafts = $this->writer->generate($m, $analyses[$m->id], $run->params, $perMaterial);
-                $run->log('writer', '«'.$m->title.'» → '.count($drafts).' '.self::plural(count($drafts), 'вопрос', 'вопроса', 'вопросов').(count($drafts) ? '' : ': в материале не нашлось понятий для вопросов'));
+                try {
+                    $drafts = $this->writer->generate($m, $analyses[$m->id], $run->params, $perMaterial);
+                    $this->succeeded();
+                } catch (RunCancelled $e) {
+                    throw $e;
+                } catch (Throwable $e) {
+                    $this->failedStep($run, 'writer', 'вопросы по «'.$m->title.'» не составлены', $e);
+                    continue;
+                }
+                $run->log('writer', '«'.$m->title.'» → '.count($drafts).' из '.$perMaterial.' '.self::plural($perMaterial, 'вопроса', 'вопросов', 'вопросов')
+                    .(count($drafts) ? '' : ': в материале не нашлось понятий для вопросов'));
                 foreach ($drafts as $draft) {
                     $this->guard($run);
                     $run->increment('written');
@@ -86,13 +112,15 @@ class GenerationPipeline
                             $draft = $this->writer->rewrite($draft, $verdict['checks']);
                             $verdict = $this->critic->review($draft);
                         }
+                        $this->succeeded();
+                    } catch (RunCancelled $e) {
+                        throw $e;
                     } catch (Throwable $e) {
-                        // Сбой на одном вопросе не останавливает запуск
-                        report($e);
-                        $run->increment('checked');
-                        $run->increment('rejected');
-                        $run->log('critic', 'не удалось проверить вопрос: '.mb_substr($e->getMessage(), 0, 150));
-                        continue;
+                        // Сбой модели — не «плохой вопрос»: черновик уже оплачен, сохраняем его спорным,
+                        // решает преподаватель. Подряд идущие сбои (нет баланса, сеть) останавливают запуск
+                        $this->failedStep($run, 'critic', 'вопрос не проверен, сохранён для проверки преподавателем', $e);
+                        $verdict = ['verdict' => 'dispute', 'score' => null, 'checks' => [],
+                            'flag' => ['text' => 'Критик не смог проверить вопрос — проверьте сами', 'level' => 'amber']];
                     }
                     $run->increment('checked');
                     $run->setAgentState('critic', ['work', 'Работает', 'Проверено '.$run->checked.' из '.$run->written]);
@@ -128,11 +156,13 @@ class GenerationPipeline
                 ->where(fn ($q) => $q->whereNull('generation_run_id')->orWhere('generation_run_id', '!=', $run->id))
                 ->get();
             $similar = 0;
+            $notChecked = 0;
             foreach ($created as $q) {
                 try {
                     $info = $this->catalog->catalog($q, $bank);
                 } catch (Throwable $e) {
                     report($e);
+                    $notChecked++;
                     $run->log('catalog', $q->code.': не удалось сверить с банком');
                     continue;
                 }
@@ -147,12 +177,13 @@ class GenerationPipeline
                 }
                 $q->save();
             }
-            $run->log('catalog', 'проставлены теги и сложность');
+            $run->log('catalog', $notChecked ? 'не сверено с банком: '.$notChecked : 'проставлены теги и сложность');
             $run->update(['catalog_progress' => 100]);
-            $run->setAgentState('catalog', ['done', 'Готово', 'Теги проставлены · похожих: '.$similar]);
+            $run->setAgentState('catalog', [$notChecked ? 'warn' : 'done', 'Готово', 'Теги проставлены · похожих: '.$similar.($notChecked ? ' · не сверено: '.$notChecked : '')]);
 
-            foreach ($materials as $m) {
-                $m->update(['status' => $m->questions()->where('status', 'pending')->exists() ? 'review' : 'ready']);
+            self::releaseMaterials($run);
+            if ($this->errors) {
+                $run->log('analyst', 'запуск завершён с ошибками модели: '.$this->errors.' — подробности выше');
             }
             $run->update(['status' => 'done', 'finished_at' => now()]);
         } catch (RunCancelled) {
@@ -165,13 +196,67 @@ class GenerationPipeline
             }
             $run->update(['status' => 'cancelled', 'finished_at' => now(), 'agent_states' => $states]);
             $run->log('analyst', 'запуск остановлен преподавателем');
-            foreach (Material::whereIn('id', $run->params['material_ids'] ?? [])->get() as $m) {
-                $m->update(['status' => $m->questions()->where('status', 'pending')->exists() ? 'review' : 'ready']);
-            }
+            self::releaseMaterials($run);
         } catch (Throwable $e) {
-            $run->update(['status' => 'failed', 'error' => $e->getMessage(), 'finished_at' => now()]);
-            $run->log('analyst', 'ошибка конвейера: '.mb_substr($e->getMessage(), 0, 200));
+            self::markFailed($run, $e->getMessage());
             throw $e;
+        } finally {
+            // Обработчик очереди живёт долго: следующая задача не должна писать вызовы в этот запуск
+            AgentLlm::context([]);
+        }
+    }
+
+    /**
+     * Запуск упал (исключение в конвейере или задача очереди убита по таймауту): статус, текст ошибки,
+     * агенты не «в работе», материалы не «в обработке». Уже сохранённые вопросы остаются в банке.
+     */
+    public static function markFailed(GenerationRun $run, string $error): void
+    {
+        $run->refresh();
+        if (in_array($run->status, ['done', 'cancelled', 'failed'], true)) {
+            return;
+        }
+        $states = $run->agent_states ?? [];
+        foreach ($states as $agent => $state) {
+            if ($state[0] !== 'done') {
+                $states[$agent] = ['error', 'Ошибка', mb_substr($error, 0, 120)];
+            }
+        }
+        $run->update(['status' => 'failed', 'error' => mb_substr($error, 0, 1000), 'finished_at' => now(), 'agent_states' => $states]);
+        $run->log('analyst', 'ошибка конвейера: '.mb_substr($error, 0, 200));
+        self::releaseMaterials($run);
+    }
+
+    private static function releaseMaterials(GenerationRun $run): void
+    {
+        foreach (Material::whereIn('id', $run->params['material_ids'] ?? [])->where('status', 'processing')->get() as $m) {
+            $m->update(['status' => $m->questions()->where('status', 'pending')->exists() ? 'review' : 'ready']);
+        }
+    }
+
+    /** Сколько шагов модели подряд упало: при недоступном API нет смысла тратить запуск дальше. */
+    private const MAX_FAILURES_IN_A_ROW = 3;
+
+    private int $errors = 0;
+
+    private int $inARow = 0;
+
+    private ?string $lastError = null;
+
+    private function succeeded(): void
+    {
+        $this->inARow = 0;
+    }
+
+    private function failedStep(GenerationRun $run, string $agent, string $what, Throwable $e): void
+    {
+        report($e);
+        $this->errors++;
+        $this->inARow++;
+        $this->lastError = mb_substr($e->getMessage(), 0, 200);
+        $run->log($agent, $what.': '.$this->lastError);
+        if ($this->inARow >= self::MAX_FAILURES_IN_A_ROW) {
+            throw new \RuntimeException('Нейросеть недоступна ('.self::MAX_FAILURES_IN_A_ROW.' ошибки подряд): '.$this->lastError, 0, $e);
         }
     }
 
@@ -218,8 +303,19 @@ class GenerationPipeline
         if ($verdict['verdict'] === 'dispute') {
             $q->addHistory('Критик пометил: '.mb_strtolower($verdict['flag']['text']));
         }
-        $q->save();
+        // Код берётся как «наибольший + 1»: если его одновременно занял преподаватель
+        // или другой запуск, берём следующий
+        for ($try = 1; ; $try++) {
+            try {
+                $q->save();
 
-        return $q;
+                return $q;
+            } catch (UniqueConstraintViolationException $e) {
+                if ($try >= 5) {
+                    throw $e;
+                }
+                $q->code = Question::nextCode();
+            }
+        }
     }
 }

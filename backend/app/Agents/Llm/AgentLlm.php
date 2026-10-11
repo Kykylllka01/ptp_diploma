@@ -44,6 +44,7 @@ class AgentLlm
             'temperature' => $cfg['temperature'],
             'max_tokens' => $cfg['max_tokens'],
             'effort' => $cfg['effort'] ?? null,
+            'thinking' => $cfg['thinking'] ?? null,
             'json' => true,
         ];
 
@@ -60,22 +61,17 @@ class AgentLlm
             try {
                 $r = $this->client->chat($messages, $options);
             } catch (Throwable $e) {
-                LlmCall::create($log + ['status' => 'error', 'error' => mb_substr($e->getMessage(), 0, 2000)]);
+                // Обрезанный ответ оплачен — его токены тоже идут в журнал
+                $usage = $e instanceof LlmTruncated ? self::usage($e->usage) : [];
+                self::record($log + $usage + ['status' => 'error', 'error' => mb_substr($e->getMessage(), 0, 2000)]);
                 throw $e;
             }
 
-            $log += [
-                'model' => $r['model'],
-                'tokens_in' => $r['tokens_in'],
-                'tokens_out' => $r['tokens_out'],
-                'tokens_reasoning' => $r['tokens_reasoning'],
-                'ms' => $r['ms'],
-                'response' => $r['content'],
-            ];
+            $log = self::usage($r) + $log + ['response' => $r['content']];
 
             $json = self::decode($r['content']);
             $error = $json === null ? 'ответ не является JSON-объектом' : ($validate ? $validate($json) : null);
-            LlmCall::create($log + ['status' => $error ? 'invalid_json' : 'ok', 'error' => $error]);
+            self::record($log + ['status' => $error ? 'invalid_json' : 'ok', 'error' => $error]);
 
             if (! $error) {
                 return $json;
@@ -87,6 +83,49 @@ class AgentLlm
         }
 
         throw new RuntimeException('Агент «'.$agent.'» вернул неверный ответ: '.$lastError);
+    }
+
+    /** Токены, время и стоимость вызова для журнала. */
+    private static function usage(array $r): array
+    {
+        return [
+            'model' => $r['model'],
+            'tokens_in' => $r['tokens_in'],
+            'tokens_cached' => $r['tokens_cached'] ?? 0,
+            'tokens_out' => $r['tokens_out'],
+            'tokens_reasoning' => $r['tokens_reasoning'],
+            'ms' => $r['ms'],
+            'cost_usd' => self::cost($r['model'], $r['tokens_in'], $r['tokens_cached'] ?? 0, $r['tokens_out']),
+        ];
+    }
+
+    /**
+     * Стоимость вызова в долларах по ценам из config/agents.php: вход из кэша, остальной вход,
+     * выход вместе с рассуждением. Вне часов пика DeepSeek берёт половину.
+     */
+    public static function cost(string $model, int $in, int $cached, int $out, ?\DateTimeInterface $at = null): float
+    {
+        $prices = config('agents.prices');
+        $p = $prices[$model] ?? (str_contains($model, 'pro') ? ($prices['deepseek-v4-pro'] ?? null) : ($prices['deepseek-flash'] ?? null));
+        if (! $p) {
+            return 0.0;
+        }
+        $usd = ($cached * $p['hit'] + max(0, $in - $cached) * $p['miss'] + $out * $p['out']) / 1_000_000;
+        $at = \Carbon\CarbonImmutable::instance($at ?? now())->utc();
+        $peak = ! $at->isWeekend() && collect(config('agents.peak_hours_utc', []))
+            ->contains(fn ($h) => $at->hour >= $h[0] && $at->hour < $h[1]);
+
+        return round($peak ? $usd : $usd / 2, 6);
+    }
+
+    /** Запись в журнал не должна подменять исходную ошибку вызова. */
+    private static function record(array $row): void
+    {
+        try {
+            LlmCall::create($row);
+        } catch (Throwable $e) {
+            report($e);
+        }
     }
 
     private function prompt(string $version, array $vars): string
