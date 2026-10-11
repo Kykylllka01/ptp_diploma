@@ -90,6 +90,18 @@ class Test extends Model
             ->unique()->values()->all();
     }
 
+    /** Каждому студенту свой набор вопросов из прикреплённого пула по матрице «тип × сложность». */
+    public function isIndividual(): bool
+    {
+        return $this->setting('individual');
+    }
+
+    /** Сколько вопросов в одном варианте: сумма матрицы (лёгких + средних + сложных по каждому типу). */
+    public function variantSize(): int
+    {
+        return (int) array_sum(array_map(fn ($r) => (int) ($r[2] ?? 0) + (int) ($r[3] ?? 0) + (int) ($r[4] ?? 0), $this->settings['matrix'] ?? []));
+    }
+
     public function questions(): BelongsToMany
     {
         return $this->belongsToMany(Question::class)->withPivot('position')->orderByPivot('position');

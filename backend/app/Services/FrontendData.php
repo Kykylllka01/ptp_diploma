@@ -125,7 +125,7 @@ class FrontendData
     }
 
     /** Вопросы попытки для экрана прохождения теста (без ключей). */
-    public function attempt(Test $test, ?Attempt $attempt): array
+    public function attempt(Test $test, ?Attempt $attempt, ?\Illuminate\Support\Collection $questions = null): array
     {
         $answers = $attempt ? $attempt->answers()->with('question')->get()->mapWithKeys(fn ($a) => [$a->question->code => $a->value])->all() : [];
 
@@ -140,7 +140,7 @@ class FrontendData
             'answers' => (object) $answers,
             'flags' => (object) array_fill_keys($attempt?->flags ?? [], true),
             'current' => $attempt?->current_index ?? 0,
-            'questions' => $test->questions->map(fn ($q) => $this->studentQuestion($q))->values()->all(),
+            'questions' => ($questions ?? $attempt?->questionList() ?? $test->questions)->map(fn ($q) => $this->studentQuestion($q))->values()->all(),
         ]];
     }
 
@@ -158,7 +158,7 @@ class FrontendData
 
         $results = [];
         $values = [];
-        foreach ($attempt->test->questions as $q) {
+        foreach ($attempt->questionList() as $q) {
             $a = $answers->get($q->code);
             $values[$q->code] = $a?->value;
             $results[$q->code] = [
@@ -176,7 +176,7 @@ class FrontendData
         return [
             'attempt' => [
                 'testId' => $attempt->test->code,
-                'questions' => $attempt->test->questions
+                'questions' => $attempt->questionList()
                     ->map(fn ($q) => $this->studentQuestion($q, $keyFor($q)) + ['keyHidden' => $showReview && ! $keyFor($q)])
                     ->values()->all(),
             ],
@@ -293,7 +293,9 @@ class FrontendData
 
     public function test(Test $t): array
     {
-        $count = $t->questions_count ?? $t->questions()->count();
+        $pool = $t->questions_count ?? $t->questions()->count();
+        // У индивидуального теста к нему прикреплён пул, а студенту достаётся вариант по матрице
+        $count = $t->isIndividual() ? min($pool, max(1, $t->variantSize())) : $pool;
         $submitted = $t->attempts()->where('status', '!=', 'in_progress')->count();
         // Без группы тест открыт всем студентам курса
         $students = User::where('role', 'student')->when($t->group_name, fn ($q) => $q->where('group_name', $t->group_name))->count();
@@ -329,6 +331,8 @@ class FrontendData
             'attempts' => $t->attempts_allowed,
             'open' => $openCount,
             'graded' => $t->graded,
+            'individual' => $t->isIndividual(),
+            'pool' => $pool,
             'isOpen' => $t->isOpenNow(),
             'mode' => $t->mode,
             'group' => $t->group_name,
