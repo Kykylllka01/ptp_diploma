@@ -44,7 +44,10 @@
     return '<div><div class="between"><span>' + esc(t[0]) + '</span><b class="strong' + (weak ? ' t-orange' : '') + '">' + t[1] + '%</b></div>' +
       '<div class="progress progress--md" style="margin-top: 6px"><div class="' + (weak ? 'is-weak' : '') + '" style="width:' + t[1] + '%"></div></div></div>';
   }).join('');
+  if (!D.topics.length) A.$('#topics').innerHTML = '<span class="muted">Появится после первых сдач</span>';
   A.$('#insight').textContent = D.insight;
+  // Тренировку по слабой теме предлагаем, только когда сдач хватает для вывода
+  A.$('#insight-training').hidden = !D.insightReady;
 
   A.$('#problems').innerHTML = D.problems.map(function (p) {
     var weak = p.correct < 50;

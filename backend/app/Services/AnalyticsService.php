@@ -39,7 +39,10 @@ class AnalyticsService
         }
         $topicRows = [];
         foreach ($topics as $name => [$got, $max]) {
-            $topicRows[] = [$name, $max > 0 ? (int) round($got / $max * 100) : 0];
+            // Тема без единого ответа — не «0 %», а просто нет данных
+            if ($max > 0) {
+                $topicRows[] = [$name, (int) round($got / $max * 100)];
+            }
         }
         usort($topicRows, fn ($a, $b) => $b[1] <=> $a[1]);
 
@@ -73,10 +76,14 @@ class AnalyticsService
             'histogram' => $histogram,
             'histogramLabels' => self::HISTOGRAM_LABELS,
             'topics' => $topicRows,
-            // Заготовка: текст вывода позже сформулирует агент по ошибкам студентов
-            'insight' => $weakest && $weakest[1] < 70
-                ? 'слабее всего тема «'.$weakest[0].'» — '.$weakest[1].'% баллов. Предлагаю тренировку из 8 вопросов на эту тему.'
-                : 'заметных провалов по темам нет.',
+            // Заготовка: текст вывода позже сформулирует агент по ошибкам студентов.
+            // По одной-двум сдачам выводы делать рано — тот же порог, что для сигналов по вопросам.
+            'insightReady' => $attempts->count() >= self::MIN_ANSWERS_FOR_SIGNAL,
+            'insight' => match (true) {
+                $attempts->count() < self::MIN_ANSWERS_FOR_SIGNAL => 'выводы появятся, когда тест сдадут хотя бы '.self::MIN_ANSWERS_FOR_SIGNAL.' студентов (сейчас '.$attempts->count().').',
+                $weakest && $weakest[1] < 70 => 'слабее всего тема «'.$weakest[0].'» — '.$weakest[1].'% баллов. Предлагаю тренировку из 8 вопросов на эту тему.',
+                default => 'заметных провалов по темам нет.',
+            },
             'problems' => array_slice($problems, 0, 6),
             // Для выгрузки в Excel: строка на студента, баллы по каждому вопросу
             'questionCodes' => $questions->pluck('code')->all(),

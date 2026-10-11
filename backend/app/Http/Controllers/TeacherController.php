@@ -64,9 +64,13 @@ class TeacherController extends Controller
         ]);
     }
 
+    /** Аналитика: без ?test — список тестов для выбора, с ?test=код — разбор результатов этого теста. */
     public function analytics(Request $request)
     {
-        $test = $request->filled('test') ? Test::where('code', $request->test)->firstOrFail() : null;
+        if (! $request->filled('test')) {
+            return $this->page('analytics-tests', 'Аналитика', 'analytics', $this->data->analyticsTests());
+        }
+        $test = Test::where('code', $request->test)->firstOrFail();
 
         return $this->page('analytics', 'Результаты и аналитика', 'analytics', $this->data->analytics($test));
     }
