@@ -119,7 +119,9 @@ class FrontendData
     public function result(Attempt $attempt): array
     {
         $attempt->load(['test.questions', 'answers.question', 'answers.review']);
-        $showReview = $attempt->test->setting('show_review', true);
+        // Разбор с ответами — только когда пересдавать уже нельзя, иначе он подсказывает ответы для следующей попытки
+        $reviewAllowed = $attempt->test->setting('show_review', true);
+        $showReview = $reviewAllowed && $attempt->test->reviewOpenFor($attempt->user);
         $answers = $attempt->answers->keyBy(fn ($a) => $a->question->code);
 
         $results = [];
@@ -153,6 +155,9 @@ class FrontendData
                 'answers' => (object) $values,
                 'results' => (object) $results,
                 'showReview' => $showReview,
+                'reviewNote' => $reviewAllowed && ! $showReview
+                    ? 'Разбор с правильными ответами откроется, когда закончатся попытки или тест закроется.'
+                    : null,
             ],
         ];
     }

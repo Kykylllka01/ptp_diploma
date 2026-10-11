@@ -12,6 +12,9 @@ use Illuminate\Http\Request;
 
 class AttemptController extends Controller
 {
+    /** Ответ строкой (развёрнутый, SQL) не длиннее 10 000 символов: его трижды читает Оценщик, это токены. */
+    private const MAX_ANSWER_LENGTH = 10000;
+
     public function __construct(private AttemptService $attempts)
     {
     }
@@ -28,11 +31,7 @@ class AttemptController extends Controller
             return response()->json(['message' => 'Время на попытку вышло'], 409);
         }
 
-        $data = $request->validate([
-            'answers' => 'array',
-            'flags' => 'array',
-            'current' => 'integer|min:0',
-        ]);
+        $data = $request->validate($this->rules());
         $this->attempts->save($attempt, $data['answers'] ?? [], $data['flags'] ?? [], $data['current'] ?? 0);
 
         return ['saved' => true];
@@ -45,7 +44,8 @@ class AttemptController extends Controller
         if (! $attempt->isSubmitted()) {
             // После окончания времени принимаем только то, что уже сохранено
             if (! $this->timeIsUp($attempt)) {
-                $this->attempts->save($attempt, $request->input('answers', []), $request->input('flags', []), (int) $request->input('current', 0));
+                $data = $request->validate($this->rules());
+                $this->attempts->save($attempt, $data['answers'] ?? [], $data['flags'] ?? [], $data['current'] ?? 0);
             }
             $attempt = $this->attempts->submit($attempt);
         }
@@ -76,12 +76,29 @@ class AttemptController extends Controller
         return ['ok' => true];
     }
 
-    /** Время попытки вышло (с запасом в минуту на сеть). */
+    private function rules(): array
+    {
+        return [
+            'answers' => 'array',
+            'answers.*' => ['nullable', function (string $attribute, mixed $value, \Closure $fail) {
+                if (is_string($value) && mb_strlen($value) > self::MAX_ANSWER_LENGTH) {
+                    $fail('Ответ длиннее '.self::MAX_ANSWER_LENGTH.' символов — сократите его');
+                }
+            }],
+            'answers.*.*' => 'nullable|integer',
+            'flags' => 'array',
+            'current' => 'integer|min:0',
+        ];
+    }
+
+    /** Время попытки или срок сдачи теста вышли (с запасом в минуту на сеть). */
     private function timeIsUp(Attempt $attempt): bool
     {
         $minutes = (int) $attempt->test->minutes;
+        $deadline = $attempt->test->deadline_at;
 
-        return $minutes > 0 && $attempt->started_at && $attempt->started_at->copy()->addMinutes($minutes + 1)->isPast();
+        return ($minutes > 0 && $attempt->started_at && $attempt->started_at->copy()->addMinutes($minutes + 1)->isPast())
+            || ($deadline && $deadline->copy()->addMinute()->isPast());
     }
 
     private function authorizeOwner(Attempt $attempt): void

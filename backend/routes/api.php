@@ -53,5 +53,5 @@ Route::middleware(['web', 'auth'])->group(function () {
     });
 
     // Учебная база SQL нужна обоим
-    Route::post('sql/run', [AttemptController::class, 'runSql'])->middleware('role:teacher,student');
+    Route::post('sql/run', [AttemptController::class, 'runSql'])->middleware(['role:teacher,student', 'throttle:30,1']);
 });

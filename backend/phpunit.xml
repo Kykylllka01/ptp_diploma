@@ -28,5 +28,9 @@
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
+        <!-- Агенты-заготовки без нейросети и без автозапуска очереди; учебная база SQL — через консольный PHP тестов -->
+        <env name="AGENTS_DRIVER" value="fake" force="true"/>
+        <env name="QUEUE_AUTOSTART_PHP" value="" force="true"/>
+        <env name="SQL_SANDBOX_PHP" value="" force="true"/>
     </php>
 </phpunit>

@@ -132,5 +132,5 @@
   });
 
   if (att.showReview) { renderFilters(); renderReview(); }
-  else A.$('#review-card').innerHTML = '<h2 class="card-title" style="font-size: 19px">Разбор ответов</h2><p class="muted" style="margin: 10px 0 0">Преподаватель скрыл разбор этого теста: правильные ответы не показываются.</p>';
+  else A.$('#review-card').innerHTML = '<h2 class="card-title" style="font-size: 19px">Разбор ответов</h2><p class="muted" style="margin: 10px 0 0">' + esc(att.reviewNote || 'Преподаватель скрыл разбор этого теста: правильные ответы не показываются.') + '</p>';
 })();

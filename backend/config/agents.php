@@ -97,4 +97,9 @@ return [
     // Запуск обработчика очереди из веб-запроса (Windows, OSPanel): путь к php.exe.
     // Пусто — запускайте вручную: php artisan queue:work --timeout=1800
     'queue_autostart_php' => env('QUEUE_AUTOSTART_PHP'),
+
+    // Учебная база SQL выполняет запрос отдельным процессом php.exe и прерывает его по таймауту, с.
+    // Под Apache нужен путь к консольному php.exe; по умолчанию берётся тот же, что для очереди.
+    'sql_sandbox_php' => env('SQL_SANDBOX_PHP', env('QUEUE_AUTOSTART_PHP')),
+    'sql_sandbox_timeout' => (float) env('SQL_SANDBOX_TIMEOUT', 3),
 ];

@@ -212,7 +212,10 @@
     if (q.type !== 'open' && !G.isAnswered(q, ans(st.current))) { A.toast('Сначала ответьте на вопрос'); return; }
     if (withAgent) { fb.hidden = false; fb.innerHTML = '<div class="note">Оценщик проверяет ответ: три прогона модели, это до минуты…</div>'; }
     var path = 'questions/' + encodeURIComponent(q.id) + (preview ? '/preview-check' : '/check');
-    A.api('POST', path, { answer: ans(st.current), agent: !!withAgent }).then(function (r) {
+    // Сервер проверяет, что вопрос из этой тренировки (test) или из своей сданной попытки (attempt)
+    var body = { answer: ans(st.current), agent: !!withAgent, test: M.attempt.testId };
+    if (A.param('attempt')) body.attempt = Number(A.param('attempt'));
+    A.api('POST', path, body).then(function (r) {
       fb.hidden = false;
       fb.innerHTML = feedbackHtml(q, r);
     }).catch(function () { fb.hidden = true; });

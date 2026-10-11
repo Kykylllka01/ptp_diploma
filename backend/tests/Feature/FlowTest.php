@@ -6,32 +6,25 @@ use App\Models\Attempt;
 use App\Models\Question;
 use App\Models\Review;
 use App\Models\Test;
-use App\Models\User;
 use Database\Seeders\AccountsSeeder;
-use Database\Seeders\DemoSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\MakesCourseData;
 use Tests\TestCase;
 
-/** Сквозные сценарии на демо-данных: экраны открываются, агенты-заготовки работают, попытка оценивается. */
-class DemoFlowTest extends TestCase
+/** Сквозные сценарии: вход и роли, экраны, генерация агентами-заготовками, оценка попытки, сборка теста. */
+class FlowTest extends TestCase
 {
+    use MakesCourseData;
     use RefreshDatabase;
+
+    private const SQL_REFERENCE = 'SELECT g.name, COUNT(s.id) AS students FROM groups g LEFT JOIN students s ON s.group_id = g.id GROUP BY g.name ORDER BY students DESC';
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->withoutVite();
-        $this->seed(DemoSeeder::class);
-    }
-
-    private function teacher(): User
-    {
-        return User::where('email', AccountsSeeder::TEACHER['email'])->firstOrFail();
-    }
-
-    private function student(): User
-    {
-        return User::where('email', AccountsSeeder::STUDENT['email'])->firstOrFail();
+        $this->seedAccountsAndCourse();
     }
 
     public function test_guest_is_sent_to_login(): void
@@ -55,30 +48,37 @@ class DemoFlowTest extends TestCase
 
     public function test_roles_cannot_open_each_others_screens(): void
     {
+        $this->singleQuestion('Q-1');
+
         $this->actingAs($this->student())->get('/teacher/bank')->assertRedirect(route('home'));
-        $this->actingAs($this->student())->patchJson('/api/questions/Q-121', ['status' => 'approved'])->assertForbidden();
+        $this->actingAs($this->student())->patchJson('/api/questions/Q-1', ['status' => 'approved'])->assertForbidden();
         $this->actingAs($this->teacher())->get('/student/test')->assertRedirect(route('home'));
-        // Проверка ответа доступна только для тренировочных вопросов
-        $this->actingAs($this->student())->postJson('/api/questions/Q-044/check', ['answer' => 'x'])->assertForbidden();
     }
 
     public function test_all_screens_open(): void
     {
+        $q = $this->singleQuestion('Q-1', 0, ['status' => 'pending']);
+        $this->makeTest('m1', [$q]);
+        $this->makeTest('tr1', [$this->singleQuestion('Q-2')], ['status' => 'training', 'graded' => false]);
+
         $this->actingAs($this->teacher());
-        foreach (['/teacher/dashboard', '/teacher/upload', '/teacher/pipeline', '/teacher/bank',
-            '/teacher/question?id=Q-121', '/teacher/test-builder', '/teacher/analytics', '/teacher/review'] as $url) {
+        foreach (['/teacher/dashboard', '/teacher/upload', '/teacher/pipeline', '/teacher/bank', '/teacher/question?id=Q-1',
+            '/teacher/test-builder', '/teacher/tests', '/teacher/preview?test=m1', '/teacher/analytics', '/teacher/review', '/profile'] as $url) {
             $this->get($url)->assertOk();
         }
         $this->actingAs($this->student());
-        foreach (['/student/tests', '/student/test', '/student/test?mode=training', '/student/result'] as $url) {
+        foreach (['/student/tests', '/student/test', '/student/test?mode=training', '/student/result', '/profile'] as $url) {
             $this->get($url)->assertOk();
         }
     }
 
     public function test_generation_pipeline_creates_pending_questions(): void
     {
+        Storage::fake();
         $this->actingAs($this->teacher());
-        $material = $this->postJson('/api/materials', ['text' => 'Транзакции и уровни изоляции', 'title' => 'Конспект'])
+        $text = 'Транзакция — группа операций, которая выполняется целиком или не выполняется вовсе. '
+            .'Уровни изоляции определяют, какие изменения параллельных транзакций видны друг другу.';
+        $material = $this->postJson('/api/materials', ['text' => $text, 'title' => 'Конспект'])
             ->assertOk()->json();
 
         $run = $this->postJson('/api/generation-runs', [
@@ -92,13 +92,21 @@ class DemoFlowTest extends TestCase
 
     public function test_student_attempt_is_graded_and_review_confirmed(): void
     {
+        $this->makeTest('m1', [
+            $this->singleQuestion('Q-012', 1),
+            $this->singleQuestion('Q-031', 2),
+            $this->question('Q-027', ['type' => 'sql', 'points' => 3, 'text' => 'Число студентов в группах', 'reference' => self::SQL_REFERENCE]),
+            $this->question('Q-044', ['type' => 'open', 'points' => 5, 'text' => 'Зачем нужна нормализация?',
+                'reference' => 'Устраняет избыточность и аномалии', 'criteria' => [['Цель', 2], ['Аномалии', 2], ['Пример', 1]]]),
+        ]);
+
         $this->actingAs($this->student())->get('/student/test?test=m1')->assertOk();
         $attempt = Attempt::where('status', 'in_progress')->latest('id')->firstOrFail();
 
         $this->postJson("/api/attempts/{$attempt->id}/submit", ['answers' => [
             'Q-012' => [1],                                                // верно
             'Q-031' => [0],                                                // неверно
-            'Q-027' => "SELECT g.name, COUNT(s.id) AS students FROM groups g LEFT JOIN students s ON s.group_id = g.id GROUP BY g.name ORDER BY students DESC",
+            'Q-027' => self::SQL_REFERENCE,
             'Q-044' => 'Нормализация устраняет избыточность. Аномалия удаления: теряются сведения о группе.',
         ]])->assertOk();
 
@@ -122,11 +130,18 @@ class DemoFlowTest extends TestCase
     {
         $this->actingAs($this->student());
         $this->postJson('/api/sql/run', ['sql' => 'DELETE FROM students'])->assertOk()->assertJson(['ok' => false]);
+        $this->postJson('/api/sql/run', ['sql' => 'SELECT 1; DELETE FROM students'])->assertOk()->assertJson(['ok' => false]);
         $this->postJson('/api/sql/run', ['sql' => 'SELECT COUNT(*) FROM students'])->assertOk()->assertJson(['ok' => true, 'rows' => [[125]]]);
+        $this->postJson('/api/sql/run', ['sql' => 'SELECT nope FROM students'])->assertOk()->assertJson(['ok' => false]);
     }
 
     public function test_builder_assembles_test_from_approved_questions(): void
     {
+        foreach (range(1, 4) as $i) {
+            $this->singleQuestion('Q-'.$i);
+        }
+        $this->singleQuestion('Q-9', 0, ['status' => 'pending']);
+
         $this->actingAs($this->teacher());
         $r = $this->postJson('/api/tests', [
             'title' => 'Контрольная', 'mode' => 'rules', 'publish' => true, 'topics' => [],
@@ -135,6 +150,7 @@ class DemoFlowTest extends TestCase
 
         $test = Test::where('code', $r['test']['id'])->firstOrFail();
         $this->assertSame('running', $test->status);
+        $this->assertNotEmpty($test->questions);
         $this->assertTrue($test->questions->every(fn ($q) => $q->status === 'approved' && $q->type === 'single'));
     }
 }
