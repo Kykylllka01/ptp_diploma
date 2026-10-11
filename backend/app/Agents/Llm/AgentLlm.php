@@ -30,10 +30,11 @@ class AgentLlm
      * @param  string  $agent  analyst | writer | critic | catalog | grader
      * @param  array  $vars  подстановки {{name}} в системный промпт
      * @param  callable|null  $validate  fn(array $json): ?string — текст ошибки или null
+     * @param  array  $override  настройки этого вызова поверх config (например thinking для сложного вопроса)
      */
-    public function json(string $agent, string $user, array $vars = [], ?callable $validate = null): array
+    public function json(string $agent, string $user, array $vars = [], ?callable $validate = null, array $override = []): array
     {
-        $cfg = config('agents.agents.'.$agent);
+        $cfg = $override + config('agents.agents.'.$agent);
         $system = $this->prompt($cfg['prompt'], $vars);
         $messages = [
             ['role' => 'system', 'content' => $system],

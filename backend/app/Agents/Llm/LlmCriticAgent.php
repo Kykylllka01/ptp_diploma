@@ -53,10 +53,14 @@ class LlmCriticAgent implements CriticAgent
 
         $source = QuestionDraft::sourceText($draft);
         $course = optional(Material::find($draft['material_id'] ?? null))->course->title ?? 'Базы данных';
-        $user = '<вопрос>'."\n".json_encode(QuestionDraft::toModel($draft), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)."\n".'</вопрос>'."\n\n"
-            .'<источник>'."\n".$source."\n".'</источник>';
+        // Источник перед вопросом: у вопросов одного фрагмента он общий и берётся из кэша DeepSeek
+        $user = '<источник>'."\n".$source."\n".'</источник>'."\n\n"
+            .'<вопрос>'."\n".json_encode(QuestionDraft::toModel($draft), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)."\n".'</вопрос>';
 
-        $json = $this->llm->json('critic', $user, ['course' => $course], fn ($j) => $this->validate($j, $draft));
+        // Рассуждение — только там, где ошибка тонкая (развёрнутый ответ, SQL): на вопросах с выбором
+        // и сопоставлении Критик без рассуждения ловит подложенные ошибки так же (agents:critic-eval)
+        $think = in_array($draft['type'] ?? '', (array) config('agents.agents.critic.thinking_types', []), true);
+        $json = $this->llm->json('critic', $user, ['course' => $course], fn ($j) => $this->validate($j, $draft), ['thinking' => $think]);
 
         foreach ($json['checks'] as $c) {
             $label = self::LABELS[$c['code']] ?? [$c['code'], $c['code']];

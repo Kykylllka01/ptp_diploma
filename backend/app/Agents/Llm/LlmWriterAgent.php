@@ -61,9 +61,11 @@ class LlmWriterAgent implements WriterAgent
                     'source' => $material->title.(str_starts_with($chunk['place'], 'фрагмент') ? '' : ', '.$chunk['place']),
                     'source_text' => $chunk['text'],
                 ];
-                $user = $this->task($batch, $params)
+                // Порядок под кэш DeepSeek: сначала то, что общее у всех порций фрагмента (источник,
+                // понятия), затем изменчивое (задание порции, банк — он растёт по ходу запуска)
+                $user = '<источник место="'.$ctx['source'].'">'."\n".$chunk['text']."\n".'</источник>'
                     ."\n\n".$this->concepts($chunk)
-                    ."\n\n".'<источник место="'.$ctx['source'].'">'."\n".$chunk['text']."\n".'</источник>'
+                    ."\n\n".$this->task($batch, $params)
                     ."\n\n".$this->bank($material->course_id, $ctx['topic'])
                     .$this->notes($params);
 
@@ -93,12 +95,13 @@ class LlmWriterAgent implements WriterAgent
         $source = QuestionDraft::sourceText($draft);
         $course = optional(Material::find($draft['material_id'] ?? null))->course->title ?? 'Базы данных';
 
-        $user = '<задание>Доработка одного вопроса. Язык: тот же, что в вопросе.'
+        // Источник первым: он общий с запросами генерации и Критика по этому фрагменту — вход из кэша
+        $user = '<источник>'."\n".$source."\n".'</источник>'."\n\n"
+            .'<задание>Доработка одного вопроса. Язык: тот же, что в вопросе.'
             .($draft['type'] === 'sql' ? "\n".'Схема учебной базы (SQLite): '.$this->sandbox->schema() : '')
             .'</задание>'."\n\n"
             .'<вопрос>'."\n".json_encode(QuestionDraft::toModel($draft), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)."\n".'</вопрос>'."\n\n"
             .'<замечания_критика>'."\n".implode("\n", $remarks)."\n".'</замечания_критика>'."\n\n"
-            .'<источник>'."\n".$source."\n".'</источник>'."\n\n"
             .'Исправь вопрос так, чтобы устранить замечания. Не меняй проверяемое понятие и тип вопроса. '
             .'Верни JSON с полем questions, в котором ровно один вопрос в том же формате.';
 
