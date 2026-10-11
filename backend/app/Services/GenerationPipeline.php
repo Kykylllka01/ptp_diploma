@@ -12,6 +12,7 @@ use App\Models\GenerationRun;
 use App\Models\Material;
 use App\Models\Question;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Cache;
 use Throwable;
 
 /**
@@ -56,7 +57,7 @@ class GenerationPipeline
                 $this->guard($run);
                 $m->update(['status' => 'processing']);
                 try {
-                    $analyses[$m->id] = $this->analyst->analyze($m, $courseTopics);
+                    $analyses[$m->id] = $this->analyze($m, $courseTopics, $run);
                     $this->succeeded();
                 } catch (RunCancelled $e) {
                     throw $e;
@@ -87,7 +88,7 @@ class GenerationPipeline
                 }
                 $this->guard($run);
                 try {
-                    $drafts = $this->writer->generate($m, $analyses[$m->id], $run->params, $perMaterial);
+                    $drafts = $this->writer->generate($m, $analyses[$m->id], $this->paramsFor($m, $run), $perMaterial);
                     $this->succeeded();
                 } catch (RunCancelled $e) {
                     throw $e;
@@ -243,6 +244,48 @@ class GenerationPipeline
         foreach (Material::whereIn('id', $run->params['material_ids'] ?? [])->where('status', 'processing')->get() as $m) {
             $m->update(['status' => $m->questions()->where('status', 'pending')->exists() ? 'review' : 'ready']);
         }
+    }
+
+    /**
+     * Разбор материала Аналитиком с кэшем: результат зависит только от текста, тем курса и настроек
+     * Аналитика, поэтому повторный запуск по той же лекции не тратит токены на её разбор заново.
+     * Ключ меняется при любой правке текста, промпта, модели или нарезки — тогда разбор делается снова.
+     */
+    private function analyze(Material $m, array $topics, GenerationRun $run): array
+    {
+        $cfg = config('agents.agents.analyst');
+        $key = 'analysis:'.sha1(json_encode([
+            config('agents.driver'), sha1((string) $m->extracted_text), $topics,
+            $cfg['model'] ?? null, $cfg['prompt'] ?? null, $cfg['thinking'] ?? null, $cfg['effort'] ?? null,
+            config('agents.chunk_chars'), config('agents.max_chunks'),
+        ]));
+        $cached = Cache::get($key);
+        if (is_array($cached)) {
+            $run->log('analyst', '«'.$m->title.'»: разбор взят из кэша — токены на Аналитика не тратятся');
+
+            return $cached;
+        }
+        $analysis = $this->analyst->analyze($m, $topics);
+        Cache::put($key, $analysis, now()->addDays((int) config('agents.analysis_cache_days', 30)));
+
+        return $analysis;
+    }
+
+    /**
+     * Параметры Составителя для материала. SQL-задания проверяются на учебной базе (groups, students):
+     * если в лекции нет SQL-запросов, такой вопрос получается не по теме и Критик его отклоняет —
+     * токены впустую. Тогда места SQL-вопросов достаются остальным выбранным типам.
+     */
+    private function paramsFor(Material $m, GenerationRun $run): array
+    {
+        $params = $run->params;
+        $types = $params['types'] ?? [];
+        if (in_array('sql', $types, true) && count($types) > 1 && ! preg_match('/\bSELECT\b/i', (string) $m->extracted_text)) {
+            $params['types'] = array_values(array_diff($types, ['sql']));
+            $run->log('writer', '«'.$m->title.'»: SQL-вопросы не составляются — в материале нет SQL-запросов, их места отданы другим типам');
+        }
+
+        return $params;
     }
 
     /** Сколько шагов модели подряд упало: при недоступном API нет смысла тратить запуск дальше. */

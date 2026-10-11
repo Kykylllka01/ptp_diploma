@@ -43,36 +43,46 @@ return [
     | модели, чем Составитель: так Критик не повторяет ошибок Составителя.
     */
     'agents' => [
+        // Аналитик выписывает понятия и цитаты — рассуждение не нужно: без него на лекции «Норм»
+        // 36 понятий вместо 39 при выходе 6,9 тыс. токенов вместо 21 тыс. (agents:bench, замеры A и B)
         'analyst' => [
             'model' => env('LLM_MODEL_ANALYST', 'deepseek-flash'),
             'temperature' => 0.1,
             'max_tokens' => 16000,
-            'effort' => 'low',
+            'thinking' => false,
             'prompt' => 'analyst.v1',
         ],
         'writer' => [
             'model' => env('LLM_MODEL_WRITER', 'deepseek-flash'),
             'temperature' => 0.7,
             'max_tokens' => 32000,
-            'effort' => 'high',
+            // low вместо high: вопросы того же качества (Критик 9–10 из 10), рассуждения на треть меньше
+            'effort' => 'low',
             'prompt' => 'writer.v2',
         ],
+        // Критик на Flash: на контрольном наборе (agents:critic-eval, 12 исправных + 12 испорченных
+        // вопросов) Flash поймал 12 из 12 ошибок против 11 у Pro при втрое меньшей цене. Рассуждение
+        // включается только для типов из thinking_types — без него проверка в 15 раз дешевле Pro.
         'critic' => [
-            'model' => env('LLM_MODEL_CRITIC', 'deepseek-v4-pro'),
+            'model' => env('LLM_MODEL_CRITIC', 'deepseek-flash'),
             'temperature' => 0,
             'max_tokens' => 8000,
             'effort' => 'low',
+            'thinking_types' => ['open', 'sql'],
             'prompt' => 'critic.v1',
         ],
         'catalog' => [
             'model' => env('LLM_MODEL_CATALOG', 'deepseek-flash'),
             'temperature' => 0,
             'max_tokens' => 2000,
-            'effort' => 'low',
+            'thinking' => false,
             'prompt' => 'catalog.v1',
         ],
+        // Оценщик на Flash: на наборе из 14 ответов (agents:grader-eval) средняя ошибка 0,29 балла
+        // и каппа 0,96 против 0,21 и 0,97 у Pro при цене в 4,7 раза ниже. Без рассуждения дешевле
+        // ещё втрое, но появляются расхождения на 2 балла — для оценки студентов это неприемлемо.
         'grader' => [
-            'model' => env('LLM_MODEL_GRADER', 'deepseek-v4-pro'),
+            'model' => env('LLM_MODEL_GRADER', 'deepseek-flash'),
             'temperature' => 0.3,
             'max_tokens' => 8000,
             'effort' => 'low',
@@ -85,6 +95,9 @@ return [
 
     // Нарезка материала на фрагменты для Аналитика (примерно 2–3 тыс. токенов)
     'chunk_chars' => 7000,
+
+    // Сколько дней хранить разбор материала Аналитиком: повторная генерация по той же лекции его не повторяет
+    'analysis_cache_days' => (int) env('AGENTS_ANALYSIS_CACHE_DAYS', 30),
 
     // Сколько фрагментов одного материала разбирать за запуск (ограничение расхода)
     'max_chunks' => (int) env('AGENTS_MAX_CHUNKS', 12),

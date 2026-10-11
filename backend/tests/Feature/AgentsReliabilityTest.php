@@ -250,6 +250,65 @@ class AgentsReliabilityTest extends TestCase
         $this->assertSame(0.0, AgentLlm::cost('qwen-local', 1_000_000, 0, 1_000_000));
     }
 
+    // ------------------------------------------------- Экономия токенов
+
+    public function test_second_generation_on_the_same_material_reuses_analysis(): void
+    {
+        $material = $this->material();
+        $this->generate($material, 1);
+        $second = $this->generate($material, 1);
+
+        $this->assertTrue($second->logs()->where('message', 'like', '%разбор взят из кэша%')->exists());
+    }
+
+    public function test_sql_questions_are_skipped_for_material_without_sql(): void
+    {
+        $material = $this->material();
+        $r = $this->postJson('/api/generation-runs', ['material_ids' => [$material['id']], 'types' => ['sql', 'single'], 'count' => 4, 'difficulty' => 'mixed'])->assertOk()->json();
+        $run = GenerationRun::findOrFail($r['id']);
+
+        $this->assertSame(0, Question::where('generation_run_id', $run->id)->where('type', 'sql')->count());
+        $this->assertTrue($run->logs()->where('message', 'like', '%SQL-вопросы не составляются%')->exists());
+    }
+
+    public function test_critic_thinks_only_on_open_and_sql_questions(): void
+    {
+        $client = new class extends HttpLlmClient
+        {
+            public array $thinking = [];
+
+            public function __construct()
+            {
+                parent::__construct([]);
+            }
+
+            public function chat(array $messages, array $options = []): array
+            {
+                $this->thinking[] = $options['thinking'];
+                $checks = array_map(fn ($c) => ['code' => $c, 'ok' => true, 'comment' => ''], ['key', 'source', 'single', 'distractors', 'clarity', 'level', 'self']);
+
+                return ['content' => json_encode(['verdict' => 'accept', 'score' => 9, 'checks' => $checks, 'flag' => null]),
+                    'model' => 'deepseek-flash', 'tokens_in' => 10, 'tokens_cached' => 0, 'tokens_out' => 10, 'tokens_reasoning' => 0, 'ms' => 1];
+            }
+        };
+        $critic = new \App\Agents\Llm\LlmCriticAgent(new AgentLlm($client), app(\App\Services\SqlSandbox::class));
+        $single = ['type' => 'single', 'text' => 'Что такое 1НФ?', 'points' => 1, 'options' => [['text' => 'атомарные значения', 'correct' => true],
+            ['text' => 'нет частичных зависимостей', 'correct' => false], ['text' => 'нет транзитивных зависимостей', 'correct' => false], ['text' => 'есть внешний ключ', 'correct' => false]]];
+        $open = ['type' => 'open', 'text' => 'Объясните 2НФ', 'points' => 2, 'reference' => 'Нет частичных зависимостей', 'criteria' => [['Определение', 1], ['Пример', 1]]];
+        $source = ['_source' => 'В 1НФ хранятся атомарные значения. Во 2НФ нет частичных зависимостей.', '_quote' => 'атомарные значения'];
+        [$single, $open] = [$single + $source, $open + $source];
+
+        try {
+            $critic->review($single);
+            $critic->review($open);
+        } catch (\Throwable) {
+            // Проверка ответа Критика здесь не важна — только что ушло в модель
+        }
+
+        $this->assertSame(false, $client->thinking[0] ?? null);
+        $this->assertSame(true, end($client->thinking));
+    }
+
     public function test_grader_treats_self_contradiction_as_doubt(): void
     {
         // «выполнено», но 0 баллов — модель сама себе противоречит
