@@ -8,7 +8,7 @@
 <main class="page">
   <div>
     <div class="lbl">Новый тест · черновик</div>
-    <h1 class="page-title"><span contenteditable="true" id="test-title" spellcheck="false" aria-label="Название теста">Новый тест</span></h1>
+    <h1 class="page-title"><span contenteditable="plaintext-only" role="textbox" aria-multiline="false" id="test-title" spellcheck="false" aria-label="Название теста">Новый тест</span></h1>
   </div>
 
   <form class="split" id="builder">

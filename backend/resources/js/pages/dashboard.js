@@ -26,7 +26,11 @@
   A.$('#materials').innerHTML = M.materials.map(function (m) {
     var mine = qs.filter(function (q) { return q.materialId === m.id; });
     var p = mine.filter(function (q) { return q.status === 'pending'; }).length;
-    var status = p ? A.chip(p + ' на проверке', 'amber') : A.chip('Готово', 'green');
+    // Статус материала, а не только вопросов: в обработке, ошибка, без вопросов
+    var status = m.status === 'processing' ? A.chip('В обработке', 'blue')
+      : m.status === 'error' ? A.chip('Ошибка чтения', 'red')
+      : p ? A.chip(p + ' на проверке', 'amber')
+      : mine.length ? A.chip('Готово', 'green') : A.chip('Вопросов нет');
     return '<div class="list-row">' +
       '<span class="filetype">' + m.kind + '</span>' +
       '<div class="list-row__main"><div class="strong">' + esc(m.title) + '</div><div class="list-row__meta">' + esc(m.meta) + ' · загружено ' + esc(m.date) + '</div></div>' +
