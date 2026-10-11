@@ -22,6 +22,8 @@ php artisan migrate --seed
 
 Фронт собирается в `public/build` (в git не хранится). После правок в `resources/js` или `resources/css`: `npm install` один раз, затем `npm run build`.
 
+Планировщик: в `.osp/tasks.ini` задание OSPanel раз в минуту запускает `php artisan schedule:run`, а тот — `attempts:finalize` (досдаёт попытки, у которых вышло время). Задание появляется после перезапуска панели; проверить — `osp status`.
+
 Журналы панели и модулей — `D:\ProgramsGames\OSPanel6\logs`, журнал Laravel — `storage/logs/laravel.log`.
 
 ## Начальные данные
