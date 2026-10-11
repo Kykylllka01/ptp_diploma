@@ -292,7 +292,13 @@ class QuestionController extends Controller
     public function check(Request $request, Question $question, GradingService $grading)
     {
         $student = CurrentUser::student();
-        $data = $request->validate(['test' => 'nullable|string|max:20', 'attempt' => 'nullable|integer']);
+        $data = $request->validate([
+            'test' => 'nullable|string|max:20',
+            'attempt' => 'nullable|integer',
+            'answer' => 'nullable',
+            'answer.*' => 'nullable|integer',
+        ]);
+        abort_if(is_string($request->input('answer')) && mb_strlen($request->input('answer')) > 10000, 422, 'Ответ слишком длинный');
 
         if (! empty($data['attempt'])) {
             $attempt = Attempt::where('user_id', $student->id)->where('status', '!=', 'in_progress')->find($data['attempt']);
@@ -301,9 +307,9 @@ class QuestionController extends Controller
         } else {
             $test = Test::visibleTo($student)->where('status', 'training')->where('code', $data['test'] ?? '')->first();
             abort_unless($test && $test->questions()->whereKey($question->id)->exists(), 403, 'Проверка доступна только в тренировке');
-            $inPendingTest = $question->tests()->visibleTo($student)->get()->contains(fn (Test $t) => $t->pendingFor($student));
-            abort_if($inPendingTest, 403, 'Этот вопрос есть в идущем тесте — проверка откроется после его сдачи');
         }
+        // Тот же вопрос может стоять в идущем или ещё не опубликованном тесте — там ответ пока секрет
+        abort_if(in_array($question->id, Test::secretQuestionIdsFor($student), true), 403, 'Этот вопрос есть в идущем тесте — проверка откроется после него');
 
         return $this->feedback($grading, $question, $request->input('answer'), false, false);
     }

@@ -43,23 +43,51 @@ class Test extends Model
     }
 
     /**
-     * Можно ли студенту видеть правильные ответы: в тренировке всегда, в контрольном тесте —
-     * когда попытки кончились или приём закрыт. Иначе разбор первой попытки подсказывает ответы для следующей.
+     * Можно ли студенту видеть правильные ответы этого теста: в тренировке всегда, в контрольном —
+     * когда попытки кончились или приём закрыт, и у студента нет незаконченной попытки
+     * (иначе разбор первой попытки подсказывает ответы для следующей).
      */
     public function reviewOpenFor(User $student): bool
     {
-        if ($this->status === 'training' || $this->status === 'closed' || $this->deadline_at?->isPast()) {
+        if ($this->status === 'training') {
+            return true;
+        }
+        $mine = $this->attempts()->where('user_id', $student->id);
+        if ((clone $mine)->where('status', 'in_progress')->exists()) {
+            return false;
+        }
+        // Срок — с той же минутой запаса, что и приём ответов (AttemptController::timeIsUp)
+        if ($this->status === 'closed' || $this->deadline_at?->copy()->addMinute()->isPast()) {
             return true;
         }
 
-        return $this->attempts()->where('user_id', $student->id)->where('status', '!=', 'in_progress')->count()
-            >= max(1, (int) $this->attempts_allowed);
+        return $mine->count() >= max(1, (int) $this->attempts_allowed);
     }
 
-    /** Студент ещё может сдавать этот тест: приём открыт, и сданных попыток меньше разрешённого. */
-    public function pendingFor(User $student): bool
+    /**
+     * Ответы на вопросы этого теста пока нельзя раскрывать студенту ни здесь, ни через другие тесты
+     * с теми же вопросами: черновик (ещё не опубликован) или идущий тест, по которому разбор
+     * для студента закрыт — в том числе до opens_at и для тестов чужих групп.
+     */
+    public function keepsAnswersFrom(User $student): bool
     {
-        return $this->isOpenNow() && ! $this->reviewOpenFor($student);
+        return $this->status === 'draft' || ($this->status === 'running' && ! $this->reviewOpenFor($student));
+    }
+
+    /**
+     * id вопросов, ответы на которые студенту пока нельзя показывать (см. keepsAnswersFrom).
+     * Один вопрос банка часто входит в несколько тестов, поэтому проверяется каждый.
+     *
+     * @return int[]
+     */
+    public static function secretQuestionIdsFor(User $student, ?self $except = null): array
+    {
+        return self::whereIn('status', ['draft', 'running'])
+            ->when($except, fn ($q) => $q->whereKeyNot($except->id))
+            ->with('questions:id')->get()
+            ->filter(fn (self $t) => $t->keepsAnswersFrom($student))
+            ->flatMap(fn (self $t) => $t->questions->pluck('id'))
+            ->unique()->values()->all();
     }
 
     public function questions(): BelongsToMany

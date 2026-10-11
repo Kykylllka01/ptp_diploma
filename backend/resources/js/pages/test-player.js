@@ -281,7 +281,11 @@
     clearInterval(tickTimer);
     // Оценивает сервер: варианты сразу, SQL на учебной базе, развёрнутые — агент-оценщик
     A.api('POST', 'attempts/' + M.attempt.attemptId + '/submit', { answers: st.answers, flags: st.flags, current: st.current })
-      .then(function (r) { location.href = r.redirect; });
+      .then(function (r) { location.href = r.redirect; })
+      // Сдача не прошла (например, учебная база SQL недоступна — сервер откатил её): ответы сохранены,
+      // сообщение уже показано, кнопку «Завершить тест» можно нажать ещё раз. Таймер не перезапускаем,
+      // чтобы после конца времени он не повторял сдачу каждую секунду.
+      .catch(function () { submitted = false; });
   }
 
   /* ---------- Таймер ---------- */

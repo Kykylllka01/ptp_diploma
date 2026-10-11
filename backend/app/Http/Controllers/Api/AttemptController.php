@@ -79,26 +79,34 @@ class AttemptController extends Controller
     private function rules(): array
     {
         return [
-            'answers' => 'array',
+            'answers' => 'array|max:300',
             'answers.*' => ['nullable', function (string $attribute, mixed $value, \Closure $fail) {
                 if (is_string($value) && mb_strlen($value) > self::MAX_ANSWER_LENGTH) {
                     $fail('Ответ длиннее '.self::MAX_ANSWER_LENGTH.' символов — сократите его');
+                } elseif (is_array($value) && count($value) > 50) {
+                    $fail('Слишком много вариантов в ответе');
+                } elseif (! is_string($value) && ! is_array($value) && $value !== null) {
+                    $fail('Неверный формат ответа');
                 }
             }],
             'answers.*.*' => 'nullable|integer',
-            'flags' => 'array',
+            'flags' => 'array|max:300',
             'current' => 'integer|min:0',
         ];
     }
 
-    /** Время попытки или срок сдачи теста вышли (с запасом в минуту на сеть). */
+    /**
+     * Ответы больше не принимаются: время попытки или срок сдачи вышли (с запасом в минуту на сеть),
+     * либо преподаватель закрыл приём — тогда разбор уже может быть открыт, и дописывать ответы нельзя.
+     */
     private function timeIsUp(Attempt $attempt): bool
     {
-        $minutes = (int) $attempt->test->minutes;
-        $deadline = $attempt->test->deadline_at;
+        $test = $attempt->test;
+        $minutes = (int) $test->minutes;
 
-        return ($minutes > 0 && $attempt->started_at && $attempt->started_at->copy()->addMinutes($minutes + 1)->isPast())
-            || ($deadline && $deadline->copy()->addMinute()->isPast());
+        return $test->status !== 'running'
+            || ($minutes > 0 && $attempt->started_at && $attempt->started_at->copy()->addMinutes($minutes + 1)->isPast())
+            || ($test->deadline_at && $test->deadline_at->copy()->addMinute()->isPast());
     }
 
     private function authorizeOwner(Attempt $attempt): void

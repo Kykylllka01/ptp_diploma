@@ -74,7 +74,12 @@
         A.context(q.context) +
         '<p style="margin: 10px 0 12px; font-size: 17px; font-weight: 500">' + esc(q.text) + '</p>';
       var body;
-      if (q.type === 'match') {
+      if (q.keyHidden) {
+        // Этот вопрос есть в другом, ещё идущем тесте — правильный ответ пока не показываем
+        var mineText = Array.isArray(a) ? (q.options ? a.map(function (k) { return q.options[k]; }).join('; ') : 'ответ дан') : a;
+        body = '<div class="ans ans--neutral" style="white-space: pre-wrap; font-size: 14px"><span><b class="strong">Ваш ответ:</b> ' + esc(mineText || 'нет ответа') + '</span></div>' +
+          '<p class="muted" style="margin: 12px 0 0">Правильный ответ откроется позже: этот вопрос есть в тесте, который ещё идёт.</p>';
+      } else if (q.type === 'match') {
         var given = a || [];
         body = '<div class="stack-sm" style="gap: 8px">' + q.terms.map(function (t, k) {
           var ok = given[k] === q.correct[k], mine = given[k] >= 0 ? q.definitions[given[k]] : 'нет ответа';

@@ -122,6 +122,9 @@ class FrontendData
         // Разбор с ответами — только когда пересдавать уже нельзя, иначе он подсказывает ответы для следующей попытки
         $reviewAllowed = $attempt->test->setting('show_review', true);
         $showReview = $reviewAllowed && $attempt->test->reviewOpenFor($attempt->user);
+        // Вопрос из банка может стоять и в другом, ещё идущем тесте — его ключ остаётся скрытым
+        $secret = $showReview ? Test::secretQuestionIdsFor($attempt->user, $attempt->test) : [];
+        $keyFor = fn (Question $q) => $showReview && ! in_array($q->id, $secret, true);
         $answers = $attempt->answers->keyBy(fn ($a) => $a->question->code);
 
         $results = [];
@@ -133,7 +136,8 @@ class FrontendData
                 'score' => $this->num($a?->score ?? 0),
                 'max' => $q->points,
                 'final' => (bool) ($a?->is_final ?? true),
-                'criteria' => $a?->criteria ?? [],
+                // Пояснения к SQL сравнивают с эталоном («5 строк вместо 7») — это подсказка, пока разбор закрыт
+                'criteria' => $q->type === 'open' || $keyFor($q) ? ($a?->criteria ?? []) : [],
                 'answerId' => $a?->id,
                 'canAppeal' => $q->type === 'open' && $a?->review !== null,
                 'appeal' => $a?->review?->appeal,
@@ -143,7 +147,9 @@ class FrontendData
         return [
             'attempt' => [
                 'testId' => $attempt->test->code,
-                'questions' => $attempt->test->questions->map(fn ($q) => $this->studentQuestion($q, $showReview))->values()->all(),
+                'questions' => $attempt->test->questions
+                    ->map(fn ($q) => $this->studentQuestion($q, $keyFor($q)) + ['keyHidden' => $showReview && ! $keyFor($q)])
+                    ->values()->all(),
             ],
             'result' => [
                 'attemptId' => $attempt->id,

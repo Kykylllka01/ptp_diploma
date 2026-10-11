@@ -55,6 +55,49 @@ class SecurityTest extends TestCase
         ]])->assertOk();
 
         $this->assertEquals(0, $attempt->fresh()->score);
+        // Ноль именно за остановленный запрос, а не из-за того, что учебная база не запустилась
+        $this->assertStringContainsString('остановлен', json_encode($attempt->answers()->first()->criteria, JSON_UNESCAPED_UNICODE));
+    }
+
+    public function test_memory_hungry_query_is_stopped(): void
+    {
+        $this->actingAs($this->student());
+        $r = $this->postJson('/api/sql/run', ['sql' => "SELECT length(printf('%999999999s', 'x'))"])->assertOk()->json();
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('памяти', $r['error']);
+
+        // Цепочка CTE с удвоением строки — тоже упирается в предел кучи SQLite, а не съедает память компьютера
+        $ctes = ["a0 AS (SELECT 'xxxxxxxxxxxxxxxx' s)"];
+        foreach (range(1, 30) as $i) {
+            $ctes[] = "a{$i} AS (SELECT s || s s FROM a".($i - 1).')';
+        }
+        $r = $this->postJson('/api/sql/run', ['sql' => 'WITH '.implode(', ', $ctes).' SELECT length(s) FROM a30'])->assertOk()->json();
+        $this->assertFalse($r['ok']);
+    }
+
+    public function test_sandbox_words_inside_string_literals_are_allowed(): void
+    {
+        $this->actingAs($this->student())
+            ->postJson('/api/sql/run', ['sql' => "SELECT count(*) FROM students WHERE name = 'recursive'"])
+            ->assertOk()->assertJson(['ok' => true, 'rows' => [[0]]]);
+    }
+
+    public function test_sandbox_failure_does_not_give_final_zero(): void
+    {
+        $this->makeTest('m1', [$this->question('Q-1', ['type' => 'sql', 'points' => 2, 'text' => 'Все студенты', 'reference' => 'SELECT * FROM students'])]);
+        $this->actingAs($this->student())->get('/student/test?test=m1')->assertOk();
+        $attempt = Attempt::firstOrFail();
+
+        // Учебная база не запускается (нет php.exe и т. п.) — сдача откатывается с 503, попытку можно сдать снова
+        $this->app->instance(\App\Services\SqlSandbox::class, new class extends \App\Services\SqlSandbox
+        {
+            public function run(string $sql): array
+            {
+                return ['ok' => false, 'kind' => 'infra', 'error' => 'Учебная база сейчас недоступна'];
+            }
+        });
+        $this->postJson("/api/attempts/{$attempt->id}/submit", ['answers' => ['Q-1' => 'SELECT * FROM students']])->assertStatus(503);
+        $this->assertSame('in_progress', $attempt->fresh()->status);
     }
 
     public function test_sql_run_is_rate_limited(): void
@@ -185,8 +228,90 @@ class SecurityTest extends TestCase
         $this->putJson("/api/attempts/{$attempt->id}", ['answers' => ['Q-1' => [0]]])->assertStatus(409);
     }
 
+    // ------------------------------------------------- Повторная проверка (ревью ecc security-reviewer)
+
+    public function test_shared_question_key_stays_hidden_while_other_test_runs(): void
+    {
+        $shared = $this->singleQuestion('Q-1', 1);
+        $old = $this->makeTest('old', [$shared]);
+        $first = $this->submit($old, ['Q-1' => [0]]);
+        $old->update(['status' => 'closed']);
+        $this->makeTest('exam', [$shared]);   // тот же вопрос в новом идущем тесте
+
+        $data = $this->get('/student/result?attempt='.$first->id)->assertOk()->viewData('appData');
+        $this->assertTrue($data['result']['showReview']);
+        $this->assertArrayNotHasKey('correct', $data['attempt']['questions'][0]);
+        $this->assertTrue($data['attempt']['questions'][0]['keyHidden']);
+        $this->postJson('/api/questions/Q-1/check', ['answer' => [1], 'attempt' => $first->id])->assertForbidden();
+    }
+
+    public function test_training_check_closed_for_scheduled_and_draft_tests(): void
+    {
+        $scheduled = $this->singleQuestion('Q-1');
+        $drafted = $this->singleQuestion('Q-2');
+        $this->makeTest('tr1', [$scheduled, $drafted], ['status' => 'training', 'graded' => false]);
+        $this->makeTest('later', [$scheduled], ['opens_at' => now()->addDay()]);
+        $this->makeTest('d1', [$drafted], ['status' => 'draft', 'group_name' => null]);
+        $this->actingAs($this->student());
+
+        $this->postJson('/api/questions/Q-1/check', ['answer' => [0], 'test' => 'tr1'])->assertForbidden();
+        $this->postJson('/api/questions/Q-2/check', ['answer' => [0], 'test' => 'tr1'])->assertForbidden();
+    }
+
+    public function test_closing_test_with_attempt_in_progress_keeps_review_closed_and_blocks_saving(): void
+    {
+        $test = $this->makeTest('m1', [$this->singleQuestion('Q-1', 1)], ['attempts_allowed' => 2]);
+        $first = $this->submit($test, ['Q-1' => [0]]);
+        $this->get('/student/test?test=m1')->assertOk();
+        $second = Attempt::where('status', 'in_progress')->firstOrFail();
+
+        $test->update(['status' => 'closed']);
+        $this->assertFalse($this->get('/student/result?attempt='.$first->id)->viewData('appData')['result']['showReview']);
+        $this->putJson("/api/attempts/{$second->id}", ['answers' => ['Q-1' => [1]]])->assertStatus(409);
+
+        // Сдаётся то, что было сохранено до закрытия; после этого разбор открыт
+        $this->postJson("/api/attempts/{$second->id}/submit", ['answers' => ['Q-1' => [1]]])->assertOk();
+        $this->assertEquals(0, $second->fresh()->score);
+        $this->assertTrue($this->get('/student/result?attempt='.$first->id)->viewData('appData')['result']['showReview']);
+    }
+
+    public function test_sql_hints_are_hidden_while_review_is_closed(): void
+    {
+        $test = $this->makeTest('m1', [$this->question('Q-1', ['type' => 'sql', 'points' => 2, 'text' => 'Все студенты', 'reference' => 'SELECT * FROM students'])], ['attempts_allowed' => 2]);
+        $first = $this->submit($test, ['Q-1' => 'SELECT * FROM students WHERE id < 5']);
+
+        $data = $this->get('/student/result?attempt='.$first->id)->viewData('appData');
+        $this->assertSame([], $data['result']['results']->{'Q-1'}['criteria']);
+    }
+
+    public function test_training_check_is_rate_limited_and_answer_length_limited(): void
+    {
+        $this->makeTest('tr1', [$this->singleQuestion('Q-1')], ['status' => 'training', 'graded' => false]);
+        $this->actingAs($this->student());
+
+        $this->postJson('/api/questions/Q-1/check', ['answer' => str_repeat('а', 10001), 'test' => 'tr1'])->assertStatus(422);
+        foreach (range(2, 60) as $_) {
+            $this->postJson('/api/questions/Q-1/check', ['answer' => [0], 'test' => 'tr1']);
+        }
+        $this->postJson('/api/questions/Q-1/check', ['answer' => [0], 'test' => 'tr1'])->assertStatus(429);
+    }
+
+    public function test_multiple_and_match_answers_pass_validation(): void
+    {
+        $this->makeTest('m1', [
+            $this->question('Q-1', ['type' => 'multiple', 'text' => 'Выберите', 'options' => [['text' => 'a', 'correct' => true], ['text' => 'b'], ['text' => 'c', 'correct' => true]]]),
+            $this->question('Q-2', ['type' => 'match', 'text' => 'Сопоставьте', 'options' => [['text' => '1НФ — атомарность'], ['text' => '2НФ — полная зависимость'], ['text' => 'Лишнее: транзитивность']]]),
+        ]);
+        $this->actingAs($this->student())->get('/student/test?test=m1')->assertOk();
+        $attempt = Attempt::firstOrFail();
+
+        $this->putJson("/api/attempts/{$attempt->id}", ['answers' => ['Q-1' => [0, 2], 'Q-2' => [1, -1]]])->assertOk();
+        $this->putJson("/api/attempts/{$attempt->id}", ['answers' => ['Q-1' => true]])->assertStatus(422);
+    }
+
     private function submit(Test $test, array $answers): Attempt
     {
+        $this->actingAs($this->student());
         $this->get('/student/test?test='.$test->code)->assertOk();
         $attempt = Attempt::where('status', 'in_progress')->latest('id')->firstOrFail();
         $this->postJson("/api/attempts/{$attempt->id}/submit", ['answers' => $answers])->assertOk();

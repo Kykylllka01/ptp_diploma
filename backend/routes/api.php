@@ -48,7 +48,8 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::middleware('role:student')->group(function () {
         Route::put('attempts/{attempt}', [AttemptController::class, 'update']);
         Route::post('attempts/{attempt}/submit', [AttemptController::class, 'submit']);
-        Route::post('questions/{question}/check', [QuestionController::class, 'check']);
+        // Проверка SQL-ответа запускает учебную базу — частоту ограничиваем, как у sql/run
+        Route::post('questions/{question}/check', [QuestionController::class, 'check'])->middleware('throttle:60,1');
         Route::post('answers/{answer}/appeal', [AttemptController::class, 'appeal']);
     });
 

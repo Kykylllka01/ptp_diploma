@@ -37,7 +37,9 @@ class StudentController extends Controller
             abort_unless($source->test->reviewOpenFor($student), 403, 'Работа над ошибками откроется, когда закончатся попытки или тест закроется');
             $wrong = $source->answers()->with('question')->get()
                 ->filter(fn ($a) => $a->question->type !== 'open' && (float) $a->score < (float) $a->max_score)
-                ->pluck('question_id');
+                ->pluck('question_id')
+                // Вопросы, которые стоят и в идущем тесте, проверка всё равно не пропустит
+                ->diff(Test::secretQuestionIdsFor($student, $source->test));
             $test = $source->test;
             $test->setRelation('questions', $test->questions()->whereIn('questions.id', $wrong)->get());
             $test->title = 'Работа над ошибками · '.$test->title;
