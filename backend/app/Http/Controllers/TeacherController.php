@@ -4,13 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\GenerationRun;
 use App\Models\Test;
+use App\Services\AttemptService;
 use App\Services\FrontendData;
 use Illuminate\Http\Request;
 
 /** Экраны преподавателя (1–8). Данные уходят в шаблон как window.APP_DATA. */
 class TeacherController extends Controller
 {
-    public function __construct(private FrontendData $data)
+    public function __construct(private FrontendData $data, private AttemptService $attempts)
     {
     }
 
@@ -48,6 +49,7 @@ class TeacherController extends Controller
 
     public function tests()
     {
+        $this->attempts->finalizeOverdue();
         return $this->page('tests', 'Тесты', 'tests');
     }
 
@@ -67,6 +69,8 @@ class TeacherController extends Controller
     /** Аналитика: без ?test — список тестов для выбора, с ?test=код — разбор результатов этого теста. */
     public function analytics(Request $request)
     {
+        // Брошенные студентами попытки досдаются, иначе их нет в результатах
+        $this->attempts->finalizeOverdue();
         if (! $request->filled('test')) {
             return $this->page('analytics-tests', 'Аналитика', 'analytics', $this->data->analyticsTests());
         }

@@ -258,21 +258,24 @@ class SecurityTest extends TestCase
         $this->postJson('/api/questions/Q-2/check', ['answer' => [0], 'test' => 'tr1'])->assertForbidden();
     }
 
-    public function test_closing_test_with_attempt_in_progress_keeps_review_closed_and_blocks_saving(): void
+    public function test_closing_test_blocks_saving_and_submits_the_attempt_in_progress(): void
     {
         $test = $this->makeTest('m1', [$this->singleQuestion('Q-1', 1)], ['attempts_allowed' => 2]);
         $first = $this->submit($test, ['Q-1' => [0]]);
         $this->get('/student/test?test=m1')->assertOk();
         $second = Attempt::where('status', 'in_progress')->firstOrFail();
 
-        $test->update(['status' => 'closed']);
+        // Пока вторая попытка идёт, разбор первой закрыт
         $this->assertFalse($this->get('/student/result?attempt='.$first->id)->viewData('appData')['result']['showReview']);
-        $this->putJson("/api/attempts/{$second->id}", ['answers' => ['Q-1' => [1]]])->assertStatus(409);
 
-        // Сдаётся то, что было сохранено до закрытия; после этого разбор открыт
-        $this->postJson("/api/attempts/{$second->id}/submit", ['answers' => ['Q-1' => [1]]])->assertOk();
+        // Преподаватель закрыл приём: дописать ответ нельзя, попытка сдаётся с тем, что было сохранено
+        $test->update(['status' => 'closed']);
+        $this->putJson("/api/attempts/{$second->id}", ['answers' => ['Q-1' => [1]]])->assertStatus(409);
+        $data = $this->get('/student/result?attempt='.$first->id)->viewData('appData');
+        $this->assertTrue($second->fresh()->isSubmitted());
         $this->assertEquals(0, $second->fresh()->score);
-        $this->assertTrue($this->get('/student/result?attempt='.$first->id)->viewData('appData')['result']['showReview']);
+        // Менять ответы уже нельзя — разбор открыт
+        $this->assertTrue($data['result']['showReview']);
     }
 
     public function test_sql_hints_are_hidden_while_review_is_closed(): void

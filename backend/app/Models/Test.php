@@ -56,7 +56,7 @@ class Test extends Model
         if ((clone $mine)->where('status', 'in_progress')->exists()) {
             return false;
         }
-        // Срок — с той же минутой запаса, что и приём ответов (AttemptController::timeIsUp)
+        // Срок — с той же минутой запаса, что и приём ответов (Attempt::isOverdue)
         if ($this->status === 'closed' || $this->deadline_at?->copy()->addMinute()->isPast()) {
             return true;
         }

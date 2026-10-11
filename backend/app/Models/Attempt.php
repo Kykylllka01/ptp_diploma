@@ -36,6 +36,20 @@ class Attempt extends Model
         return $this->hasMany(Answer::class);
     }
 
+    /**
+     * Ответы больше не принимаются: вышло время попытки или срок сдачи (с минутой запаса на сеть),
+     * либо преподаватель закрыл приём. Такую попытку можно только сдать с тем, что уже сохранено.
+     */
+    public function isOverdue(): bool
+    {
+        $test = $this->test;
+        $minutes = (int) $test->minutes;
+
+        return $test->status !== 'running'
+            || ($minutes > 0 && $this->started_at && $this->started_at->copy()->addMinutes($minutes + 1)->isPast())
+            || ($test->deadline_at && $test->deadline_at->copy()->addMinute()->isPast());
+    }
+
     public function isSubmitted(): bool
     {
         return $this->status !== 'in_progress';

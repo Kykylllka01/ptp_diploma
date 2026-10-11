@@ -18,6 +18,8 @@ class StudentController extends Controller
 
     public function tests()
     {
+        // Брошенные попытки (время вышло, вкладка закрыта) сдаются с тем, что сохранилось
+        $this->attempts->finalizeOverdue(null, CurrentUser::student());
         return view('student.tests', [
             'title' => 'Мои тесты', 'active' => 'tests', 'script' => 'student-tests',
             'appData' => $this->data->student(),
@@ -29,6 +31,7 @@ class StudentController extends Controller
     {
         $training = $request->query('mode') === 'training';
         $student = CurrentUser::student();
+        $this->attempts->finalizeOverdue(null, $student);
 
         // Работа над ошибками: вопросы, на которые в сданной попытке дан неверный ответ
         if ($training && $request->filled('attempt')) {
@@ -79,6 +82,7 @@ class StudentController extends Controller
     public function result(Request $request)
     {
         $student = CurrentUser::student();
+        $this->attempts->finalizeOverdue(null, $student);
         $attempt = $request->filled('attempt')
             ? Attempt::where('user_id', $student->id)->findOrFail($request->query('attempt'))
             : Attempt::where('user_id', $student->id)->where('status', '!=', 'in_progress')->latest('submitted_at')->first();
