@@ -17,7 +17,8 @@
   function render() {
     var list = M.tests.slice().reverse();
     A.$('#tests').innerHTML = list.map(function (t) {
-      var meta = [t.status === 'training' ? 'тренировка без оценки' : (t.minutes ? t.minutes + ' мин' : 'без лимита времени'), t.group || 'все студенты курса'].filter(Boolean).join(' · ');
+      var meta = [t.status === 'training' ? 'тренировка без оценки' : (t.minutes ? t.minutes + ' мин' : 'без лимита времени'), t.group || 'все студенты курса',
+        t.individual ? 'свой вариант каждому · в пуле ' + t.pool : ''].filter(Boolean).join(' · ');
       return '<tr><td><div class="strong">' + esc(t.title) + '</div><div class="muted xsmall">' + esc(meta) + '</div></td>' +
         '<td>' + t.count + '</td>' +
         '<td>' + A.chip(t.statusLabel, tone[t.status]) + '</td>' +

@@ -62,7 +62,9 @@ class TeacherController extends Controller
             'title' => 'Проверка теста: '.$test->title,
             'script' => 'test-player',
             'testTitle' => $test->title,
-            'appData' => $this->data->teacher() + $this->data->attempt($test, null) + ['mode' => 'preview'],
+            // У индивидуального теста показываем один случайный вариант — как его увидит студент
+            'appData' => $this->data->teacher() + $this->data->attempt($test, null, $test->isIndividual()
+                ? $test->questions->whereIn('id', $this->attempts->variant($test) ?? [])->values() : null) + ['mode' => 'preview'],
         ]);
     }
 

@@ -9,12 +9,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Attempt extends Model
 {
     protected $fillable = [
-        'test_id', 'user_id', 'status', 'flags', 'current_index', 'score', 'max_score', 'percent',
+        'test_id', 'user_id', 'status', 'flags', 'question_ids', 'current_index', 'score', 'max_score', 'percent',
         'started_at', 'submitted_at',
     ];
 
     protected $casts = [
         'flags' => 'array',
+        'question_ids' => 'array',
         'score' => 'float',
         'max_score' => 'float',
         'started_at' => 'datetime',
@@ -48,6 +49,21 @@ class Attempt extends Model
         return $test->status !== 'running'
             || ($minutes > 0 && $this->started_at && $this->started_at->copy()->addMinutes($minutes + 1)->isPast())
             || ($test->deadline_at && $test->deadline_at->copy()->addMinute()->isPast());
+    }
+
+    /**
+     * Вопросы этой попытки в порядке показа: свой вариант из пула теста (индивидуальный тест)
+     * или все вопросы теста. Пул загружается один раз — набор берётся из него, без лишних запросов.
+     */
+    public function questionList(): \Illuminate\Support\Collection
+    {
+        $pool = $this->test->questions;
+        if (empty($this->question_ids)) {
+            return $pool;
+        }
+        $byId = $pool->keyBy('id');
+
+        return collect($this->question_ids)->map(fn ($id) => $byId->get($id))->filter()->values();
     }
 
     public function isSubmitted(): bool

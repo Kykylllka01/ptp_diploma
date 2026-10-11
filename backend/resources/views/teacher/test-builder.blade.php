@@ -46,6 +46,7 @@
           <label class="field">Попыток<select class="select" id="attempts"><option value="1">1</option><option value="2">2</option><option value="99">Без ограничений</option></select></label>
         </div>
         <div style="margin-top: 12px">
+          <div class="tg"><div><div>Свой вариант каждому студенту</div><div class="muted xsmall" style="margin-top: 2px">Вопросы по той же матрице, но из всего подходящего пула банка — у соседей разные задания</div></div><button type="button" class="sw" id="sw-individual" aria-label="Свой вариант каждому студенту" aria-pressed="false"><span></span></button></div>
           <div class="tg"><span>Перемешивать вопросы и варианты</span><button type="button" class="sw" id="sw-shuffle" aria-label="Перемешивать вопросы" aria-pressed="true"><span></span></button></div>
           <div class="tg"><div><div>Показывать разбор после сдачи</div><div class="muted xsmall" style="margin-top: 2px">Открытые ответы — после подтверждения преподавателем</div></div><button type="button" class="sw" id="sw-review" aria-label="Показывать разбор" aria-pressed="true"><span></span></button></div>
           <div class="tg"><div><div>Открытые ответы: автоматическая оценка без подтверждения</div><div class="muted xsmall" style="margin-top: 2px">Если уверенность оценщика не ниже 90%</div></div><button type="button" class="sw" id="sw-auto" aria-label="Автоматическая оценка" aria-pressed="false"><span></span></button></div>

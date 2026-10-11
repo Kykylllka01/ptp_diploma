@@ -45,6 +45,7 @@ class TestController extends Controller
             'settings.shuffle' => 'boolean',
             'settings.show_review' => 'boolean',
             'settings.auto_grade' => 'boolean',
+            'settings.individual' => 'boolean',
             'training' => 'boolean',
             'publish' => 'boolean',
         ]);
@@ -60,8 +61,16 @@ class TestController extends Controller
         if ($data['mode'] !== 'manual' && $picked->isEmpty() && (! empty($data['publish']) || ! empty($data['training']))) {
             return response()->json(['message' => 'В банке нет одобренных вопросов под выбранную матрицу и темы — тест не опубликован'], 422);
         }
+        // Индивидуальный вариант: к тесту прикрепляется весь пул нужных типов и тем,
+        // а вариант каждому студенту Экзаменатор собирает при старте попытки
+        $individual = $data['mode'] !== 'manual' && ! empty($data['settings']['individual']);
+        if ($individual) {
+            $types = array_column($data['matrix'], 0);
+            $topics = $data['topics'] ?? [];
+            $picked = $pool->filter(fn ($q) => in_array($q->type, $types, true) && (! $topics || in_array($q->topic, $topics, true)))->values();
+        }
 
-        $test = DB::transaction(function () use ($data, $course, $picked) {
+        $test = DB::transaction(function () use ($data, $course, $picked, $individual) {
             $test = Test::create([
                 'code' => 't'.Str::lower(Str::random(6)),
                 'course_id' => $course->id,
@@ -81,6 +90,7 @@ class TestController extends Controller
                     'shuffle' => (bool) ($data['settings']['shuffle'] ?? true),
                     'show_review' => (bool) ($data['settings']['show_review'] ?? true),
                     'auto_grade' => (bool) ($data['settings']['auto_grade'] ?? false),
+                    'individual' => $individual,
                 ],
             ]);
             $test->questions()->attach($picked->values()->mapWithKeys(fn ($q, $i) => [$q->id => ['position' => $i]])->all());

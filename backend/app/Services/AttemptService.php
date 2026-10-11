@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Agents\Contracts\ExaminerAgent;
 use App\Jobs\GradeOpenAnswer;
 use App\Models\Answer;
 use App\Models\Attempt;
@@ -16,8 +17,25 @@ use Illuminate\Support\Facades\DB;
 /** Попытки прохождения теста: старт, автосохранение, сдача и пересчёт после проверки преподавателем. */
 class AttemptService
 {
-    public function __construct(private GradingService $grading)
+    public function __construct(private GradingService $grading, private ExaminerAgent $examiner)
     {
+    }
+
+    /**
+     * Свой вариант для студента: Экзаменатор берёт из пула теста вопросы по матрице «тип × сложность»
+     * (случайно внутри каждой клетки). Пул не заполняет матрицу — берётся сколько есть.
+     *
+     * @return int[]|null id вопросов в порядке показа; null — вопросы теста целиком
+     */
+    public function variant(Test $test): ?array
+    {
+        if (! $test->isIndividual()) {
+            return null;
+        }
+        $ids = $this->examiner->assemble($test->questions, $test->settings['matrix'] ?? [], $test->settings['topics'] ?? [])
+            ->pluck('id')->values()->all();
+
+        return $ids ?: null;
     }
 
     public function current(Test $test, User $user): ?Attempt
@@ -38,6 +56,7 @@ class AttemptService
                 'user_id' => $user->id,
                 'status' => 'in_progress',
                 'flags' => [],
+                'question_ids' => $this->variant($test),
                 'started_at' => now(),
             ]);
         });
@@ -72,7 +91,7 @@ class AttemptService
     /** Автосохранение: ответы по кодам вопросов, отметки и текущий вопрос. */
     public function save(Attempt $attempt, array $answers, array $flags, int $current): void
     {
-        $questions = $attempt->test->questions->keyBy('code');
+        $questions = $attempt->questionList()->keyBy('code');
 
         DB::transaction(function () use ($attempt, $answers, $flags, $current, $questions) {
             // Автосохранение, пришедшее после сдачи, не должно переписать уже оценённые ответы
@@ -122,7 +141,7 @@ class AttemptService
         $deferred = [];
 
         DB::transaction(function () use ($attempt, $test, $answers, $deferOpen, &$deferred) {
-            foreach ($test->questions as $q) {
+            foreach ($attempt->questionList() as $q) {
                 $answer = $answers->get($q->id) ?? new Answer(['attempt_id' => $attempt->id, 'question_id' => $q->id]);
                 if ($deferOpen && $q->type === 'open' && GradingService::isAnswered($answer->value)) {
                     $answer->fill([
@@ -205,9 +224,10 @@ class AttemptService
     public function recalculate(Attempt $attempt): void
     {
         $answers = $attempt->answers()->get();
-        $max = (float) $attempt->test->questions->sum('points');
+        $questions = $attempt->questionList();
+        $max = (float) $questions->sum('points');
         $score = (float) $answers->sum('score');
-        $allFinal = $answers->count() >= $attempt->test->questions->count() && $answers->every('is_final');
+        $allFinal = $answers->count() >= $questions->count() && $answers->every('is_final');
 
         $attempt->update([
             'score' => $score,

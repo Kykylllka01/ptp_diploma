@@ -131,7 +131,7 @@
       attempts: +A.$('#attempts').value,
       training: training,
       publish: true,
-      settings: { shuffle: on('#sw-shuffle'), show_review: on('#sw-review'), auto_grade: on('#sw-auto') }
+      settings: { shuffle: on('#sw-shuffle'), show_review: on('#sw-review'), auto_grade: on('#sw-auto'), individual: on('#sw-individual') }
     }).then(function (r) {
       var msg = mode === 'manual'
         ? 'Тест «' + title + '» создан. Отметьте вопросы в банке и нажмите «Добавить в тест» — после этого он откроется студентам'
