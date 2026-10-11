@@ -27,7 +27,7 @@ class SqlSandbox
     private const FORBIDDEN = '/\b(recursive|randomblob|zeroblob)\b/i';
 
     /** Переменные окружения, которые дочернему процессу передаются; остальные (ключи из .env) — нет. */
-    private const KEEP_ENV = ['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'COMSPEC', 'PATHEXT', 'SYSTEMDRIVE'];
+    private const KEEP_ENV = ['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'COMSPEC', 'PATHEXT', 'SYSTEMDRIVE', 'PHPRC', 'PHP_INI_SCAN_DIR'];
 
     /** @return array{ok: bool, kind?: string, error?: string, columns?: string[], rows?: array, ms?: int} */
     public function run(string $sql): array
