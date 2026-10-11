@@ -15,7 +15,9 @@ class AnalyticsService
 
     public function forTest(Test $test): array
     {
-        $attempts = $test->attempts()->with('user')->whereIn('status', ['submitted', 'confirmed'])->get();
+        // Студент с несколькими попытками — один студент: в аналитику идёт его лучшая попытка
+        $attempts = $test->attempts()->with('user')->whereIn('status', ['submitted', 'confirmed'])->get()
+            ->groupBy('user_id')->map(fn ($own) => $own->sortByDesc('percent')->first())->values();
         $total = $test->group_name
             ? User::where('role', User::ROLE_STUDENT)->where('group_name', $test->group_name)->count()
             : User::where('role', User::ROLE_STUDENT)->count();
@@ -29,6 +31,11 @@ class AnalyticsService
         $median = $minutes->count() ? (int) $minutes->median() : 0;
 
         $answers = Answer::whereIn('attempt_id', $attempts->pluck('id'))->get()->groupBy('question_id');
+        // Балл по (попытка, вопрос) одной картой — для выгрузки без перебора всех ответов на каждую ячейку
+        $scoreOf = [];
+        foreach ($answers->flatten(1) as $ans) {
+            $scoreOf[$ans->attempt_id][$ans->question_id] = $ans->score;
+        }
         $questions = $test->questions;
 
         // По темам: доля набранных баллов
@@ -101,7 +108,8 @@ class AnalyticsService
                 'max' => (float) $a->max_score,
                 'percent' => (int) $a->percent,
                 'status' => $a->status === 'confirmed' ? 'итог' : 'предварительно',
-                'byQuestion' => $questions->map(fn ($q) => (float) ($answers->get($q->id)?->firstWhere('attempt_id', $a->id)?->score ?? 0))->all(),
+                // Пусто — вопроса не было в варианте студента (индивидуальный тест)
+                'byQuestion' => $questions->map(fn ($q) => isset($scoreOf[$a->id][$q->id]) ? (float) $scoreOf[$a->id][$q->id] : '')->all(),
             ])->all(),
         ];
     }

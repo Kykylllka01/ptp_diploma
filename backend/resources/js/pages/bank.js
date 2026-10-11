@@ -120,6 +120,8 @@
       updateBulk();
       return;
     } else return;
+    // Смена фильтров снимает выбор: массовое действие не должно задеть уже скрытые вопросы
+    selected = {};
     f.limit = PAGE;
     renderList();
   });

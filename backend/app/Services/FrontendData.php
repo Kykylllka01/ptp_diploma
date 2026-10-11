@@ -42,8 +42,11 @@ class FrontendData
             'questions' => $questions->map(fn ($q) => $this->question($q))->all(),
             // Студенты групп, которым открыт хотя бы один идущий тест или тренировка
             'groups' => User::where('role', 'student')->whereNotNull('group_name')->distinct()->orderBy('group_name')->pluck('group_name')->all(),
-            'participants' => User::where('role', 'student')->whereIn('group_name',
-                Test::where('course_id', $course->id)->whereIn('status', ['running', 'training'])->whereNotNull('group_name')->pluck('group_name'))->count(),
+            // Тест без группы открыт всем студентам курса — тогда участвуют все
+            'participants' => Test::where('course_id', $course->id)->whereIn('status', ['running', 'training'])->whereNull('group_name')->exists()
+                ? User::where('role', 'student')->count()
+                : User::where('role', 'student')->whereIn('group_name',
+                    Test::where('course_id', $course->id)->whereIn('status', ['running', 'training'])->whereNotNull('group_name')->pluck('group_name'))->count(),
             'tests' => Test::where('course_id', $course->id)->withCount('questions')->orderBy('id')->get()->map(fn ($t) => $this->test($t))->all(),
             'reviews' => $reviews->map(fn ($r) => $this->review($r))->all(),
             'criteria' => $reviewQuestions->mapWithKeys(fn ($q) => [$q->code => $q->criteria ?? []])->all(),
@@ -296,10 +299,12 @@ class FrontendData
         $pool = $t->questions_count ?? $t->questions()->count();
         // У индивидуального теста к нему прикреплён пул, а студенту достаётся вариант по матрице
         $count = $t->isIndividual() ? min($pool, max(1, $t->variantSize())) : $pool;
-        $submitted = $t->attempts()->where('status', '!=', 'in_progress')->count();
+        // По студенту — лучшая попытка: пересдачи не считаются новыми студентами и не тянут средний вниз
+        $best = $t->attempts()->where('status', '!=', 'in_progress')->selectRaw('user_id, max(percent) as best')->groupBy('user_id')->pluck('best');
+        $submitted = $best->count();
         // Без группы тест открыт всем студентам курса
         $students = User::where('role', 'student')->when($t->group_name, fn ($q) => $q->where('group_name', $t->group_name))->count();
-        $avg = $t->attempts()->where('status', '!=', 'in_progress')->avg('percent');
+        $avg = $best->count() ? $best->avg() : null;
         $openCount = $t->questions()->where('type', 'open')->count();
 
         $statusLabel = match ($t->status) {

@@ -125,6 +125,26 @@ class IntegrityTest extends TestCase
         $this->assertSame('draft', $draft->fresh()->status);
     }
 
+    public function test_retakes_do_not_count_as_new_students_in_analytics(): void
+    {
+        $test = $this->makeTest('m1', [$this->singleQuestion('Q-1', 1), $this->singleQuestion('Q-2', 1)], ['attempts_allowed' => 2]);
+        $this->actingAs($this->student());
+        foreach ([['Q-1' => [0], 'Q-2' => [0]], ['Q-1' => [1], 'Q-2' => [1]]] as $answers) {   // 0 %, потом 100 %
+            $this->get('/student/test?test=m1')->assertOk();
+            $attempt = Attempt::where('status', 'in_progress')->latest('id')->firstOrFail();
+            $this->postJson("/api/attempts/{$attempt->id}/submit", ['answers' => $answers])->assertOk();
+        }
+
+        $this->actingAs($this->teacher());
+        $a = $this->get('/teacher/analytics?test=m1')->viewData('appData')['analytics'];
+        $this->assertSame(1, $a['submitted']);
+        $this->assertSame(100, $a['avg']);
+        $row = collect($this->get('/teacher/tests')->viewData('appData')['tests'])->firstWhere('id', 'm1');
+        $this->assertSame('100%', $row['avg']);
+        $this->assertStringStartsWith('1 / ', $row['passed']);
+        $this->assertSame(2, $test->attempts()->count());
+    }
+
     public function test_teacher_scores_are_limited_by_each_criterion_and_appeal_is_single(): void
     {
         $this->makeTest('m1', [$this->open()]);
