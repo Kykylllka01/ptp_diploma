@@ -11,6 +11,20 @@ use Illuminate\Http\Request;
 /** Экраны преподавателя (1–8). Данные уходят в шаблон как window.APP_DATA. */
 class TeacherController extends Controller
 {
+    /** Какие данные нужны каждой странице (по скриптам resources/js/pages); остальное не считается. */
+    private const PAGE_DATA = [
+        'dashboard' => ['materials', 'agents', 'questions', 'participants', 'tests', 'reviews'],
+        'upload' => ['materials'],
+        'pipeline' => [],
+        'bank' => ['questions', 'materials', 'tests'],
+        'question' => ['questions'],
+        'test-builder' => ['groups'],
+        'tests' => ['tests'],
+        'analytics' => ['tests'],
+        'analytics-tests' => ['tests'],
+        'review' => ['reviews'],
+    ];
+
     public function __construct(private FrontendData $data, private AttemptService $attempts)
     {
     }
@@ -63,7 +77,7 @@ class TeacherController extends Controller
             'script' => 'test-player',
             'testTitle' => $test->title,
             // У индивидуального теста показываем один случайный вариант — как его увидит студент
-            'appData' => $this->data->teacher() + $this->data->attempt($test, null, $test->isIndividual()
+            'appData' => $this->data->teacher([]) + $this->data->attempt($test, null, $test->isIndividual()
                 ? $test->questions->whereIn('id', $this->attempts->variant($test) ?? [])->values() : null) + ['mode' => 'preview'],
         ]);
     }
@@ -91,7 +105,7 @@ class TeacherController extends Controller
         return view('teacher.'.$view, [
             'title' => $title,
             'active' => $active ?? $view,
-            'appData' => $this->data->teacher() + $extra,
+            'appData' => $this->data->teacher(self::PAGE_DATA[$view] ?? null) + $extra,
             'script' => $view,
         ]);
     }

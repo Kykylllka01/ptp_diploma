@@ -39,7 +39,7 @@ class ProfileController extends Controller
                 'tokens' => (int) LlmCall::sum('tokens_in') + (int) LlmCall::sum('tokens_out'),
                 'byAgent' => LlmCall::selectRaw('agent, count(*) as n, sum(tokens_in + tokens_out) as t')->groupBy('agent')->get(),
             ];
-            $appData = $this->data->teacher();
+            $appData = $this->data->teacher([]);
         } else {
             $stats = [];
             $llm = null;
