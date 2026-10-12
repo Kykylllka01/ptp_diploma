@@ -271,6 +271,7 @@ button.chip--dark.is-on { background: #fff; color: var(--navy); }
 .cselect--sm .cselect__list li { font-size: 14px; padding: 7px 10px; }
 .textarea { width: 100%; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 12px 14px; font: 15px/1.5 var(--font); color: var(--text); background: #fff; resize: vertical; }
 .textarea--lg { font: 16px/1.5 var(--font); }
+.input--lg { min-height: 50px; font-size: 17px; font-weight: 500; }
 .input:focus, .select:focus, .textarea:focus { outline: 2px solid var(--tsu-blue); outline-offset: -1px; }
 .num { width: 64px; min-height: 40px; border: 1px solid var(--border-strong); border-radius: 8px; text-align: center; font: 15px var(--font); }
 .search { flex: 1; min-width: 240px; display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: #fff; }
