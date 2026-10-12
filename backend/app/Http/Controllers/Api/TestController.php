@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Agents\Contracts\ExaminerAgent;
 use App\Http\Controllers\Controller;
+use App\Models\Group;
 use App\Models\Question;
 use App\Models\Test;
 use App\Services\FrontendData;
@@ -137,7 +138,9 @@ class TestController extends Controller
         }
         DB::transaction(function () use ($test, $data) {
             if (array_key_exists('weight', $data)) {
-                $test->settings = ['weight' => $data['weight'] === null ? null : round((float) $data['weight'], 1)] + ($test->settings ?? []);
+                // Настройки перечитываются под блокировкой: правка из другой вкладки не затрётся
+                $settings = Test::lockForUpdate()->findOrFail($test->id)->settings ?? [];
+                $test->settings = ['weight' => $data['weight'] === null ? null : round((float) $data['weight'], 1)] + $settings;
                 unset($data['weight']);
             }
             if (array_key_exists('groups', $data)) {
@@ -156,17 +159,23 @@ class TestController extends Controller
     public function transferred(Request $request, Test $test)
     {
         $data = $request->validate(['group' => 'required|integer|min:0', 'done' => 'required|boolean']);
-        $settings = $test->settings ?? [];
-        $marks = $settings['transferred'] ?? [];
-        if ($data['done']) {
-            $marks[(string) $data['group']] = now()->format('d.m.Y');
-        } else {
-            unset($marks[(string) $data['group']]);
-        }
-        $settings['transferred'] = $marks;
-        $test->update(['settings' => $settings]);
+        // 0 — студенты без группы; иначе группа этого же курса
+        abort_if($data['group'] && ! Group::where('id', $data['group'])->where('course_id', $test->course_id)->exists(), 422, 'Нет такой группы');
 
-        return ['transferred' => $marks];
+        return DB::transaction(function () use ($test, $data) {
+            $locked = Test::lockForUpdate()->findOrFail($test->id);
+            $settings = $locked->settings ?? [];
+            $marks = $settings['transferred'] ?? [];
+            if ($data['done']) {
+                $marks[(string) $data['group']] = now()->format('d.m.Y');
+            } else {
+                unset($marks[(string) $data['group']]);
+            }
+            $settings['transferred'] = $marks;
+            $locked->update(['settings' => $settings]);
+
+            return ['transferred' => $marks];
+        });
     }
 
     /** Удалить тест вместе с попытками студентов. */

@@ -106,7 +106,7 @@ class TeacherController extends Controller
     /** Ответы конкретного студента в попытке — с ключами и баллами по критериям. */
     public function attempt(Request $request)
     {
-        $attempt = Attempt::with(['user.group', 'test'])->findOrFail($request->query('id'));
+        $attempt = Attempt::with(['user.group', 'test'])->findOrFail((int) $request->query('id'));
         abort_unless($attempt->test->course_id === CurrentUser::course()->id && $attempt->isSubmitted(), 404);
         $others = Attempt::where('test_id', $attempt->test_id)->where('user_id', $attempt->user_id)
             ->whereIn('status', ['submitted', 'confirmed'])->orderBy('id')->get(['id', 'percent', 'status', 'submitted_at']);

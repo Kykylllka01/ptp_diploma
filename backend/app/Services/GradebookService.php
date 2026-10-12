@@ -49,12 +49,12 @@ class GradebookService
      */
     public function forGroup(?Group $group, int $courseId): array
     {
-        $students = User::where('role', User::ROLE_STUDENT)->where('group_id', $group?->id)->orderBy('name')->get();
+        $students = User::with('group')->where('role', User::ROLE_STUDENT)->where('group_id', $group?->id)->orderBy('name')->get();
         $tests = Test::where('course_id', $courseId)->where('status', '!=', 'draft')->where('graded', true)
             ->where(fn ($q) => $q->where('audience', 'all')
                 ->orWhereHas('groups', fn ($g) => $g->where('student_groups.id', $group?->id ?? 0)))
             ->orderBy('id')->get();
-        $attempts = Attempt::whereIn('test_id', $tests->pluck('id'))->whereIn('user_id', $students->pluck('id'))
+        $attempts = Attempt::with('group')->whereIn('test_id', $tests->pluck('id'))->whereIn('user_id', $students->pluck('id'))
             ->whereIn('status', ['in_progress', 'submitted', 'confirmed'])->get()->groupBy(fn ($a) => $a->test_id.':'.$a->user_id);
 
         $key = (string) ($group?->id ?? 0);
@@ -103,7 +103,7 @@ class GradebookService
             'percent' => $best ? (int) $best->percent : null,
             'score' => $best ? (float) $best->score : null,
             'max' => $best ? (float) $best->max_score : null,
-            'points' => $best ? $test->points((float) $best->percent) : null,
+            'points' => $best ? $test->points($best->exactPercent()) : null,
             'minutes' => $best?->minutesSpent(),
             'submitted' => $best?->submitted_at?->format('d.m.Y H:i'),
         ];

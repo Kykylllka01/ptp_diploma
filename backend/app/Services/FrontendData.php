@@ -218,7 +218,7 @@ class FrontendData
                 'results' => (object) $results,
                 'showReview' => $showReview,
                 'status' => $attempt->status,
-                'points' => $attempt->test->points((float) $attempt->percent),
+                'points' => $attempt->test->points($attempt->exactPercent()),
                 'weight' => $attempt->test->weight(),
                 'reviewNote' => $reviewAllowed && ! $showReview
                     ? 'Разбор с правильными ответами откроется, когда закончатся попытки или тест закроется.'
