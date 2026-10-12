@@ -10,14 +10,30 @@
   }
   var Q = M.attempt.questions;
   var pendingOpen = Q.filter(function (q) { return !att.results[q.id].final; }).length;
+  // Тот же экран у преподавателя: ответы студента с ключами, без апелляции и тренировки
+  var T = M.mode === 'teacher';
+  var YOUR = T ? 'Ответ студента' : 'Ваш ответ';
 
   A.$('#test-title').textContent = att.testTitle;
   A.$('#percent').textContent = att.percent + '%';
   A.$('#score').textContent = att.score + ' / ' + att.max;
   A.$('#donut').style.background = 'conic-gradient(#0072BC 0 ' + att.percent + '%, #EEF0F3 ' + att.percent + '% 100%)';
   A.$('#chips').innerHTML =
-    (pendingOpen ? A.chip('Предварительно: ' + pendingOpen + ' ' + A.plural(pendingOpen, 'открытый ответ ждёт', 'открытых ответа ждут', 'открытых ответов ждут') + ' преподавателя', 'amber') : '') +
+    (pendingOpen ? A.chip('Предварительно: ' + pendingOpen + ' ' + A.plural(pendingOpen, 'открытый ответ ждёт', 'открытых ответа ждут', 'открытых ответов ждут') + ' преподавателя', 'amber')
+      : (T ? A.chip('Итог подтверждён', 'green') : '')) +
     A.chip('Время ' + att.minutes + ' мин');
+  if (T) {
+    A.$('#points-line').innerHTML = att.weight != null
+      ? 'В Модеус: <b class="strong">' + String(att.points).replace('.', ',') + '</b> из ' + String(att.weight).replace('.', ',') + ' баллов'
+      : '<span class="muted">Вес теста в баллах не задан — в журнале будут проценты.</span>';
+    if (pendingOpen) A.$('#pending-line').innerHTML = '<a class="btn btn--sm btn--primary" href="review">Проверить открытые ответы</a>';
+    var others = M.others || [];
+    if (others.length > 1) {
+      A.$('#attempt-switch').innerHTML = '<span class="muted small">Попытки:</span>' + others.map(function (o, i) {
+        return '<a class="btn btn--xs' + (o.id === att.attemptId ? ' is-on' : '') + '" href="attempt?id=' + o.id + '">' + (i + 1) + ' · ' + o.percent + '%</a>';
+      }).join('');
+    }
+  }
 
   // По темам
   var topics = {};
@@ -38,12 +54,14 @@
   var weakest = tlist.slice().sort(function (a, b) { return a[1] - b[1]; })[0];
   var wrong = Q.filter(function (q) { var r = att.results[q.id]; return r.final && r.score < r.max; });
   var weakQ = weakest && wrong.filter(function (q) { return q.topic === weakest[0]; })[0];
-  A.$('#advice').textContent = !weakest ? 'Подробного разбора по этому тесту нет.' : weakest[1] < 100
+  A.$('#advice').textContent = !weakest ? 'Подробного разбора по этому тесту нет.' : T
+    ? (weakest[1] < 100 ? 'Больше всего ошибок в теме «' + weakest[0] + '» (' + weakest[1] + '%). Ошибок всего: ' + wrong.length + '.' : 'Ошибок нет.')
+    : weakest[1] < 100
     ? 'Больше всего ошибок в теме «' + weakest[0] + '» (' + weakest[1] + '%). Перечитайте ' + (weakQ && weakQ.ref ? (/^(Лекция|Лаб\. работа|Семинар)/.test(weakQ.ref) ? weakQ.ref.replace(/^Лекция/, 'лекцию').replace(/^Лаб\. работа/, 'лабораторную работу').replace(/^Семинар/, 'семинар') : 'материал «' + weakQ.ref + '»') : 'материалы по теме') + ' и пройдите короткую тренировку.'
     : 'Ошибок нет — отличный результат. Можно пройти тренировку по следующей теме.';
   // Работа над ошибками: вопросы с выбором ответа, сопоставление и SQL (развёрнутые проверяет преподаватель)
   var practice = wrong.filter(function (q) { return q.type !== 'open'; });
-  A.$('#train-btn').hidden = !practice.length || !att.showReview;
+  A.$('#train-btn').hidden = T || !practice.length || !att.showReview;
   A.$('#train-btn').href = 'test?mode=training&attempt=' + att.attemptId;
   A.$('#train-btn').textContent = 'Работа над ошибками · ' + practice.length + ' ' + A.plural(practice.length, 'вопрос', 'вопроса', 'вопросов');
 
@@ -79,7 +97,7 @@
       if (q.keyHidden) {
         // Этот вопрос есть в другом, ещё идущем тесте — правильный ответ пока не показываем
         var mineText = Array.isArray(a) ? (q.options ? a.map(function (k) { return q.options[k]; }).join('; ') : 'ответ дан') : a;
-        body = '<div class="ans ans--neutral" style="white-space: pre-wrap; font-size: 14px"><span><b class="strong">Ваш ответ:</b> ' + esc(mineText || 'нет ответа') + '</span></div>' +
+        body = '<div class="ans ans--neutral" style="white-space: pre-wrap; font-size: 14px"><span><b class="strong">' + YOUR + ':</b> ' + esc(mineText || 'нет ответа') + '</span></div>' +
           '<p class="muted" style="margin: 12px 0 0">Правильный ответ откроется позже: этот вопрос есть в тесте, который ещё идёт.</p>';
       } else if (q.type === 'match') {
         var given = a || [];
@@ -93,8 +111,8 @@
         var yours = (a || []).map(function (k) { return q.options[k]; }).join('; ') || 'нет ответа';
         var right = q.correct.map(function (k) { return q.options[k]; }).join('; ');
         body = r.score === r.max
-          ? '<div class="ans ans--good">' + A.icons.check + '<span><b class="strong">Ваш ответ:</b> ' + esc(yours) + '</span></div>'
-          : '<div class="stack-sm" style="gap: 8px"><div class="ans ans--bad">' + A.icons.cross + '<span><b class="strong">Ваш ответ:</b> ' + esc(yours) + '</span></div>' +
+          ? '<div class="ans ans--good">' + A.icons.check + '<span><b class="strong">' + YOUR + ':</b> ' + esc(yours) + '</span></div>'
+          : '<div class="stack-sm" style="gap: 8px"><div class="ans ans--bad">' + A.icons.cross + '<span><b class="strong">' + YOUR + ':</b> ' + esc(yours) + '</span></div>' +
             '<div class="ans ans--good">' + A.icons.check + '<span><b class="strong">Верно:</b> ' + esc(right) + '</span></div></div>';
         body += '<p style="margin: 12px 0 0; color: var(--text-2); font-size: 15px; line-height: 1.55">' + esc(q.explanation || '') + ' <span class="muted">' + esc(q.ref || '') + '</span></p>';
       } else {

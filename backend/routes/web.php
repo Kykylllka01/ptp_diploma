@@ -36,6 +36,8 @@ Route::middleware('auth')->group(function () {
         Route::get('analytics', 'analytics')->name('analytics');
         Route::get('review', 'review')->name('review');
         Route::get('groups', 'groups')->name('groups');
+        Route::get('gradebook', 'gradebook')->name('gradebook');
+        Route::get('attempt', 'attempt')->name('attempt');
     });
 
     Route::prefix('student')->name('student.')->middleware('role:student')->controller(StudentController::class)->group(function () {

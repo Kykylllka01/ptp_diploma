@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Attempt;
 use App\Models\GenerationRun;
+use App\Models\Group;
 use App\Models\Test;
 use App\Services\AttemptService;
 use App\Services\FrontendData;
+use App\Services\GradebookService;
+use App\Support\CurrentUser;
 use Illuminate\Http\Request;
 
 /** Экраны преподавателя (1–8). Данные уходят в шаблон как window.APP_DATA. */
@@ -23,10 +27,12 @@ class TeacherController extends Controller
         'analytics' => ['tests'],
         'analytics-tests' => ['tests'],
         'review' => ['reviews'],
+        'attempt' => [],
         'groups' => [],
+        'gradebook' => [],
     ];
 
-    public function __construct(private FrontendData $data, private AttemptService $attempts)
+    public function __construct(private FrontendData $data, private AttemptService $attempts, private GradebookService $gradebook)
     {
     }
 
@@ -93,7 +99,42 @@ class TeacherController extends Controller
         }
         $test = Test::where('code', $request->test)->firstOrFail();
 
-        return $this->page('analytics', 'Результаты и аналитика', 'analytics', $this->data->analytics($test));
+        return $this->page('analytics', 'Результаты и аналитика', 'analytics',
+            $this->data->analytics($test) + ['results' => $this->gradebook->forTest($test)]);
+    }
+
+    /** Ответы конкретного студента в попытке — с ключами и баллами по критериям. */
+    public function attempt(Request $request)
+    {
+        $attempt = Attempt::with(['user.group', 'test'])->findOrFail((int) $request->query('id'));
+        abort_unless($attempt->test->course_id === CurrentUser::course()->id && $attempt->isSubmitted(), 404);
+        $others = Attempt::where('test_id', $attempt->test_id)->where('user_id', $attempt->user_id)
+            ->whereIn('status', ['submitted', 'confirmed'])->orderBy('id')->get(['id', 'percent', 'status', 'submitted_at']);
+
+        return $this->page('attempt', 'Ответы студента', 'journal', $this->data->result($attempt, true) + [
+            'mode' => 'teacher',
+            'who' => ['name' => $attempt->user->name, 'email' => $attempt->user->email, 'group' => $attempt->group?->name ?? $attempt->user->group?->name],
+            'others' => $others->map(fn ($a) => ['id' => $a->id, 'percent' => (int) $a->percent, 'final' => $a->status === 'confirmed',
+                'date' => $a->submitted_at?->format('d.m H:i')])->all(),
+        ], 'result');
+    }
+
+    /** Журнал для переноса в Модеус: группа × тесты, баллы лучшей попытки. */
+    public function gradebook(Request $request)
+    {
+        $this->attempts->finalizeOverdue();
+        $course = CurrentUser::course();
+        $groups = Group::where('course_id', $course->id)->orderBy('name')->get(['id', 'name']);
+        $ungrouped = \App\Models\User::where('role', 'student')->whereNull('group_id')->exists();
+        $id = $request->query('group', $groups->first()?->id ?? 0);
+        $group = $id ? $groups->firstWhere('id', (int) $id) : null;
+        abort_if($id && ! $group, 404);
+
+        return $this->page('gradebook', 'Журнал', 'journal', [
+            'groups' => $groups->map(fn ($g) => ['id' => $g->id, 'name' => $g->name])->all(),
+            'hasUngrouped' => $ungrouped,
+            'journal' => $this->gradebook->forGroup($group, $course->id),
+        ]);
     }
 
     public function review()
@@ -107,13 +148,13 @@ class TeacherController extends Controller
         return $this->page('groups', 'Группы', 'groups', $this->data->groupsPage());
     }
 
-    private function page(string $view, string $title, ?string $active = null, array $extra = [])
+    private function page(string $view, string $title, ?string $active = null, array $extra = [], ?string $script = null)
     {
         return view('teacher.'.$view, [
             'title' => $title,
             'active' => $active ?? $view,
             'appData' => $this->data->teacher(self::PAGE_DATA[$view] ?? null) + $extra,
-            'script' => $view,
+            'script' => $script ?? $view,
         ]);
     }
 }

@@ -44,7 +44,11 @@
           <label class="field">Закрывается<input class="input" type="datetime-local" id="deadline-at" value="{{ now()->addDays(10)->format('Y-m-d') }}T23:59"></label>
           <label class="field">Время на попытку<select class="select" id="minutes"><option value="45">45 минут</option><option value="15">15 минут</option><option value="20">20 минут</option><option value="25">25 минут</option><option value="30">30 минут</option><option value="60">60 минут</option><option value="90">90 минут</option><option value="0">Без ограничения</option></select></label>
           <label class="field">Попыток<select class="select" id="attempts"><option value="1">1</option><option value="2">2</option><option value="99">Без ограничений</option></select></label>
+          <label class="field"><span>Баллов за тест <span class="field__hint">в Модеус</span></span>
+            <input class="input" type="number" id="weight" min="0" max="100" step="0.5" inputmode="decimal" placeholder="например, 20">
+          </label>
         </div>
+        <p class="muted xsmall" style="margin: 10px 0 0">Баллы студента = процент выполнения × баллы за тест (85 % при весе 20 → 17 баллов). В зачёт идёт лучшая попытка. Вес можно поменять и после публикации — на странице «Тесты».</p>
         <div style="margin-top: 12px">
           <div class="tg"><div><div>Свой вариант каждому студенту</div><div class="muted xsmall" style="margin-top: 2px">Вопросы по той же матрице, но из всего подходящего пула банка — у соседей разные задания</div></div><button type="button" class="sw" id="sw-individual" aria-label="Свой вариант каждому студенту" aria-pressed="false"><span></span></button></div>
           <div class="tg"><span>Перемешивать вопросы и варианты</span><button type="button" class="sw" id="sw-shuffle" aria-label="Перемешивать вопросы" aria-pressed="true"><span></span></button></div>

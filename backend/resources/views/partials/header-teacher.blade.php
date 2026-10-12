@@ -5,6 +5,7 @@
         'bank' => ['Банк вопросов', route('teacher.bank')],
         'tests' => ['Тесты', route('teacher.tests')],
         'groups' => ['Группы', route('teacher.groups')],
+        'journal' => ['Журнал', route('teacher.gradebook')],
         'analytics' => ['Аналитика', route('teacher.analytics')],
     ];
     $teacher = $appData['teacher'];

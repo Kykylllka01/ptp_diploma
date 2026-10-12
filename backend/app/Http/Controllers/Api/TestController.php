@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Agents\Contracts\ExaminerAgent;
 use App\Http\Controllers\Controller;
+use App\Models\Group;
 use App\Models\Question;
 use App\Models\Test;
 use App\Services\FrontendData;
@@ -48,6 +49,8 @@ class TestController extends Controller
             'settings.show_review' => 'boolean',
             'settings.auto_grade' => 'boolean',
             'settings.individual' => 'boolean',
+            // Сколько баллов БРС даёт тест (за 100 %); без веса в журнале — проценты
+            'weight' => 'nullable|numeric|min:0|max:100',
             'training' => 'boolean',
             'publish' => 'boolean',
         ]);
@@ -94,6 +97,7 @@ class TestController extends Controller
                     'show_review' => (bool) ($data['settings']['show_review'] ?? true),
                     'auto_grade' => (bool) ($data['settings']['auto_grade'] ?? false),
                     'individual' => $individual,
+                    'weight' => isset($data['weight']) ? round((float) $data['weight'], 1) : null,
                 ],
             ]);
             $test->questions()->attach($picked->values()->mapWithKeys(fn ($q, $i) => [$q->id => ['position' => $i]])->all());
@@ -120,6 +124,7 @@ class TestController extends Controller
             'deadline_at' => 'sometimes|nullable|date',
             'groups' => 'sometimes|nullable|array|max:50',
             'groups.*' => ['integer', Rule::exists('student_groups', 'id')->where('course_id', $test->course_id)],
+            'weight' => 'sometimes|nullable|numeric|min:0|max:100',
         ]);
         // Повторное открытие после срока: продлеваем на неделю, иначе тест сразу снова закроется
         if (($data['status'] ?? null) === 'running' && $test->deadline_at?->isPast() && ! array_key_exists('deadline_at', $data)) {
@@ -132,6 +137,12 @@ class TestController extends Controller
             return response()->json(['message' => 'В тесте нет вопросов — добавьте их из банка, потом открывайте приём'], 422);
         }
         DB::transaction(function () use ($test, $data) {
+            if (array_key_exists('weight', $data)) {
+                // Настройки перечитываются под блокировкой: правка из другой вкладки не затрётся
+                $settings = Test::lockForUpdate()->findOrFail($test->id)->settings ?? [];
+                $test->settings = ['weight' => $data['weight'] === null ? null : round((float) $data['weight'], 1)] + $settings;
+                unset($data['weight']);
+            }
             if (array_key_exists('groups', $data)) {
                 $groups = array_values(array_unique($data['groups'] ?? []));
                 $test->groups()->sync($groups);
@@ -142,6 +153,29 @@ class TestController extends Controller
         });
 
         return $this->data->test($test->load('groups')->loadCount('questions'));
+    }
+
+    /** Отметка «баллы перенесены в Модеус» для группы (0 — студенты без группы): дата или снять. */
+    public function transferred(Request $request, Test $test)
+    {
+        $data = $request->validate(['group' => 'required|integer|min:0', 'done' => 'required|boolean']);
+        // 0 — студенты без группы; иначе группа этого же курса
+        abort_if($data['group'] && ! Group::where('id', $data['group'])->where('course_id', $test->course_id)->exists(), 422, 'Нет такой группы');
+
+        return DB::transaction(function () use ($test, $data) {
+            $locked = Test::lockForUpdate()->findOrFail($test->id);
+            $settings = $locked->settings ?? [];
+            $marks = $settings['transferred'] ?? [];
+            if ($data['done']) {
+                $marks[(string) $data['group']] = now()->format('d.m.Y');
+            } else {
+                unset($marks[(string) $data['group']]);
+            }
+            $settings['transferred'] = $marks;
+            $locked->update(['settings' => $settings]);
+
+            return ['transferred' => $marks];
+        });
     }
 
     /** Удалить тест вместе с попытками студентов. */

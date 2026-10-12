@@ -98,18 +98,20 @@ fieldset { min-width: 0; }
 
 /* ---------- Шапка ---------- */
 .site-header { background: var(--surface); border-top: 4px solid var(--tsu-cyan); border-bottom: 1px solid var(--border); }
-.site-header__inner { max-width: 1280px; margin: 0 auto; padding: 12px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 32px; }
+.site-header__inner { max-width: 1280px; margin: 0 auto; padding: 12px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
 .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text); }
 .user__link { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; border-radius: 999px; padding: 2px 2px 2px 8px; }
 .user__link:hover, .user__link[aria-current] { background: var(--surface-2); }
 .brand img { height: 44px; width: auto; display: block; }
 .brand span { font-weight: 700; font-size: 21px; color: var(--tsu-blue-dark); letter-spacing: -.01em; }
-.nav { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
-.nav a { color: var(--muted); text-decoration: none; padding: 10px 12px; border-radius: 8px; font-weight: 500; font-size: 15px; }
+.nav { display: flex; flex-wrap: wrap; gap: 2px; flex: 1; }
+.nav a { color: var(--muted); text-decoration: none; padding: 10px 10px; border-radius: 8px; font-weight: 500; font-size: 15px; }
 .nav a:hover { color: var(--text); background: var(--bg); }
 .nav a.on { color: var(--text); background: #E9EBF0; }
 .user { display: flex; align-items: center; gap: 12px; }
-.user__name { font-size: 14px; font-weight: 500; }
+.user__name { font-size: 14px; font-weight: 500; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Семь пунктов меню преподавателя: на ноутбуке прячем подпись роли, чтобы меню осталось в одну строку */
+@media (max-width: 1440px) { .user .chip { display: none; } }
 .avatar { width: 38px; height: 38px; border-radius: 50%; background: #D6EEFA; color: var(--tsu-blue-dark); display: grid; place-items: center; font-weight: 600; font-size: 14px; }
 .avatar--gray { background: #D9DCE4; color: var(--text); }
 .avatar--img { object-fit: cover; background: var(--surface-2); }
@@ -500,6 +502,31 @@ mark.good { background: #DDF1E5; }
 .pick button:hover { border-color: var(--tsu-blue); }
 .pick button[aria-pressed="true"] { background: var(--blue-bg); border-color: var(--tsu-blue); color: var(--tsu-blue-dark); }
 .pick button small { color: var(--muted); font-weight: 400; }
+
+/* ---------- Журнал ---------- */
+.how summary { cursor: pointer; }
+.how { display: block; }
+.how ol { margin: 10px 0 0; padding-left: 20px; line-height: 1.6; }
+.journal-wrap { max-height: 70vh; overflow: auto; }
+.journal { font-size: 14px; border-collapse: separate; border-spacing: 0; }
+.journal th, .journal td { padding: 10px 12px; border-top: 1px solid var(--divider); background: #fff; vertical-align: middle; }
+.journal thead th { position: sticky; top: 0; z-index: 2; vertical-align: bottom; border-top: none; border-bottom: 1px solid var(--border); }
+/* Номер и фамилия остаются на месте при прокрутке вбок */
+.journal__n { position: sticky; left: 0; z-index: 1; width: 40px; min-width: 40px; text-align: right; }
+.journal__name { position: sticky; left: 40px; z-index: 1; min-width: 220px; box-shadow: 1px 0 0 var(--border); }
+.journal thead .journal__n, .journal thead .journal__name { z-index: 3; }
+.journal__test { min-width: 170px; max-width: 220px; }
+.journal__title { font-weight: 600; color: var(--text); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.journal__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 8px; font-weight: 400; }
+.journal__done { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+.journal__cell { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.journal__cell a, .journal__cell span { display: inline-block; min-width: 46px; padding: 4px 8px; border-radius: 8px; text-decoration: none; }
+.journal__cell.is-final a { background: var(--green-bg); color: var(--green-text); }
+.journal__cell.is-pending a { background: var(--amber-bg); color: var(--amber-text); }
+.journal__cell.is-progress span { background: var(--blue-bg); color: var(--tsu-blue-dark); font-weight: 500; }
+.journal__cell.is-none span { color: #B9BFCB; font-weight: 400; }
+.journal__cell a:hover { outline: 2px solid currentColor; }
+.journal__total { text-align: center; min-width: 90px; font-variant-numeric: tabular-nums; }
 
 /* ---------- Тост ---------- */
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: var(--navy); color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 15px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 100; max-width: calc(100% - 32px); }

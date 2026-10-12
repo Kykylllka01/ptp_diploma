@@ -72,6 +72,12 @@ class Attempt extends Model
         return collect($this->question_ids)->map(fn ($id) => $byId->get($id))->filter()->values();
     }
 
+    /** Точный процент по баллам (percent в базе округлён до целого — для баллов БРС его мало). */
+    public function exactPercent(): float
+    {
+        return $this->max_score > 0 ? (float) $this->score / (float) $this->max_score * 100 : (float) $this->percent;
+    }
+
     public function isSubmitted(): bool
     {
         return $this->status !== 'in_progress';

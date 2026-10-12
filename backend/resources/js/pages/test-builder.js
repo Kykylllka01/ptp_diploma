@@ -152,6 +152,7 @@
       deadline_at: A.$('#deadline-at').value || null,
       minutes: +A.$('#minutes').value,
       attempts: +A.$('#attempts').value,
+      weight: A.$('#weight').value === '' ? null : +A.$('#weight').value,
       training: training,
       publish: true,
       settings: { shuffle: on('#sw-shuffle'), show_review: on('#sw-review'), auto_grade: on('#sw-auto'), individual: on('#sw-individual') }

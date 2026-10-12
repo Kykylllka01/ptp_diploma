@@ -32,6 +32,51 @@
     '<div class="card stat"><div class="lbl">Медианное время</div><div class="stat__value">' + (D.medianMinutes === null ? '—' : D.medianMinutes + ' мин') + '</div></div>' +
     '<div class="card stat' + (waiting ? ' card--warn' : '') + '"><div class="lbl">Ждут подтверждения</div><div class="stat__value">' + waiting + '</div></div>';
 
+  // ---------- Студенты: лучшая попытка каждого, включая тех, кто не сдавал ----------
+  var R = M.results || { students: [], counts: {} };
+  var stFilter = 'all';
+  var ST = { final: ['Итог', 'green'], pending: ['Предварительно', 'amber'], in_progress: ['Проходит сейчас', 'blue'], none: ['Не сдавал', 'gray'] };
+  function num(v) { return v == null ? '—' : String(v).replace('.', ','); }
+  A.$('#weight-line').innerHTML = R.weight != null
+    ? 'Тест стоит <b class="strong">' + num(R.weight) + '</b> баллов: баллы = процент лучшей попытки × ' + num(R.weight) + ' / 100.'
+    : 'Вес теста в баллах не задан — задайте его на странице <a href="tests">«Тесты»</a>, чтобы видеть баллы для Модеуса.';
+  if (R.weight == null) A.$('#points-head').textContent = 'Баллы';
+  function renderStudentFilters() {
+    var c = R.counts;
+    var opts = [['all', 'Все · ' + c.total], ['final', 'Итог · ' + c.final], ['pending', 'Предварительно · ' + c.pending], ['none', 'Не сдавали · ' + c.none]];
+    A.$('#st-filters').innerHTML = opts.map(function (o) {
+      return '<button type="button" class="btn btn--xs' + (stFilter === o[0] ? ' is-on' : '') + '" aria-pressed="' + (stFilter === o[0]) + '" data-sf="' + o[0] + '">' + o[1] + '</button>';
+    }).join('');
+  }
+  function renderStudents() {
+    var list = R.students.filter(function (s) {
+      return stFilter === 'all' || s.status === stFilter || (stFilter === 'none' && s.status === 'in_progress');
+    });
+    A.$('#students').innerHTML = list.map(function (s) {
+      var st = ST[s.status];
+      var link = s.attemptId ? '<a href="attempt?id=' + s.attemptId + '">Ответы</a>' : '';
+      return '<tr' + (s.attemptId ? ' class="is-clickable" data-attempt="' + s.attemptId + '"' : '') + '>' +
+        '<td><div class="strong">' + esc(s.name) + '</div><div class="muted xsmall">' + esc(s.email) + '</div></td>' +
+        '<td>' + esc(s.group || '—') + '</td>' +
+        '<td>' + (s.attempts || '—') + '</td>' +
+        '<td>' + (s.percent == null ? '<span class="muted">—</span>' : '<div class="pc"><div class="progress progress--md" style="max-width: 120px"><div class="' + (s.percent < 50 ? 'is-weak' : '') + '" style="width:' + s.percent + '%"></div></div><span>' + s.percent + '%</span></div><div class="muted xsmall">' + num(s.score) + ' из ' + num(s.max) + '</div>') + '</td>' +
+        '<td class="strong">' + (s.points != null ? num(s.points) + (R.weight != null ? ' <span class="muted xsmall">/ ' + num(R.weight) + '</span>' : '') : (s.percent != null && R.weight == null ? s.percent + '%' : '—')) + '</td>' +
+        '<td>' + A.chip(st[0], st[1]) + '</td>' +
+        '<td class="small">' + esc(s.submitted || '') + '</td>' +
+        '<td class="right">' + link + '</td></tr>';
+    }).join('') || '<tr><td colspan="8" class="empty">Никого в этом списке.</td></tr>';
+  }
+  A.$('#st-filters').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-sf]');
+    if (b) { stFilter = b.getAttribute('data-sf'); renderStudentFilters(); renderStudents(); }
+  });
+  A.$('#students').addEventListener('click', function (e) {
+    var tr = e.target.closest('[data-attempt]');
+    if (tr && !e.target.closest('a')) location.href = 'attempt?id=' + tr.getAttribute('data-attempt');
+  });
+  renderStudentFilters();
+  renderStudents();
+
   var max = Math.max.apply(null, D.histogram) || 1;
   A.$('#hist').setAttribute('aria-label', 'Число студентов по диапазонам баллов: ' + D.histogram.join(', '));
   A.$('#hist').innerHTML = D.histogram.map(function (n) {
