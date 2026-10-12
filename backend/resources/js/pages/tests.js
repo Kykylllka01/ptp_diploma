@@ -7,7 +7,8 @@
     var a = [];
     if (t.count) a.push('<a href="preview?test=' + encodeURIComponent(t.id) + '" class="btn btn--xs">Пройти самому</a>');
     if (t.status === 'draft') a.push('<a href="bank?status=approved" class="btn btn--xs">Добавить вопросы</a>');
-    if (t.submitted) a.push('<a href="analytics?test=' + encodeURIComponent(t.id) + '" class="btn btn--xs">Результаты</a>');
+    if (t.status !== 'draft') a.push('<a href="analytics?test=' + encodeURIComponent(t.id) + '" class="btn btn--xs">Результаты</a>');
+    if (t.graded) a.push('<button type="button" class="btn btn--xs" data-weight="' + esc(t.id) + '">' + (t.weight != null ? 'Баллы: ' + String(t.weight).replace('.', ',') : 'Задать баллы') + '</button>');
     if (t.status === 'running') a.push('<button type="button" class="btn btn--xs" data-status="closed" data-id="' + esc(t.id) + '">Закрыть приём</button>');
     if (t.status === 'closed' || (t.status === 'draft' && t.count)) a.push('<button type="button" class="btn btn--xs" data-status="running" data-id="' + esc(t.id) + '">Открыть приём</button>');
     a.push('<button type="button" class="btn btn--xs" data-delete="' + esc(t.id) + '" aria-label="Удалить тест «' + esc(t.title) + '»">Удалить</button>');
@@ -29,6 +30,20 @@
   }
 
   A.$('#tests').addEventListener('click', function (e) {
+    var w = e.target.closest('[data-weight]');
+    if (w) {
+      var tw = M.tests.filter(function (x) { return x.id === w.getAttribute('data-weight'); })[0];
+      var v = prompt('Сколько баллов в Модеус даёт тест «' + tw.title + '» за 100 %? Пусто — без веса (в журнале проценты).', tw.weight != null ? String(tw.weight).replace('.', ',') : '');
+      if (v === null) return;
+      v = v.trim().replace(',', '.');
+      if (v !== '' && (isNaN(+v) || +v < 0 || +v > 100)) { A.toast('Нужно число от 0 до 100', true); return; }
+      A.api('PATCH', 'tests/' + encodeURIComponent(tw.id), { weight: v === '' ? null : +v }).then(function (fresh) {
+        M.tests = M.tests.map(function (t) { return t.id === tw.id ? fresh : t; });
+        render();
+        A.toast(fresh.weight != null ? 'Тест стоит ' + String(fresh.weight).replace('.', ',') + ' баллов' : 'Вес снят');
+      });
+      return;
+    }
     var s = e.target.closest('[data-status]');
     if (s) {
       var id = s.getAttribute('data-id'), status = s.getAttribute('data-status');

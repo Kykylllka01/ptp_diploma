@@ -139,6 +139,22 @@ class Test extends Model
     }
 
     /** Настройки проведения: shuffle — перемешивать, show_review — разбор после сдачи, auto_grade — автооценка открытых. */
+    /** Вес теста в баллах БРС (сколько баллов за 100 %); null — вес не задан, в журнале проценты. */
+    public function weight(): ?float
+    {
+        $w = $this->settings['weight'] ?? null;
+
+        return $w === null || $w === '' ? null : (float) $w;
+    }
+
+    /** Баллы для Модеуса за процент выполнения: линейно от веса, до десятых. */
+    public function points(float $percent): ?float
+    {
+        $w = $this->weight();
+
+        return $w === null ? null : round($percent * $w / 100, 1);
+    }
+
     public function setting(string $key, bool $default = false): bool
     {
         return (bool) ($this->settings[$key] ?? $default);

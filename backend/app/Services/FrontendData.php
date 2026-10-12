@@ -171,14 +171,15 @@ class FrontendData
     }
 
     /** Результат сданной попытки: здесь уже можно показать ключи и эталоны. */
-    public function result(Attempt $attempt): array
+    public function result(Attempt $attempt, bool $forTeacher = false): array
     {
         $attempt->load(['test.questions', 'answers.question', 'answers.review']);
-        // Разбор с ответами — только когда пересдавать уже нельзя, иначе он подсказывает ответы для следующей попытки
-        $reviewAllowed = $attempt->test->setting('show_review', true);
-        $showReview = $reviewAllowed && $attempt->test->reviewOpenFor($attempt->user);
+        // Разбор с ответами — только когда пересдавать уже нельзя, иначе он подсказывает ответы для следующей попытки.
+        // Преподаватель видит разбор и ключи всегда.
+        $reviewAllowed = $forTeacher || $attempt->test->setting('show_review', true);
+        $showReview = $forTeacher || ($reviewAllowed && $attempt->test->reviewOpenFor($attempt->user));
         // Вопрос из банка может стоять и в другом, ещё идущем тесте — его ключ остаётся скрытым
-        $secret = $showReview ? Test::secretQuestionIdsFor($attempt->user, $attempt->test) : [];
+        $secret = $showReview && ! $forTeacher ? Test::secretQuestionIdsFor($attempt->user, $attempt->test) : [];
         $keyFor = fn (Question $q) => $showReview && ! in_array($q->id, $secret, true);
         $answers = $attempt->answers->keyBy(fn ($a) => $a->question->code);
 
@@ -194,7 +195,7 @@ class FrontendData
                 // Пояснения к SQL сравнивают с эталоном («5 строк вместо 7») — это подсказка, пока разбор закрыт
                 'criteria' => $q->type === 'open' || $keyFor($q) ? ($a?->criteria ?? []) : [],
                 'answerId' => $a?->id,
-                'canAppeal' => $q->type === 'open' && $a?->review !== null,
+                'canAppeal' => ! $forTeacher && $q->type === 'open' && $a?->review !== null,
                 'appeal' => $a?->review?->appeal,
             ];
         }
@@ -216,6 +217,9 @@ class FrontendData
                 'answers' => (object) $values,
                 'results' => (object) $results,
                 'showReview' => $showReview,
+                'status' => $attempt->status,
+                'points' => $attempt->test->points((float) $attempt->percent),
+                'weight' => $attempt->test->weight(),
                 'reviewNote' => $reviewAllowed && ! $showReview
                     ? 'Разбор с правильными ответами откроется, когда закончатся попытки или тест закроется.'
                     : null,
@@ -358,6 +362,7 @@ class FrontendData
             'attempts' => $t->attempts_allowed,
             'open' => $openCount,
             'graded' => $t->graded,
+            'weight' => $t->weight(),
             'individual' => $t->isIndividual(),
             'pool' => $pool,
             'isOpen' => $t->isOpenNow(),

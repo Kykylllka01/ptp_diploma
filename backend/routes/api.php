@@ -37,6 +37,7 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::post('tests', [TestController::class, 'store']);
         Route::post('tests/{test}/questions', [TestController::class, 'attachQuestions']);
         Route::patch('tests/{test}', [TestController::class, 'update']);
+        Route::post('tests/{test}/transferred', [TestController::class, 'transferred']);
         Route::delete('tests/{test}', [TestController::class, 'destroy']);
         Route::post('questions', [QuestionController::class, 'store']);
         Route::get('questions-export', [QuestionController::class, 'export']);
