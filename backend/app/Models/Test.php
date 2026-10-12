@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Test extends Model
 {
     protected $fillable = [
-        'code', 'course_id', 'title', 'status', 'mode', 'group_name', 'minutes', 'attempts_allowed',
+        'code', 'course_id', 'title', 'status', 'mode', 'audience', 'minutes', 'attempts_allowed',
         'graded', 'opens_at', 'deadline_at', 'about', 'settings',
     ];
 
@@ -35,11 +35,37 @@ class Test extends Model
             && ($this->deadline_at === null || $this->deadline_at->isFuture());
     }
 
-    /** Тесты, которые студент видит: не черновики, своей группы или без группы. */
+    /** Группы-участники; используется, когда audience = groups. */
+    public function groups(): BelongsToMany
+    {
+        return $this->belongsToMany(Group::class, 'group_test');
+    }
+
+    /** Для всех студентов курса или только для отмеченных групп (пустой список групп не значит «всем»). */
+    public function forAll(): bool
+    {
+        return $this->audience !== 'groups';
+    }
+
+    /** Тесты, которые студент видит: не черновики, для всех или для его группы. */
     public function scopeVisibleTo(Builder $query, User $student): Builder
     {
         return $query->where('status', '!=', 'draft')
-            ->where(fn ($q) => $q->whereNull('group_name')->orWhere('group_name', $student->group_name));
+            ->where(fn ($q) => $q->where('audience', 'all')
+                ->orWhereHas('groups', fn ($g) => $g->where('student_groups.id', $student->group_id ?? 0)));
+    }
+
+    /** Студенты, которым тест назначен. */
+    public function participants(): Builder
+    {
+        return User::where('role', User::ROLE_STUDENT)
+            ->when(! $this->forAll(), fn ($q) => $q->whereIn('group_id', $this->groups->pluck('id')));
+    }
+
+    /** Подпись участников: «Группа 1, Группа 2» или null — все студенты курса. */
+    public function groupLabel(): ?string
+    {
+        return $this->forAll() ? null : ($this->groups->pluck('name')->sort()->implode(', ') ?: 'группы удалены');
     }
 
     /**

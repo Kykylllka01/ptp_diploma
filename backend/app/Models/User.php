@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -16,7 +17,7 @@ class User extends Authenticatable
     public const ROLE_STUDENT = 'student';
 
     protected $fillable = [
-        'name', 'full_name', 'initials', 'role', 'group_name', 'email', 'password',
+        'name', 'full_name', 'initials', 'role', 'group_id', 'email', 'password',
     ];
 
     protected $hidden = [
@@ -32,6 +33,12 @@ class User extends Authenticatable
     public function isTeacher(): bool
     {
         return $this->role === self::ROLE_TEACHER;
+    }
+
+    /** Учебная группа студента (у преподавателя — нет). */
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(Group::class);
     }
 
     public function attempts(): HasMany

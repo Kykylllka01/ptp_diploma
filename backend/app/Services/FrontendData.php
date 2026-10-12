@@ -6,6 +6,7 @@ use App\Models\Agent;
 use App\Models\AgentLog;
 use App\Models\Attempt;
 use App\Models\GenerationRun;
+use App\Models\Group;
 use App\Models\Material;
 use App\Models\Question;
 use App\Models\Review;
@@ -13,6 +14,7 @@ use App\Models\Test;
 use App\Models\User;
 use App\Support\CurrentUser;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Собирает данные для страниц в той же форме, что была в mock-data.js (window.MOCK),
@@ -45,17 +47,20 @@ class FrontendData
             $data['questions'] = Question::where('course_id', $course->id)->orderBy('code')->get()->map(fn ($q) => $this->question($q))->all();
         }
         if ($want('groups')) {
-            $data['groups'] = User::where('role', 'student')->whereNotNull('group_name')->distinct()->orderBy('group_name')->pluck('group_name')->all();
+            $data['groups'] = Group::where('course_id', $course->id)->withCount('students')->orderBy('name')->get()
+                ->map(fn ($g) => ['id' => $g->id, 'name' => $g->name, 'students' => $g->students_count])->all();
         }
         if ($want('participants')) {
             // Тест без группы открыт всем студентам курса — тогда участвуют все
-            $data['participants'] = Test::where('course_id', $course->id)->whereIn('status', ['running', 'training'])->whereNull('group_name')->exists()
+            // Тест «для всех» открыт всем студентам курса — тогда участвуют все
+            $live = Test::where('course_id', $course->id)->whereIn('status', ['running', 'training']);
+            $data['participants'] = (clone $live)->where('audience', 'all')->exists()
                 ? User::where('role', 'student')->count()
-                : User::where('role', 'student')->whereIn('group_name',
-                    Test::where('course_id', $course->id)->whereIn('status', ['running', 'training'])->whereNotNull('group_name')->pluck('group_name'))->count();
+                : User::where('role', 'student')->whereIn('group_id',
+                    DB::table('group_test')->whereIn('test_id', (clone $live)->select('id'))->select('group_id'))->count();
         }
         if ($want('tests')) {
-            $data['tests'] = Test::where('course_id', $course->id)->withCount('questions')->orderBy('id')->get()->map(fn ($t) => $this->test($t))->all();
+            $data['tests'] = Test::where('course_id', $course->id)->with('groups')->withCount('questions')->orderBy('id')->get()->map(fn ($t) => $this->test($t))->all();
         }
         if ($want('reviews')) {
             // Очередь проверки: ответы этого курса, которые ждут подтверждения, с апелляцией
@@ -116,8 +121,7 @@ class FrontendData
     {
         $student = CurrentUser::student();
         // Тесты своей группы и открытые всем по ссылке; черновики студент не видит
-        $tests = Test::where('course_id', CurrentUser::course()->id)->where('status', '!=', 'draft')
-            ->where(fn ($q) => $q->whereNull('group_name')->orWhere('group_name', $student->group_name))
+        $tests = Test::where('course_id', CurrentUser::course()->id)->visibleTo($student)
             ->withCount('questions')->orderBy('id')->get();
 
         $done = Attempt::with('test')->where('user_id', $student->id)->where('status', '!=', 'in_progress')
@@ -235,7 +239,7 @@ class FrontendData
 
     private function user(User $u): array
     {
-        return ['id' => $u->id, 'name' => $u->name, 'firstName' => $u->full_name, 'initials' => $u->initials, 'group' => $u->group_name];
+        return ['id' => $u->id, 'name' => $u->name, 'firstName' => $u->full_name, 'initials' => $u->initials, 'group' => $u->group?->name];
     }
 
     public function material(Material $m): array
@@ -321,8 +325,7 @@ class FrontendData
         // По студенту — лучшая попытка: пересдачи не считаются новыми студентами и не тянут средний вниз
         $best = $t->attempts()->where('status', '!=', 'in_progress')->selectRaw('user_id, max(percent) as best')->groupBy('user_id')->pluck('best');
         $submitted = $best->count();
-        // Без группы тест открыт всем студентам курса
-        $students = User::where('role', 'student')->when($t->group_name, fn ($q) => $q->where('group_name', $t->group_name))->count();
+        $students = $t->participants()->count();
         $avg = $best->count() ? $best->avg() : null;
         $openCount = $t->questions()->where('type', 'open')->count();
 
@@ -359,7 +362,8 @@ class FrontendData
             'pool' => $pool,
             'isOpen' => $t->isOpenNow(),
             'mode' => $t->mode,
-            'group' => $t->group_name,
+            'group' => $t->groupLabel(),
+            'groups' => $t->forAll() ? [] : $t->groups->pluck('id')->all(),
             'submitted' => $submitted,
             'settings' => [
                 'shuffle' => $t->setting('shuffle', true),
@@ -406,6 +410,39 @@ class FrontendData
             'log' => $run->logs()->orderBy('id')->get()->map(fn (AgentLog $l) => $l->toLogEntry())->all(),
             'fresh' => $fresh->map(fn ($q) => $this->question($q))->all(),
         ];
+    }
+
+    /** Экран «Группы»: группы курса со ссылками-приглашениями и студентами, плюс студенты без группы. */
+    public function groupsPage(): array
+    {
+        $course = CurrentUser::course();
+        $groups = Group::where('course_id', $course->id)->withCount('tests')->with(['students' => fn ($q) => $q->orderBy('name')])
+            ->orderBy('name')->get();
+        $loose = User::where('role', User::ROLE_STUDENT)->whereNull('group_id')->orderBy('name')->get();
+
+        return [
+            'groups' => $groups->map(fn ($g) => $this->group($g))->all(),
+            'ungrouped' => $loose->map(fn ($u) => $this->groupStudent($u))->all(),
+        ];
+    }
+
+    public function group(Group $g): array
+    {
+        return [
+            'id' => $g->id,
+            'name' => $g->name,
+            'code' => $g->invite_code,
+            'url' => $g->inviteUrl(),
+            'open' => $g->invite_open,
+            'tests' => $g->tests_count ?? $g->tests()->count(),
+            'students' => ($g->relationLoaded('students') ? $g->students : $g->students()->orderBy('name')->get())
+                ->map(fn ($u) => $this->groupStudent($u))->values()->all(),
+        ];
+    }
+
+    private function groupStudent(User $u): array
+    {
+        return ['id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'since' => $this->date($u->created_at)];
     }
 
     private function date(?Carbon $d): string

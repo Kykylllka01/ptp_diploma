@@ -36,7 +36,9 @@ class TestController extends Controller
             'matrix.*.5' => 'numeric|min:0|max:60',
             'topics' => 'array',
             'topics.*' => 'string|max:255',
-            'group' => 'nullable|string|max:100',
+            // Участники: пусто — все студенты курса; иначе только эти группы (своего курса)
+            'groups' => 'nullable|array|max:50',
+            'groups.*' => ['integer', Rule::exists('student_groups', 'id')->where('course_id', CurrentUser::course()->id)],
             'opens_at' => 'nullable|date',
             'deadline_at' => 'nullable|date',
             'minutes' => 'nullable|integer|min:0|max:600',
@@ -70,14 +72,15 @@ class TestController extends Controller
             $picked = $pool->filter(fn ($q) => in_array($q->type, $types, true) && (! $topics || in_array($q->topic, $topics, true)))->values();
         }
 
-        $test = DB::transaction(function () use ($data, $course, $picked, $individual) {
+        $groups = array_values(array_unique($data['groups'] ?? []));
+        $test = DB::transaction(function () use ($data, $course, $picked, $individual, $groups) {
             $test = Test::create([
                 'code' => 't'.Str::lower(Str::random(6)),
                 'course_id' => $course->id,
                 'title' => $data['title'],
                 'status' => $data['mode'] === 'manual' ? 'draft' : (! empty($data['training']) ? 'training' : (! empty($data['publish']) ? 'running' : 'draft')),
                 'mode' => $data['mode'],
-                'group_name' => $data['group'] ?? null,
+                'audience' => $groups ? 'groups' : 'all',
                 'minutes' => $data['minutes'] ?? 45,
                 'attempts_allowed' => $data['attempts'] ?? 1,
                 'graded' => empty($data['training']),
@@ -94,6 +97,7 @@ class TestController extends Controller
                 ],
             ]);
             $test->questions()->attach($picked->values()->mapWithKeys(fn ($q, $i) => [$q->id => ['position' => $i]])->all());
+            $test->groups()->sync($groups);
 
             return $test;
         });
@@ -114,6 +118,8 @@ class TestController extends Controller
             'status' => ['sometimes', Rule::in(['running', 'closed', 'training', 'draft'])],
             'title' => 'sometimes|string|max:255',
             'deadline_at' => 'sometimes|nullable|date',
+            'groups' => 'sometimes|nullable|array|max:50',
+            'groups.*' => ['integer', Rule::exists('student_groups', 'id')->where('course_id', $test->course_id)],
         ]);
         // Повторное открытие после срока: продлеваем на неделю, иначе тест сразу снова закроется
         if (($data['status'] ?? null) === 'running' && $test->deadline_at?->isPast() && ! array_key_exists('deadline_at', $data)) {
@@ -125,9 +131,17 @@ class TestController extends Controller
         if (in_array($data['status'] ?? null, ['running', 'training'], true) && ! $test->questions()->exists()) {
             return response()->json(['message' => 'В тесте нет вопросов — добавьте их из банка, потом открывайте приём'], 422);
         }
-        $test->update($data);
+        DB::transaction(function () use ($test, $data) {
+            if (array_key_exists('groups', $data)) {
+                $groups = array_values(array_unique($data['groups'] ?? []));
+                $test->groups()->sync($groups);
+                $data['audience'] = $groups ? 'groups' : 'all';
+                unset($data['groups']);
+            }
+            $test->update($data);
+        });
 
-        return $this->data->test($test->loadCount('questions'));
+        return $this->data->test($test->load('groups')->loadCount('questions'));
     }
 
     /** Удалить тест вместе с попытками студентов. */

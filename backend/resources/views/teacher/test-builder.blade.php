@@ -70,8 +70,9 @@
       </div>
       <div class="note note--warn" id="shortage"></div>
       <div>
-        <label class="lbl" for="group">Участники</label>
-        <select class="select" id="group" style="margin-top: 8px"></select>
+        <div class="lbl" id="groups-label">Участники</div>
+        <div class="pick" id="groups" role="group" aria-labelledby="groups-label" style="margin-top: 8px"></div>
+        <div class="muted xsmall" id="groups-hint" style="margin-top: 8px"></div>
       </div>
       <button type="submit" class="btn btn--primary">Опубликовать тест</button>
     </aside>

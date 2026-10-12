@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AttemptController;
 use App\Http\Controllers\Api\GenerationRunController;
+use App\Http\Controllers\Api\GroupController;
 use App\Http\Controllers\Api\MaterialController;
 use App\Http\Controllers\Api\QuestionController;
 use App\Http\Controllers\Api\ReviewController;
@@ -42,6 +43,12 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::post('generation-runs/{run}/cancel', [GenerationRunController::class, 'cancel']);
 
         Route::patch('reviews/{review}', [ReviewController::class, 'update']);
+
+        Route::post('groups', [GroupController::class, 'store']);
+        Route::patch('groups/{group}', [GroupController::class, 'update']);
+        Route::post('groups/{group}/invite', [GroupController::class, 'invite']);
+        Route::delete('groups/{group}', [GroupController::class, 'destroy']);
+        Route::patch('students/{user}/group', [GroupController::class, 'moveStudent']);
     });
 
     // Студент

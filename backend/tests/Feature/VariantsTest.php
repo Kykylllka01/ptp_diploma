@@ -39,7 +39,7 @@ class VariantsTest extends TestCase
     private function newStudent(int $n): User
     {
         return User::create(['name' => 'Студент '.$n, 'email' => "s{$n}@utmn.local", 'password' => 'secret-'.$n,
-            'role' => User::ROLE_STUDENT, 'group_name' => $this->student()->group_name]);
+            'role' => User::ROLE_STUDENT, 'group_id' => $this->student()->group_id]);
     }
 
     public function test_whole_pool_is_attached_and_each_student_gets_a_variant_of_matrix_size(): void

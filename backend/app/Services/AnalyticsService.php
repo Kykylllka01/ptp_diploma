@@ -16,11 +16,9 @@ class AnalyticsService
     public function forTest(Test $test): array
     {
         // Студент с несколькими попытками — один студент: в аналитику идёт его лучшая попытка
-        $attempts = $test->attempts()->with('user')->whereIn('status', ['submitted', 'confirmed'])->get()
+        $attempts = $test->attempts()->with(['user.group', 'group'])->whereIn('status', ['submitted', 'confirmed'])->get()
             ->groupBy('user_id')->map(fn ($own) => $own->sortByDesc('percent')->first())->values();
-        $total = $test->group_name
-            ? User::where('role', User::ROLE_STUDENT)->where('group_name', $test->group_name)->count()
-            : User::where('role', User::ROLE_STUDENT)->count();
+        $total = $test->participants()->count();
 
         $histogram = array_fill(0, 9, 0);
         foreach ($attempts as $a) {
@@ -101,7 +99,7 @@ class AnalyticsService
             'questionCodes' => $questions->pluck('code')->all(),
             'students' => $attempts->sortBy(fn ($a) => $a->user->name)->values()->map(fn ($a) => [
                 'name' => $a->user->name,
-                'group' => $a->user->group_name,
+                'group' => $a->group?->name ?? $a->user->group?->name,
                 'submitted' => $a->submitted_at?->format('d.m.Y H:i'),
                 'minutes' => $a->minutesSpent(),
                 'score' => (float) $a->score,

@@ -1,12 +1,12 @@
 @extends('layouts.app')
 
 @section('content')
-<main class="page" style="min-height: 100vh; justify-content: center; align-items: center">
-  <form method="POST" action="{{ route('login') }}" class="card card--pad" style="width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 18px" novalidate>
+<main class="page auth-page">
+  <form method="POST" action="{{ route('login') }}" class="card card--pad auth-card" novalidate>
     @csrf
-    <div class="brand" style="gap: 12px"><img src="{{ asset('assets/img/logo-utmn.svg') }}" alt="ТюмГУ"></div>
+    <div class="brand auth-card__brand"><img src="{{ asset('assets/img/logo-utmn.svg') }}" alt="ТюмГУ"></div>
     <div>
-      <h1 class="page-title" style="font-size: 28px">Вход</h1>
+      <h1 class="page-title auth-card__title">Вход</h1>
       <p class="page-sub" style="margin-top: 6px">Банк вопросов и тестирование</p>
     </div>
 
@@ -23,6 +23,10 @@
     <label class="ck"><input type="checkbox" name="remember" value="1"> Запомнить меня</label>
 
     <button type="submit" class="btn btn--primary btn--block">Войти</button>
+    <div class="auth-card__alt">
+      <span class="muted small">Нет аккаунта?</span>
+      <a href="{{ route('register') }}" class="btn btn--block">Зарегистрироваться по коду группы</a>
+    </div>
 
     @if (app()->isLocal())
       <div class="note xsmall">

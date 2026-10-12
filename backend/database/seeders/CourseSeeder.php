@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Agent;
 use App\Models\Course;
+use App\Models\Group;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -28,11 +29,15 @@ class CourseSeeder extends Seeder
     {
         $teacher = User::where('email', AccountsSeeder::TEACHER['email'])->first();
 
-        Course::firstOrCreate(['title' => 'Базы данных'], [
+        $course = Course::firstOrCreate(['title' => 'Базы данных'], [
             'semester' => 'осенний семестр',
             'teacher_id' => $teacher?->id,
             'topics' => self::TOPICS,
         ]);
+
+        // Демо-студент — в первой группе курса; остальные студенты приходят по ссылке-приглашению
+        $group = Group::firstOrCreate(['course_id' => $course->id, 'name' => 'Группа 1']);
+        User::where('email', AccountsSeeder::STUDENT['email'])->whereNull('group_id')->update(['group_id' => $group->id]);
 
         foreach (self::AGENTS as [$code, $name, $role]) {
             Agent::updateOrCreate(['code' => $code], ['name' => $name, 'role' => $role, 'state' => 'wait', 'summary' => 'Ещё не запускался']);

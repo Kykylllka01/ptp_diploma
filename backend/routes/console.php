@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\Group;
 use App\Models\User;
+use App\Support\CurrentUser;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Validator;
 
@@ -38,7 +40,10 @@ Artisan::command('user:create {email} {name} {--role=student : teacher или st
     preg_match_all('/\p{Lu}/u', $data['name'], $caps);
     User::create($data + [
         'initials' => implode('', array_slice($caps[0], 0, 2)),
-        'group_name' => $data['role'] === 'student' ? $this->option('group') : null,
+        // Группа создаётся, если её ещё нет; ссылку-приглашение к ней видно на странице «Группы»
+        'group_id' => $data['role'] === 'student' && $this->option('group')
+            ? Group::firstOrCreate(['course_id' => CurrentUser::course()->id, 'name' => trim($this->option('group'))])->id
+            : null,
         'password' => $password,
     ]);
 

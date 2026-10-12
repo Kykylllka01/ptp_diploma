@@ -23,7 +23,6 @@ class AccountsSeeder extends Seeder
             'full_name' => 'Людмила Николаевна',
             'initials' => 'БЛ',
             'role' => User::ROLE_TEACHER,
-            'group_name' => null,
             'password' => self::TEACHER['password'],
         ]);
 
@@ -31,7 +30,6 @@ class AccountsSeeder extends Seeder
             'name' => 'Иванов А.',
             'initials' => 'АИ',
             'role' => User::ROLE_STUDENT,
-            'group_name' => 'Группа 1',
             'password' => self::STUDENT['password'],
         ]);
     }

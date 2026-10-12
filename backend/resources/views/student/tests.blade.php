@@ -6,6 +6,9 @@
 
 @section('content')
 <main class="page" style="gap: 32px">
+  @if (session('status'))
+    <div class="note note--info" role="status">{{ session('status') }}</div>
+  @endif
   <div>
     <div class="lbl">Базы данных · осенний семестр</div>
     <h1 class="page-title">Мои тесты</h1>

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\JoinController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\TeacherController;
 use Illuminate\Support\Facades\Route;
@@ -8,7 +9,14 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('guest')->group(function () {
     Route::get('login', [AuthController::class, 'show'])->name('login');
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+    // Регистрация только по ссылке-приглашению группы (код выдаёт преподаватель на экране «Группы»)
+    Route::get('register', [JoinController::class, 'enterCode'])->name('register')->middleware('throttle:30,1');
+    Route::post('join/{code}', [JoinController::class, 'register'])->middleware('throttle:5,1');
 });
+
+// Страница приглашения открывается и гостю (форма регистрации), и вошедшему (подсказка, что делать)
+Route::get('join/{code}', [JoinController::class, 'show'])->name('join')->middleware('throttle:30,1');
+Route::post('join/{code}/accept', [JoinController::class, 'accept'])->name('join.accept')->middleware(['auth', 'role:student', 'throttle:10,1']);
 
 Route::middleware('auth')->group(function () {
     Route::get('/', [AuthController::class, 'home'])->name('home');
@@ -25,6 +33,7 @@ Route::middleware('auth')->group(function () {
         Route::get('preview', 'preview')->name('preview');
         Route::get('analytics', 'analytics')->name('analytics');
         Route::get('review', 'review')->name('review');
+        Route::get('groups', 'groups')->name('groups');
     });
 
     Route::prefix('student')->name('student.')->middleware('role:student')->controller(StudentController::class)->group(function () {
