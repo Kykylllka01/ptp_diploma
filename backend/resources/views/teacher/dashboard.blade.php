@@ -29,6 +29,14 @@
       <div style="margin-top: 16px" id="materials"></div>
     </section>
 
+    <dialog class="modal" id="material-modal" aria-labelledby="mm-title">
+      <div class="modal__head">
+        <div style="min-width: 0"><div class="lbl" id="mm-kind"></div><h2 class="card-title" id="mm-title"></h2></div>
+        <button type="button" class="btn btn--icon" id="mm-close" aria-label="Закрыть"></button>
+      </div>
+      <div class="modal__body" id="mm-body"></div>
+    </dialog>
+
     <aside class="card card--pad split__side" style="flex-basis: 340px">
       <div class="between">
         <h2 class="card-title">Агенты</h2>

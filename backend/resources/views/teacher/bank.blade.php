@@ -45,7 +45,10 @@
       <div class="row-wrap" style="gap: 12px">
         <label class="search"><span id="search-icon"></span><input type="search" id="search" placeholder="Поиск по тексту вопроса" aria-label="Поиск по тексту вопроса"></label>
         <select class="select" id="sort" aria-label="Сортировка" style="width: auto"><option value="flag">Сначала спорные</option><option value="new">Новые</option><option value="topic">По теме</option></select>
-        <button type="button" class="btn btn--sm" id="select-clean" title="Вопросы на проверке, к которым у критика нет замечаний">Выбрать без замечаний</button>
+        <button type="button" class="btn btn--sm btn--accent" id="select-clean" title="Отметить все показанные вопросы, которые Критик проверил без замечаний, — затем одобрить их одной кнопкой">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+          Выбрать без замечаний Критика <span class="btn__count" id="clean-count">0</span>
+        </button>
       </div>
 
       <div class="bulk" id="bulk" hidden>

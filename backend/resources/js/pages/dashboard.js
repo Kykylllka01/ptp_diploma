@@ -31,13 +31,78 @@
       : m.status === 'error' ? A.chip('Ошибка чтения', 'red')
       : p ? A.chip(p + ' на проверке', 'amber')
       : mine.length ? A.chip('Готово', 'green') : A.chip('Вопросов нет');
-    return '<div class="list-row">' +
-      '<span class="filetype">' + m.kind + '</span>' +
-      '<div class="list-row__main"><div class="strong">' + esc(m.title) + '</div><div class="list-row__meta">' + esc(m.meta) + ' · загружено ' + esc(m.date) + '</div></div>' +
+    // Вся строка — кнопка: по клику открывается карточка материала
+    return '<button type="button" class="list-row list-row--btn" data-material="' + m.id + '" aria-haspopup="dialog">' +
+      '<span class="filetype">' + esc(m.kind) + '</span>' +
+      '<span class="list-row__main"><span class="strong">' + esc(m.title) + '</span><span class="list-row__meta">' + esc([m.meta, 'загружено ' + m.date].filter(Boolean).join(' · ')) + '</span></span>' +
       status +
       '<span class="muted small" style="width: 90px; text-align: right">' + mine.length + ' ' + A.plural(mine.length, 'вопрос', 'вопроса', 'вопросов') + '</span>' +
-    '</div>';
-  }).join('');
+      '<svg class="list-row__go" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>' +
+    '</button>';
+  }).join('') || '<div class="empty">Материалов пока нет. <a href="upload">Загрузите лекцию</a> — агенты составят по ней вопросы.</div>';
+
+  // ---------- Карточка материала ----------
+  var modal = A.$('#material-modal');
+  A.$('#mm-close').innerHTML = A.icons.x;
+  A.$('#mm-close').addEventListener('click', function () { modal.close(); });
+  // Клик по затемнённому фону закрывает окно — но не выделение текста, отпущенное над фоном
+  var downOnBackdrop = false;
+  modal.addEventListener('mousedown', function (e) { downOnBackdrop = e.target === modal; });
+  modal.addEventListener('click', function (e) { if (e.target === modal && downOnBackdrop) modal.close(); });
+  var request = 0;
+
+  var STATE = { uploaded: 'Загружен', processing: 'В обработке', ready: 'Текст извлечён', error: 'Ошибка чтения' };
+  var RUN = { queued: ['В очереди', 'gray'], running: ['Идёт', 'blue'], paused: ['Пауза', 'gray'], done: ['Готово', 'green'], failed: ['Ошибка', 'red'], cancelled: ['Остановлен', 'gray'] };
+
+  function tile(value, label, tone) {
+    return '<div class="tile' + (tone ? ' tile--' + tone : '') + '"><div class="tile__value">' + value + '</div><div class="tile__label">' + label + '</div></div>';
+  }
+
+  function details(d) {
+    var q = d.questions;
+    var types = Object.keys(q.byType).map(function (k) { return A.chip((M.types || {})[k] || k) + '<span class="muted small">' + q.byType[k] + '</span>'; }).join(' ');
+    var runs = d.runs.map(function (r) {
+      var st = RUN[r.status] || [r.status, 'gray'];
+      return '<a class="list-row" href="pipeline?run=' + r.id + '" style="padding: 10px 0; text-decoration: none; color: inherit">' +
+        '<span class="list-row__main"><span class="strong small">Запуск №' + r.id + '</span><span class="list-row__meta xsmall">' + esc(r.date || '') + ' · составлено ' + r.written +
+        (r.rejected ? ', отклонено Критиком ' + r.rejected : '') + (r.disputed ? ', спорных ' + r.disputed : '') + '</span></span>' +
+        (r.cost != null ? '<span class="muted small">$' + String(r.cost).replace('.', ',') + '</span>' : '') + A.chip(st[0], st[1]) + '</a>';
+    }).join('');
+    return '<div class="row-wrap" style="gap: 8px">' + A.chip(STATE[d.status] || d.status, d.status === 'error' ? 'red' : (d.status === 'processing' ? 'blue' : 'green')) +
+        '<span class="muted small">' + esc([d.size, 'загружен ' + d.date].filter(Boolean).join(' · ')) + '</span></div>' +
+      '<section><div class="lbl">Текст</div>' +
+        (d.chars ? '<p class="small" style="margin: 6px 0 0">' + d.chars.toLocaleString('ru-RU') + ' символов · ' + d.fragments + ' ' + A.plural(d.fragments, 'фрагмент', 'фрагмента', 'фрагментов') + ' для Аналитика</p>' +
+          '<blockquote class="quote small" style="margin-top: 10px">' + esc(d.excerpt) + (d.chars > 600 ? '…' : '') + '</blockquote>'
+          : '<p class="small t-red" style="margin: 6px 0 0">Текст не извлечён — по этому материалу агенты не составят вопросы. Если это скан, загрузите версию с текстовым слоем.</p>') +
+      '</section>' +
+      '<section><div class="lbl">Вопросы по материалу</div>' +
+        '<div class="grid-tiles" style="margin-top: 10px">' + tile(q.total, 'всего') + tile(q.pending, 'ждут одобрения', q.pending ? 'amber' : '') +
+          tile(q.approved, 'одобрено', q.approved ? 'green' : '') + tile(q.rejected, 'отклонено') + '</div>' +
+        (q.total ? '<p class="small" style="margin: 12px 0 0"><span class="critic-badge critic-badge--ok">' + A.icons.check + 'Критик без замечаний: ' + q.clean + '</span> ' +
+          (q.flagged ? '<span class="critic-badge critic-badge--warn">С замечаниями: ' + q.flagged + '</span>' : '') + '</p>' : '') +
+        (types ? '<div class="row-wrap" style="margin-top: 10px">' + types + '</div>' : '') +
+      '</section>' +
+      (runs ? '<section><div class="lbl">Запуски агентов</div><div style="margin-top: 4px">' + runs + '</div></section>' : '') +
+      '<div class="actions" style="gap: 10px">' +
+        (q.total ? '<a class="btn btn--primary" href="bank?status=' + (q.pending ? 'pending' : 'all') + '&source=' + d.id + '">Вопросы в банке</a>' : '') +
+        '<a class="btn" href="upload">' + (q.total ? 'Сгенерировать ещё' : 'Сгенерировать вопросы') + '</a>' +
+      '</div>';
+  }
+
+  A.$('#materials').addEventListener('click', function (e) {
+    var row = e.target.closest('[data-material]');
+    if (!row) return;
+    var m = M.materials.filter(function (x) { return String(x.id) === row.getAttribute('data-material'); })[0];
+    A.$('#mm-kind').textContent = m.kind;
+    A.$('#mm-title').textContent = m.title;
+    A.$('#mm-body').innerHTML = '<div class="muted small">Загружаю…</div>';
+    A.$('#mm-body').scrollTop = 0;
+    modal.showModal();
+    // Быстро открыли другой материал — поздний ответ по прежнему не должен подменить карточку
+    var mine = ++request;
+    A.api('GET', 'materials/' + m.id).then(function (d) { if (mine === request) A.$('#mm-body').innerHTML = details(d); },
+      function () { if (mine === request) A.$('#mm-body').innerHTML = '<div class="t-red small">Не удалось загрузить сведения о материале.</div>'; });
+  });
 
   var dot = { done: 'green', warn: 'amber', work: 'blue', wait: 'gray' };
   A.$('#agents').innerHTML = M.agents.map(function (a) {

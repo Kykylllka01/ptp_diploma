@@ -4,10 +4,10 @@
   var A = window.App, M = A.M, esc = A.esc;
   var PAGE = 5;
 
-  var f = { status: A.param('status') || 'pending', types: Object.keys(M.types), diff: [], topics: [], source: '', q: '', sort: 'flag', limit: PAGE };
+  var f = { status: A.param('status') || 'pending', types: Object.keys(M.types), diff: [], topics: [], source: A.param('source') || '', q: '', sort: 'flag', limit: PAGE };
   var selected = {};
 
-  var TABS = [['all', 'Все'], ['pending', 'На проверке'], ['approved', 'Одобрены'], ['rejected', 'Отклонены']];
+  var TABS = [['all', 'Все'], ['pending', 'Ждут одобрения'], ['approved', 'Одобрены'], ['rejected', 'Отклонены']];
 
   function filtered(ignoreStatus) {
     var q = f.q.trim().toLowerCase();
@@ -61,7 +61,24 @@
   function statusChip(q) {
     if (q.status === 'approved') return A.chip('Одобрен', 'green');
     if (q.status === 'rejected') return A.chip('Отклонён', 'red');
-    return q.flag ? A.chip(q.flag.text, q.flag.level) : A.chip('На проверке', 'amber');
+    return q.flag ? A.chip(q.flag.text, q.flag.level) : A.chip('Ждёт одобрения', 'amber');
+  }
+
+  // Вопрос без замечаний: Критик его проверил и ни Критик, ни Каталогизатор ничего не пометили
+  function isClean(q) { return !!(q.critic && q.critic.score != null) && !q.flag; }
+
+  // Что сказал Критик — видно сразу, без открытия вопроса
+  function criticBadge(q) {
+    var c = q.critic;
+    if (!c || c.score == null) {
+      return q.flag && /Критик/.test(q.flag.text)
+        ? '<span class="critic-badge critic-badge--none" title="Модель не ответила — проверьте вопрос сами">Критик не проверил</span>'
+        : '<span class="critic-badge critic-badge--none" title="Вопрос создан или изменён вручную">Без проверки Критика</span>';
+    }
+    var score = ' · ' + c.score + '/10';
+    return q.flag
+      ? '<span class="critic-badge critic-badge--warn" title="Откройте вопрос: замечания Критика и как их исправить">Критик: есть замечания' + score + '</span>'
+      : '<span class="critic-badge critic-badge--ok" title="Критик проверил корректность, однозначность и соответствие материалу">' + A.icons.check + 'Проверен Критиком' + score + '</span>';
   }
 
   function renderList() {
@@ -72,7 +89,7 @@
         '<input type="checkbox" class="check" style="margin-top: 3px" data-select="' + q.id + '"' + (selected[q.id] ? ' checked' : '') + ' aria-label="Выбрать вопрос ' + q.id + '">' +
         '<div style="flex: 1; min-width: 0">' +
           '<a class="q-row__text" href="question?id=' + q.id + '">' + esc(q.text) + '</a>' +
-          '<div class="row-wrap" style="margin-top: 10px">' + A.chip(M.types[q.type]) + A.chip(M.difficulties[q.difficulty]) + A.chip(q.topic) +
+          '<div class="row-wrap" style="margin-top: 10px">' + criticBadge(q) + A.chip(M.types[q.type]) + A.chip(M.difficulties[q.difficulty]) + A.chip(q.topic) +
           '<span class="muted xsmall">' + esc(q.source) + '</span></div>' +
         '</div>' +
         '<div class="q-row__side">' + statusChip(q) + '<div class="q-row__id">' + q.id + '</div></div>' +
@@ -80,6 +97,9 @@
     }).join('') || '<div class="empty">Ничего не найдено. Измените фильтры или поиск.</div>';
 
     A.$('#shown').textContent = list.length ? 'Показано ' + page.length + ' из ' + list.length : '';
+    var clean = list.filter(function (q) { return q.status === 'pending' && isClean(q); }).length;
+    A.$('#clean-count').textContent = clean;
+    A.$('#select-clean').disabled = !clean;
     A.$('#more').hidden = page.length >= list.length;
 
     updateBulk();
@@ -143,7 +163,7 @@
 
   // Быстрое одобрение: отметить все показанные вопросы на проверке, к которым у критика нет замечаний
   A.$('#select-clean').addEventListener('click', function () {
-    var clean = filtered().filter(function (q) { return q.status === 'pending' && !q.flag; });
+    var clean = filtered().filter(function (q) { return q.status === 'pending' && isClean(q); });
     if (!clean.length) { A.toast('Вопросов на проверке без замечаний нет'); return; }
     clean.forEach(function (q) { selected[q.id] = true; });
     renderList();

@@ -25,6 +25,7 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::post('questions/{question}/regenerate', [QuestionController::class, 'regenerate']);
 
         Route::get('materials', [MaterialController::class, 'index']);
+        Route::get('materials/{material}', [MaterialController::class, 'show']);
         Route::post('materials', [MaterialController::class, 'store']);
         Route::post('materials/{material}/ocr', [MaterialController::class, 'ocr']);
         Route::delete('materials/{material}', [MaterialController::class, 'destroy']);
