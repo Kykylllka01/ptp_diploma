@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\AvatarController;
 use App\Http\Controllers\JoinController;
 use App\Http\Controllers\StudentController;
 use App\Http\Controllers\TeacherController;
@@ -47,4 +48,7 @@ Route::middleware('auth')->group(function () {
     Route::get('profile', [\App\Http\Controllers\ProfileController::class, 'show'])->name('profile');
     Route::post('profile/password', [\App\Http\Controllers\ProfileController::class, 'password'])->name('profile.password');
     Route::post('profile', [\App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
+    Route::post('profile/avatar', [AvatarController::class, 'store'])->name('profile.avatar')->middleware('throttle:20,1');
+    Route::delete('profile/avatar', [AvatarController::class, 'destroy'])->name('profile.avatar.delete');
+    Route::get('avatars/{user}', [AvatarController::class, 'show'])->name('avatar');
 });

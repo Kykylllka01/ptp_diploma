@@ -17,7 +17,7 @@ class User extends Authenticatable
     public const ROLE_STUDENT = 'student';
 
     protected $fillable = [
-        'name', 'full_name', 'initials', 'role', 'group_id', 'email', 'password',
+        'name', 'full_name', 'initials', 'avatar_path', 'role', 'group_id', 'email', 'password',
     ];
 
     protected $hidden = [
@@ -33,6 +33,12 @@ class User extends Authenticatable
     public function isTeacher(): bool
     {
         return $this->role === self::ROLE_TEACHER;
+    }
+
+    /** Адрес аватара или null; версия в адресе меняется при замене картинки (кэш браузера). */
+    public function avatarUrl(): ?string
+    {
+        return $this->avatar_path ? route('avatar', ['user' => $this->id, 'v' => pathinfo($this->avatar_path, PATHINFO_FILENAME)]) : null;
     }
 
     /** Учебная группа студента (у преподавателя — нет). */

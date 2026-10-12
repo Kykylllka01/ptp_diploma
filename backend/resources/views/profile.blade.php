@@ -24,6 +24,28 @@
     <div class="split__main stack" style="flex-basis: 560px">
       <section class="card card--pad">
         <h2 class="card-title">Профиль</h2>
+        <div class="avatar-edit">
+          @if ($user->avatarUrl())
+            <img class="avatar avatar--xl avatar--img" src="{{ $user->avatarUrl() }}" alt="Ваш аватар">
+          @else
+            <span class="avatar avatar--xl">{{ $user->initials }}</span>
+          @endif
+          <div class="stack-sm" style="gap: 8px">
+            <div class="row-wrap">
+              <form method="POST" action="{{ route('profile.avatar') }}" enctype="multipart/form-data" id="avatar-form">
+                @csrf
+                <label class="btn btn--sm btn--file">{{ $user->avatar_path ? 'Заменить фото' : 'Загрузить фото' }}<input type="file" name="avatar" accept="image/jpeg,image/png,image/webp" class="sr-only" onchange="this.form.submit()"></label>
+              </form>
+              @if ($user->avatar_path)
+                <form method="POST" action="{{ route('profile.avatar.delete') }}">
+                  @csrf @method('DELETE')
+                  <button type="submit" class="btn btn--sm">Удалить</button>
+                </form>
+              @endif
+            </div>
+            <div class="muted xsmall">JPG, PNG или WebP до 5 МБ. Фото обрежется до квадрата по центру.</div>
+          </div>
+        </div>
         <form method="POST" action="{{ route('profile.update') }}" class="stack" style="margin-top: 18px; gap: 16px">
           @csrf
           <div class="grid-fields">

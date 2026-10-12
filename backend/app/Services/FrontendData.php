@@ -239,7 +239,7 @@ class FrontendData
 
     private function user(User $u): array
     {
-        return ['id' => $u->id, 'name' => $u->name, 'firstName' => $u->full_name, 'initials' => $u->initials, 'group' => $u->group?->name];
+        return ['id' => $u->id, 'name' => $u->name, 'firstName' => $u->full_name, 'initials' => $u->initials, 'group' => $u->group?->name, 'avatar' => $u->avatarUrl()];
     }
 
     public function material(Material $m): array
@@ -442,7 +442,8 @@ class FrontendData
 
     private function groupStudent(User $u): array
     {
-        return ['id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'since' => $this->date($u->created_at)];
+        return ['id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'since' => $this->date($u->created_at),
+            'initials' => $u->initials, 'avatar' => $u->avatarUrl()];
     }
 
     private function date(?Carbon $d): string

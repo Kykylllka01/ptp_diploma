@@ -15,7 +15,7 @@
     </nav>
     <div class="user">
       <span class="chip chip--green">Студент</span>
-      <a href="{{ route('profile') }}" class="user__link" title="Личный кабинет" @if (($active ?? '') === 'profile') aria-current="page" @endif><span class="user__name">{{ $student['name'] }}</span><span class="avatar avatar--gray">{{ $student['initials'] }}</span></a>
+      <a href="{{ route('profile') }}" class="user__link" title="Личный кабинет" @if (($active ?? '') === 'profile') aria-current="page" @endif><span class="user__name">{{ $student['name'] }}</span>@if (! empty($student['avatar']))<img class="avatar avatar--img" src="{{ $student['avatar'] }}" alt="">@else<span class="avatar avatar--gray">{{ $student['initials'] }}</span>@endif</a>
       <form method="POST" action="{{ route('logout') }}" style="margin: 0">@csrf<button type="submit" class="btn btn--sm">Выйти</button></form>
     </div>
   </div>

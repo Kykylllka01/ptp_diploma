@@ -4,7 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Agents\Contracts\TextExtractor;
 use App\Http\Controllers\Controller;
+use App\Models\GenerationRun;
+use App\Models\LlmCall;
 use App\Models\Material;
+use App\Models\Question;
 use App\Services\FrontendData;
 use App\Support\CurrentUser;
 use Illuminate\Http\Request;
@@ -19,6 +22,48 @@ class MaterialController extends Controller
     public function index()
     {
         return Material::where('course_id', CurrentUser::course()->id)->latest()->get()->map(fn ($m) => $this->data->material($m));
+    }
+
+    /**
+     * Карточка материала на «Обзоре»: сколько текста извлечено и его начало, вопросы по статусам
+     * и оценке Критика, запуски агентов с их стоимостью.
+     */
+    public function show(Material $material)
+    {
+        abort_unless($material->course_id === CurrentUser::course()->id, 404);
+        $text = (string) $material->extracted_text;
+        $questions = Question::where('material_id', $material->id)->get(['status', 'type', 'difficulty', 'critic', 'flag_text']);
+        // Запуск может охватывать несколько материалов: берём те, где этот материал был в задании
+        $runs = GenerationRun::where('course_id', $material->course_id)->latest('id')->limit(100)->get()
+            ->filter(fn ($r) => in_array($material->id, array_map('intval', $r->params['material_ids'] ?? []), true))
+            ->take(5)->values();
+        $cost = LlmCall::whereIn('generation_run_id', $runs->pluck('id'))->groupBy('generation_run_id')
+            ->selectRaw('generation_run_id, sum(cost_usd) as usd')->pluck('usd', 'generation_run_id');
+
+        return $this->data->material($material) + [
+            'chars' => mb_strlen($text),
+            // Аналитик режет текст на фрагменты примерно по 7000 символов
+            'fragments' => $text === '' ? 0 : (int) ceil(mb_strlen($text) / 7000),
+            'excerpt' => mb_substr(preg_replace('/\s+/u', ' ', $text), 0, 600),
+            'questions' => [
+                'total' => $questions->count(),
+                'pending' => $questions->where('status', 'pending')->count(),
+                'approved' => $questions->where('status', 'approved')->count(),
+                'rejected' => $questions->where('status', 'rejected')->count(),
+                'clean' => $questions->filter(fn ($q) => ($q->critic['score'] ?? null) !== null && ! $q->flag_text)->count(),
+                'flagged' => $questions->filter(fn ($q) => $q->flag_text)->count(),
+                'byType' => $questions->countBy('type')->all(),
+            ],
+            'runs' => $runs->map(fn ($r) => [
+                'id' => $r->id,
+                'date' => $r->created_at?->translatedFormat('j F, H:i'),
+                'status' => $r->status,
+                'written' => $r->written,
+                'rejected' => $r->rejected,
+                'disputed' => $r->disputed,
+                'cost' => isset($cost[$r->id]) ? round((float) $cost[$r->id], 4) : null,
+            ])->all(),
+        ];
     }
 
     /** Загрузка файла, ссылки или вставленного текста. */
