@@ -77,6 +77,10 @@ class GroupController extends Controller
         $data = $request->validate([
             'group_id' => ['present', 'nullable', 'integer', Rule::exists('student_groups', 'id')->where('course_id', CurrentUser::course()->id)],
         ]);
+        // Идущая попытка осталась бы на тесте, которого новая группа не видит
+        if ($user->attempts()->where('status', 'in_progress')->exists()) {
+            return response()->json(['message' => 'Студент сейчас проходит тест — переведите его после сдачи'], 409);
+        }
         $user->update(['group_id' => $data['group_id']]);
 
         return ['id' => $user->id, 'group' => $data['group_id']];

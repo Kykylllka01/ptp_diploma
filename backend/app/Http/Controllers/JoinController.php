@@ -44,6 +44,8 @@ class JoinController extends Controller
         if (! $group) {
             return redirect()->route('join', $code);
         }
+        // Почта хранится в нижнем регистре — и проверяется на занятость в нём же
+        $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
         $data = $request->validate([
             'last_name' => 'required|string|max:60',
             'first_name' => 'required|string|max:60',
@@ -69,7 +71,7 @@ class JoinController extends Controller
             'name' => $last.' '.mb_substr($first, 0, 1).'.'.($middle !== '' ? ' '.mb_substr($middle, 0, 1).'.' : ''),
             'full_name' => trim($first.' '.$middle),
             'initials' => mb_strtoupper(mb_substr($first, 0, 1).mb_substr($last, 0, 1)),
-            'email' => mb_strtolower(trim($data['email'])),
+            'email' => $data['email'],
             'password' => $data['password'],
             'role' => User::ROLE_STUDENT,
             'group_id' => $group->id,

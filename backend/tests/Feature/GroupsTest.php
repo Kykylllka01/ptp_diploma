@@ -130,6 +130,8 @@ class GroupsTest extends TestCase
         $this->actingAs($this->student())->get('/student/test?test=m1')->assertOk();
         $attempt = Attempt::firstOrFail();
         $this->assertSame($old->id, $attempt->group_id);
+        $this->actingAs($this->teacher())->patchJson('/api/students/'.$this->student()->id.'/group', ['group_id' => null])->assertStatus(409);
+        $this->actingAs($this->student());
         $this->postJson("/api/attempts/{$attempt->id}/submit", ['answers' => ['Q-1' => [0]]])->assertOk();
 
         $new = $this->group('Новая');

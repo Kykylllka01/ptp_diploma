@@ -11,11 +11,12 @@ Route::middleware('guest')->group(function () {
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
     // Регистрация только по ссылке-приглашению группы (код выдаёт преподаватель на экране «Группы»)
     Route::get('register', [JoinController::class, 'enterCode'])->name('register')->middleware('throttle:30,1');
-    Route::post('join/{code}', [JoinController::class, 'register'])->middleware('throttle:5,1');
+    // Вся группа регистрируется с одного вузовского Wi-Fi (один IP) — лимит с запасом; код всё равно не подобрать
+    Route::post('join/{code}', [JoinController::class, 'register'])->middleware('throttle:40,1');
 });
 
 // Страница приглашения открывается и гостю (форма регистрации), и вошедшему (подсказка, что делать)
-Route::get('join/{code}', [JoinController::class, 'show'])->name('join')->middleware('throttle:30,1');
+Route::get('join/{code}', [JoinController::class, 'show'])->name('join')->middleware('throttle:120,1');
 Route::post('join/{code}/accept', [JoinController::class, 'accept'])->name('join.accept')->middleware(['auth', 'role:student', 'throttle:10,1']);
 
 Route::middleware('auth')->group(function () {
