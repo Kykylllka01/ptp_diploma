@@ -45,8 +45,11 @@
   var modal = A.$('#material-modal');
   A.$('#mm-close').innerHTML = A.icons.x;
   A.$('#mm-close').addEventListener('click', function () { modal.close(); });
-  // Клик по затемнённому фону закрывает окно
-  modal.addEventListener('click', function (e) { if (e.target === modal) modal.close(); });
+  // Клик по затемнённому фону закрывает окно — но не выделение текста, отпущенное над фоном
+  var downOnBackdrop = false;
+  modal.addEventListener('mousedown', function (e) { downOnBackdrop = e.target === modal; });
+  modal.addEventListener('click', function (e) { if (e.target === modal && downOnBackdrop) modal.close(); });
+  var request = 0;
 
   var STATE = { uploaded: 'Загружен', processing: 'В обработке', ready: 'Текст извлечён', error: 'Ошибка чтения' };
   var RUN = { queued: ['В очереди', 'gray'], running: ['Идёт', 'blue'], paused: ['Пауза', 'gray'], done: ['Готово', 'green'], failed: ['Ошибка', 'red'], cancelled: ['Остановлен', 'gray'] };
@@ -93,9 +96,12 @@
     A.$('#mm-kind').textContent = m.kind;
     A.$('#mm-title').textContent = m.title;
     A.$('#mm-body').innerHTML = '<div class="muted small">Загружаю…</div>';
+    A.$('#mm-body').scrollTop = 0;
     modal.showModal();
-    A.api('GET', 'materials/' + m.id).then(function (d) { A.$('#mm-body').innerHTML = details(d); },
-      function () { A.$('#mm-body').innerHTML = '<div class="t-red small">Не удалось загрузить сведения о материале.</div>'; });
+    // Быстро открыли другой материал — поздний ответ по прежнему не должен подменить карточку
+    var mine = ++request;
+    A.api('GET', 'materials/' + m.id).then(function (d) { if (mine === request) A.$('#mm-body').innerHTML = details(d); },
+      function () { if (mine === request) A.$('#mm-body').innerHTML = '<div class="t-red small">Не удалось загрузить сведения о материале.</div>'; });
   });
 
   var dot = { done: 'green', warn: 'amber', work: 'blue', wait: 'gray' };

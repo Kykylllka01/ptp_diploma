@@ -522,5 +522,13 @@ mark.good { background: #DDF1E5; }
   .grid-tests { grid-template-columns: 1fr; }
   .topic-row > span { width: 120px; }
   .user__name { display: none; }
+  /* Шапка: логотип и пользователь в первой строке, меню — прокручиваемой строкой под ними */
+  .site-header__inner { gap: 10px 12px; }
+  .brand img { height: 38px; }
+  .user { margin-left: auto; gap: 8px; }
+  .user .chip { display: none; }
+  .nav { order: 3; flex: 1 1 100%; flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 0 16px 2px; scrollbar-width: none; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { white-space: nowrap; padding: 8px 10px; }
   .chip { white-space: normal; height: auto; min-height: 26px; padding: 3px 10px; }
 }

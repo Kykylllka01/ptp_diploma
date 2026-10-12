@@ -147,12 +147,15 @@
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'cselect__btn';
+    btn.setAttribute('role', 'combobox');
     btn.setAttribute('aria-haspopup', 'listbox');
     btn.setAttribute('aria-expanded', 'false');
     var list = document.createElement('ul');
     list.className = 'cselect__list';
     list.setAttribute('role', 'listbox');
     list.id = 'cs-' + (++uid);
+    btn.id = list.id + '-btn';
+    list.tabIndex = -1;
     list.hidden = true;
     btn.setAttribute('aria-controls', list.id);
     wrap.appendChild(btn);
@@ -166,15 +169,21 @@
     sel.tabIndex = -1;
     sel.setAttribute('aria-hidden', 'true');
 
-    // Подпись: aria-label select или <label for>, иначе текст обёртки-label
+    // Подпись: aria-label select, <label for> или текст <label>, внутри которого стоит список
     var label = sel.getAttribute('aria-label');
+    var lab = sel.id ? document.querySelector('label[for="' + sel.id + '"]') : null;
+    var outer = wrap.parentNode.closest ? wrap.parentNode.closest('label') : null;
     if (label) btn.setAttribute('aria-label', label);
-    else if (sel.id && document.querySelector('label[for="' + sel.id + '"]')) {
-      var lab = document.querySelector('label[for="' + sel.id + '"]');
+    else if (lab) {
       if (!lab.id) lab.id = 'cs-lbl-' + uid;
-      btn.setAttribute('aria-labelledby', lab.id + ' ' + list.id);
+      btn.setAttribute('aria-labelledby', lab.id);
       lab.addEventListener('click', function (e) { e.preventDefault(); btn.focus(); });
+    } else if (outer) {
+      var text = Array.prototype.filter.call(outer.childNodes, function (n) { return n !== wrap && n !== sel; })
+        .map(function (n) { return n.textContent; }).join(' ').replace(/\s+/g, ' ').trim();
+      if (text) btn.setAttribute('aria-label', text);
     }
+    list.setAttribute('aria-label', btn.getAttribute('aria-label') || (lab ? lab.textContent.trim() : 'Варианты'));
 
     var active = -1;
     function options() { return Array.prototype.slice.call(sel.options); }
@@ -191,10 +200,14 @@
       }).join('');
       sync();
     }
-    function highlight(i) {
+    function highlight(i, step) {
       var items = list.children;
       if (!items.length) return;
-      active = Math.max(0, Math.min(items.length - 1, i));
+      i = Math.max(0, Math.min(items.length - 1, i));
+      // Стрелки перешагивают недоступные пункты
+      while (step && items[i] && items[i].getAttribute('aria-disabled') === 'true') i += step;
+      if (!items[i] || items[i].getAttribute('aria-disabled') === 'true') return;
+      active = i;
       Array.prototype.forEach.call(items, function (li, k) { li.classList.toggle('is-active', k === active); });
       btn.setAttribute('aria-activedescendant', items[active].id);
       var li = items[active];
@@ -255,14 +268,14 @@
         if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Enter' || k === ' ') { e.preventDefault(); open(); }
         return;
       }
-      if (k === 'ArrowDown') { e.preventDefault(); highlight(active + 1); }
-      else if (k === 'ArrowUp') { e.preventDefault(); highlight(active - 1); }
-      else if (k === 'Home') { e.preventDefault(); highlight(0); }
-      else if (k === 'End') { e.preventDefault(); highlight(list.children.length - 1); }
+      if (k === 'ArrowDown') { e.preventDefault(); highlight(active + 1, 1); }
+      else if (k === 'ArrowUp') { e.preventDefault(); highlight(active - 1, -1); }
+      else if (k === 'Home') { e.preventDefault(); highlight(0, 1); }
+      else if (k === 'End') { e.preventDefault(); highlight(list.children.length - 1, -1); }
       else if (k === 'Enter' || k === ' ') { e.preventDefault(); choose(active); }
       else if (k === 'Escape') { e.preventDefault(); close(true); }
       else if (k === 'Tab') close();
-      else if (k.length === 1) {
+      else if (k.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         // Поиск по первым буквам, как у обычного списка
         typed = (Date.now() - typedAt > 700 ? '' : typed) + k.toLowerCase();
         typedAt = Date.now();
@@ -270,6 +283,14 @@
         if (hit >= 0) highlight(hit);
       }
     });
+
+    // Firefox нажимает кнопку пробелом на keyup — после выбора пробелом список открылся бы снова
+    btn.addEventListener('keyup', function (e) { if (e.key === ' ') e.preventDefault(); });
+    // Фокус ушёл из списка (Tab, Alt+Tab, программный переход) — закрываем
+    wrap.addEventListener('focusout', function (e) {
+      if (!list.hidden && (!e.relatedTarget || !wrap.contains(e.relatedTarget))) close();
+    });
+    if (sel.form) sel.form.addEventListener('reset', function () { setTimeout(sync); });
 
     // Код страницы меняет select.value, innerHTML, hidden или disabled — кнопка и список следуют за ним
     var proto = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
@@ -307,7 +328,11 @@
   function startSelects() {
     enhanceAll(document);
     new MutationObserver(function (records) {
-      records.forEach(function (r) { Array.prototype.forEach.call(r.addedNodes, function (n) { if (n.nodeType === 1) enhanceAll(n); }); });
+      records.forEach(function (r) {
+        // Пункты наших же списков пропускаем: их пересобирают при каждом открытии
+        if (r.target.closest && r.target.closest('.cselect')) return;
+        Array.prototype.forEach.call(r.addedNodes, function (n) { if (n.nodeType === 1) enhanceAll(n); });
+      });
     }).observe(document.body, { childList: true, subtree: true });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startSelects);

@@ -34,7 +34,7 @@ class MaterialController extends Controller
         $text = (string) $material->extracted_text;
         $questions = Question::where('material_id', $material->id)->get(['status', 'type', 'difficulty', 'critic', 'flag_text']);
         // Запуск может охватывать несколько материалов: берём те, где этот материал был в задании
-        $runs = GenerationRun::where('course_id', $material->course_id)->latest('id')->limit(100)->get()
+        $runs = GenerationRun::where('course_id', $material->course_id)->latest('id')->limit(500)->get(['id', 'params', 'status', 'written', 'rejected', 'disputed', 'created_at'])
             ->filter(fn ($r) => in_array($material->id, array_map('intval', $r->params['material_ids'] ?? []), true))
             ->take(5)->values();
         $cost = LlmCall::whereIn('generation_run_id', $runs->pluck('id'))->groupBy('generation_run_id')
@@ -44,7 +44,8 @@ class MaterialController extends Controller
             'chars' => mb_strlen($text),
             // Аналитик режет текст на фрагменты примерно по 7000 символов
             'fragments' => $text === '' ? 0 : (int) ceil(mb_strlen($text) / 7000),
-            'excerpt' => mb_substr(preg_replace('/\s+/u', ' ', $text), 0, 600),
+            // Сначала короткий кусок: нормализовать пробелы во всём тексте лекции незачем
+            'excerpt' => mb_substr((string) preg_replace('/\s+/u', ' ', mb_substr($text, 0, 3000)), 0, 600),
             'questions' => [
                 'total' => $questions->count(),
                 'pending' => $questions->where('status', 'pending')->count(),
