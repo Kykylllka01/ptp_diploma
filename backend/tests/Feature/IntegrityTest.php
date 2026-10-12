@@ -125,6 +125,20 @@ class IntegrityTest extends TestCase
         $this->assertSame('draft', $draft->fresh()->status);
     }
 
+    /** Сборщик шлёт матрицу целиком: 6-й столбец — минуты на вопрос (у развёрнутого 4), а не доля до 1. */
+    public function test_builder_default_matrix_with_minutes_per_question_is_accepted(): void
+    {
+        $this->singleQuestion('Q-1', 2);
+        $this->actingAs($this->teacher());
+        $r = $this->postJson('/api/tests', ['title' => 'Как в сборщике', 'mode' => 'rules', 'publish' => true, 'topics' => [],
+            'matrix' => [['single', 1, 0, 1, 0, 0.7], ['multiple', 2, 0, 0, 0, 1], ['tf', 1, 0, 0, 0, 0.5],
+                ['match', 2, 0, 0, 0, 1.5], ['sql', 2, 0, 0, 0, 2], ['open', 5, 0, 0, 0, 4]]])->assertOk()->json();
+        $this->assertSame(1, $r['picked']);
+
+        $this->postJson('/api/tests', ['title' => 'Минут слишком много', 'mode' => 'rules', 'topics' => [],
+            'matrix' => [['open', 5, 0, 1, 0, 500]]])->assertStatus(422);
+    }
+
     public function test_retakes_do_not_count_as_new_students_in_analytics(): void
     {
         $test = $this->makeTest('m1', [$this->singleQuestion('Q-1', 1), $this->singleQuestion('Q-2', 1)], ['attempts_allowed' => 2]);

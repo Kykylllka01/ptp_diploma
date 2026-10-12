@@ -27,13 +27,13 @@ class TestController extends Controller
             'mode' => ['required', Rule::in(['rules', 'manual', 'adaptive'])],
             'matrix' => 'required|array|max:20',
             'matrix.*' => 'array|size:6',
-            // Строка матрицы: [тип, баллы, лёгких, средних, сложных, доля] — числа, иначе 500 при сложении
+            // Строка матрицы: [тип, баллы, лёгких, средних, сложных, минут на вопрос] — числа, иначе 500 при сложении
             'matrix.*.0' => ['required', Rule::in(array_keys(Question::TYPES))],
             'matrix.*.1' => 'numeric|min:0|max:100',
             'matrix.*.2' => 'integer|min:0|max:200',
             'matrix.*.3' => 'integer|min:0|max:200',
             'matrix.*.4' => 'integer|min:0|max:200',
-            'matrix.*.5' => 'numeric|min:0|max:1',
+            'matrix.*.5' => 'numeric|min:0|max:60',
             'topics' => 'array',
             'topics.*' => 'string|max:255',
             'group' => 'nullable|string|max:100',
