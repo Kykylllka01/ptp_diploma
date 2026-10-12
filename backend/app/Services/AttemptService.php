@@ -54,6 +54,7 @@ class AttemptService
 
             return $test->attempts()->create([
                 'user_id' => $user->id,
+                'group_id' => $user->group_id,
                 'status' => 'in_progress',
                 'flags' => [],
                 'question_ids' => $this->variant($test),

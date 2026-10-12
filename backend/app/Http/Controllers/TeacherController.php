@@ -23,6 +23,7 @@ class TeacherController extends Controller
         'analytics' => ['tests'],
         'analytics-tests' => ['tests'],
         'review' => ['reviews'],
+        'groups' => [],
     ];
 
     public function __construct(private FrontendData $data, private AttemptService $attempts)
@@ -98,6 +99,12 @@ class TeacherController extends Controller
     public function review()
     {
         return $this->page('review', 'Проверка открытых ответов', 'analytics');
+    }
+
+    /** Группы курса и ссылки-приглашения для регистрации студентов. */
+    public function groups()
+    {
+        return $this->page('groups', 'Группы', 'groups', $this->data->groupsPage());
     }
 
     private function page(string $view, string $title, ?string $active = null, array $extra = [])

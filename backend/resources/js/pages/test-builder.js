@@ -98,8 +98,31 @@
     manual: 'Тест сохранится черновиком. Отметьте вопросы в банке и нажмите «Добавить в тест» — после этого тест откроется студентам.'
   };
 
-  // Группы студентов из базы; «все по ссылке» — тест видят все студенты курса
-  A.$('#group').innerHTML = (M.groups || []).map(function (g) { return '<option>' + esc(g) + '</option>'; }).join('') + '<option value="">Все студенты курса</option>';
+  // Участники: «все студенты курса» или одна/несколько групп (группы и ссылки к ним — на экране «Группы»)
+  var groups = M.groups || [];
+  var chosen = [];
+  function renderGroups() {
+    A.$('#groups').innerHTML = '<button type="button" data-all aria-pressed="' + !chosen.length + '">Все студенты курса</button>' +
+      groups.map(function (g) {
+        return '<button type="button" data-g="' + g.id + '" aria-pressed="' + (chosen.indexOf(g.id) >= 0) + '">' + esc(g.name) +
+          ' <small>' + g.students + '</small></button>';
+      }).join('');
+    var n = chosen.length ? groups.filter(function (g) { return chosen.indexOf(g.id) >= 0; }).reduce(function (s, g) { return s + g.students; }, 0) : null;
+    A.$('#groups-hint').innerHTML = !groups.length
+      ? 'Групп пока нет — тест увидят все студенты. <a href="groups">Создать группу</a>'
+      : (chosen.length ? 'Тест увидят ' + n + ' ' + A.plural(n, 'студент', 'студента', 'студентов') + ' выбранных групп.' : 'Тест увидят все студенты курса.') + ' <a href="groups">Группы</a>';
+  }
+  A.$('#groups').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    if (b.hasAttribute('data-all')) chosen = [];
+    else {
+      var id = +b.getAttribute('data-g'), i = chosen.indexOf(id);
+      if (i >= 0) chosen.splice(i, 1); else chosen.push(id);
+    }
+    renderGroups();
+  });
+  renderGroups();
   if (A.param('training')) A.$('#training').setAttribute('aria-pressed', 'true');
   function on(id) { return A.$(id).getAttribute('aria-pressed') === 'true'; }
   A.$$('input[name=mode]').forEach(function (r) {
@@ -124,7 +147,7 @@
       mode: mode,
       matrix: rows,
       topics: topics,
-      group: A.$('#group').value || null,
+      groups: chosen,
       opens_at: A.$('#opens-at').value || null,
       deadline_at: A.$('#deadline-at').value || null,
       minutes: +A.$('#minutes').value,

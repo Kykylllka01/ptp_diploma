@@ -4,6 +4,7 @@
         'materials' => ['Материалы', route('teacher.upload')],
         'bank' => ['Банк вопросов', route('teacher.bank')],
         'tests' => ['Тесты', route('teacher.tests')],
+        'groups' => ['Группы', route('teacher.groups')],
         'analytics' => ['Аналитика', route('teacher.analytics')],
     ];
     $teacher = $appData['teacher'];

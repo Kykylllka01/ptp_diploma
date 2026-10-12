@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Attempt extends Model
 {
     protected $fillable = [
-        'test_id', 'user_id', 'status', 'flags', 'question_ids', 'current_index', 'score', 'max_score', 'percent',
+        'test_id', 'user_id', 'group_id', 'status', 'flags', 'question_ids', 'current_index', 'score', 'max_score', 'percent',
         'started_at', 'submitted_at',
     ];
 
@@ -30,6 +30,12 @@ class Attempt extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** Группа студента на момент старта: перевод в другую группу не переносит старые результаты. */
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(Group::class);
     }
 
     public function answers(): HasMany

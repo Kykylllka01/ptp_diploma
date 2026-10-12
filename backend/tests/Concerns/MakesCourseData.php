@@ -3,6 +3,7 @@
 namespace Tests\Concerns;
 
 use App\Models\Course;
+use App\Models\Group;
 use App\Models\Question;
 use App\Models\Test;
 use App\Models\User;
@@ -31,6 +32,11 @@ trait MakesCourseData
     }
 
     /** Вопрос с одним верным вариантом из четырёх. */
+    protected function group(string $name): Group
+    {
+        return Group::firstOrCreate(['course_id' => Course::firstOrFail()->id, 'name' => $name]);
+    }
+
     protected function singleQuestion(string $code, int $correct = 0, array $attrs = []): Question
     {
         return $this->question($code, $attrs + [
@@ -48,13 +54,21 @@ trait MakesCourseData
         ]);
     }
 
-    /** Тест с вопросами в заданном порядке. По умолчанию — идущий тест группы студента. */
+    /**
+     * Тест с вопросами в заданном порядке. По умолчанию — идущий тест группы студента;
+     * 'group_name' => null — тест для всех студентов курса, 'group_name' => 'Чужая группа' — для другой группы.
+     */
     protected function makeTest(string $code, array $questions, array $attrs = []): Test
     {
+        $group = array_key_exists('group_name', $attrs) ? $attrs['group_name'] : $this->student()->group->name;
+        unset($attrs['group_name']);
         $test = Test::create($attrs + [
             'code' => $code, 'course_id' => Course::firstOrFail()->id, 'title' => 'Тест '.$code,
-            'status' => 'running', 'group_name' => $this->student()->group_name, 'minutes' => 45, 'attempts_allowed' => 1,
+            'status' => 'running', 'audience' => $group === null ? 'all' : 'groups', 'minutes' => 45, 'attempts_allowed' => 1,
         ]);
+        if ($group !== null) {
+            $test->groups()->attach($this->group($group)->id);
+        }
         foreach (array_values($questions) as $i => $q) {
             $test->questions()->attach($q->id, ['position' => $i]);
         }

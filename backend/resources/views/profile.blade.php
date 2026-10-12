@@ -33,7 +33,7 @@
           <div class="grid-fields">
             <label class="field">Почта для входа<input class="input" value="{{ $user->email }}" disabled></label>
             @unless ($user->isTeacher())
-              <label class="field">Группа<input class="input" value="{{ $user->group_name ?: '—' }}" disabled></label>
+              <label class="field">Группа<input class="input" value="{{ $user->group?->name ?: '—' }}" disabled></label>
             @endunless
           </div>
           <button type="submit" class="btn btn--primary" style="align-self: flex-start">Сохранить</button>
