@@ -11,6 +11,7 @@
     if (t.graded) a.push('<button type="button" class="btn btn--xs" data-weight="' + esc(t.id) + '">' + (t.weight != null ? 'Баллы: ' + String(t.weight).replace('.', ',') : 'Задать баллы') + '</button>');
     if (t.status === 'running') a.push('<button type="button" class="btn btn--xs" data-status="closed" data-id="' + esc(t.id) + '">Закрыть приём</button>');
     if (t.status === 'closed' || (t.status === 'draft' && t.count)) a.push('<button type="button" class="btn btn--xs" data-status="running" data-id="' + esc(t.id) + '">Открыть приём</button>');
+    a.push('<button type="button" class="btn btn--xs" data-rename="' + esc(t.id) + '">Переименовать</button>');
     a.push('<button type="button" class="btn btn--xs" data-delete="' + esc(t.id) + '" aria-label="Удалить тест «' + esc(t.title) + '»">Удалить</button>');
     return '<div class="row-wrap" style="justify-content: flex-end; gap: 6px">' + a.join('') + '</div>';
   }
@@ -30,6 +31,18 @@
   }
 
   A.$('#tests').addEventListener('click', function (e) {
+    var rn = e.target.closest('[data-rename]');
+    if (rn) {
+      var tr = M.tests.filter(function (x) { return x.id === rn.getAttribute('data-rename'); })[0];
+      var name = prompt('Новое название теста', tr.title);
+      if (!name || !name.trim() || name.trim() === tr.title) return;
+      A.api('PATCH', 'tests/' + encodeURIComponent(tr.id), { title: name.trim() }).then(function (fresh) {
+        M.tests = M.tests.map(function (t) { return t.id === tr.id ? fresh : t; });
+        render();
+        A.toast('Тест переименован');
+      });
+      return;
+    }
     var w = e.target.closest('[data-weight]');
     if (w) {
       var tw = M.tests.filter(function (x) { return x.id === w.getAttribute('data-weight'); })[0];

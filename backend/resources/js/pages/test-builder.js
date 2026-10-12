@@ -137,7 +137,8 @@
     e.preventDefault();
     var mode = A.$('input[name=mode]:checked').value;
     if (mode !== 'manual' && !+A.$('#s-count').textContent) { A.toast('Добавьте в тест хотя бы один вопрос'); return; }
-    var title = A.$('#test-title').textContent.trim();
+    var title = A.$('#test-title').value.trim();
+    if (!title) { A.$('#test-title').focus(); A.toast('Введите название теста', true); return; }
     var training = A.$('#training').getAttribute('aria-pressed') === 'true';
     // Двойной клик создавал два теста — кнопка недоступна до ответа сервера
     var submitBtn = e.submitter || A.$('#builder [type=submit]');
@@ -166,6 +167,10 @@
   });
 
   renderMatrix(); renderTopics(); summary();
+  // Заголовок страницы повторяет вводимое название
+  A.$('#test-title').addEventListener('input', function (e) { A.$('#title-preview').textContent = e.target.value.trim() || 'Новый тест'; });
+  // Enter в названии не публикует тест — публикация только кнопкой
+  A.$('#test-title').addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
 
   // По умолчанию — темы, по которым есть одобренные вопросы, и все такие вопросы в матрице
   function fillFromBank() {

@@ -8,11 +8,17 @@
 <main class="page">
   <div>
     <div class="lbl">Новый тест · черновик</div>
-    <h1 class="page-title"><span contenteditable="plaintext-only" role="textbox" aria-multiline="false" id="test-title" spellcheck="false" aria-label="Название теста">Новый тест</span></h1>
+    <h1 class="page-title" id="title-preview">Новый тест</h1>
   </div>
 
   <form class="split" id="builder">
     <div class="split__main" style="flex-basis: 600px">
+      <section class="card card--pad">
+        <label class="field" style="font-size: 15px">Название теста
+          <input class="input input--lg" id="test-title" maxlength="255" placeholder="Например, Контрольная по нормализации" autocomplete="off">
+        </label>
+      </section>
+
       <section class="card card--pad">
         <h2 class="card-title">Как собрать</h2>
         <div class="row-wrap" style="margin-top: 16px; gap: 10px; align-items: stretch">
