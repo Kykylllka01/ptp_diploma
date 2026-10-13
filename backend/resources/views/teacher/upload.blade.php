@@ -87,7 +87,7 @@
       @else
       <div class="note">Агенты работают на нейросети: запуск по одной лекции занимает несколько минут, ход работы виден на следующем экране.</div>
       @endif
-      <button type="submit" class="btn btn--primary btn--block">Запустить агентов</button>
+      <button type="submit" class="btn btn--ai btn--block">Запустить агентов</button>
     </aside>
   </form>
 </main>

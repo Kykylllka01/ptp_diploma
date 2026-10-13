@@ -55,7 +55,7 @@
     A.$('#a-text').innerHTML = r.answer; // с сервера приходит экранированный текст, подсветка — только <mark> агента
     A.$('#appeal').hidden = !r.appeal;
     A.$('#appeal').innerHTML = r.appeal ? '<b>Апелляция студента:</b> ' + esc(r.appeal) : '';
-    A.$('#confidence').innerHTML = A.chip('Агент-оценщик · уверенность ' + r.confidence + '%', r.confidence < 70 ? 'amber' : 'blue');
+    A.$('#confidence').innerHTML = A.chip('Агент-оценщик · уверенность ' + r.confidence + '%', r.confidence < 70 ? 'amber' : 'blue', 'chip--ai');
 
     var tone = { ok: 't-green', part: 't-amber', no: 't-red' };
     A.$('#criteria').innerHTML = c.map(function (cr, i) {

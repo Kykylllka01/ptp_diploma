@@ -14,7 +14,7 @@
     <div class="actions">
       <a href="/api/questions-export" class="btn" id="export" title="Одобренные вопросы в формате Moodle XML: их можно импортировать в курс LMS">Экспорт в Moodle</a>
       <button type="button" class="btn" id="add-manual">Добавить вручную</button>
-      <a href="upload" class="btn btn--primary">Сгенерировать ещё</a>
+      <a href="upload" class="btn btn--ai">Сгенерировать ещё</a>
     </div>
   </div>
 
@@ -56,7 +56,7 @@
         <span style="flex: 1"></span>
         <button type="button" class="btn btn--xs btn--ghost-dark" data-bulk="approve">Одобрить</button>
         <button type="button" class="btn btn--xs btn--ghost-dark" data-bulk="reject">Отклонить</button>
-        <button type="button" class="btn btn--xs btn--ghost-dark" data-bulk="regen">Перегенерировать</button>
+        <button type="button" class="btn btn--xs btn--ghost-dark btn--ai-soft" data-bulk="regen">Перегенерировать</button>
         <button type="button" class="btn btn--xs btn--ghost-dark" data-bulk="test">Добавить в тест</button>
         <button type="button" class="btn btn--xs btn--ghost-dark" data-bulk="export">В Moodle XML</button>
       </div>
