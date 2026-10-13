@@ -37,6 +37,11 @@ class PilotCheck extends Command
             $pending = collect(glob(database_path('migrations/*.php')))->map(fn ($f) => basename($f, '.php'))
                 ->diff(DB::table('migrations')->pluck('migration'));
             $this->check('Миграции', $pending->isEmpty(), 'не применены: '.$pending->implode(', ').' — php artisan migrate --force');
+            // Потоков Apache (ThreadsPerChild 128) плюс обработчики очереди — соединений нужно с запасом
+            if (DB::getDriverName() === 'mysql') {
+                $max = (int) (DB::selectOne("show variables like 'max_connections'")->Value ?? 0);
+                $this->check('Соединений MySQL', $max >= 200, 'max_connections = '.$max.': при общей сдаче возможна ошибка «Too many connections» — поставьте 200 (docs/pilot.md)', 'warn', (string) $max);
+            }
         } catch (Throwable $e) {
             report($e);
             $this->check('База данных', false, 'нет соединения (подробности — в журнале storage/logs)');
@@ -85,6 +90,7 @@ class PilotCheck extends Command
         $fails = collect($this->rows)->where(1, 'FAIL')->count();
         $warns = collect($this->rows)->where(1, 'WARN')->count();
         $fails ? $this->error("Ошибок: $fails, предупреждений: $warns") : $this->info($warns ? "Ошибок нет, предупреждений: $warns" : 'Всё готово');
+        $this->line('Регламент пилота: docs/pilot.md');
 
         return $fails ? self::FAILURE : self::SUCCESS;
     }
