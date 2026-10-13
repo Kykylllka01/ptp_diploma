@@ -159,4 +159,21 @@ class UxPolishTest extends TestCase
         $this->get('/_boom')->assertStatus(500)->assertSee('Что-то пошло не так')
             ->assertDontSee('secret-123')->assertDontSee('RuntimeException');
     }
+
+    public function test_student_results_page_lists_submitted_attempts(): void
+    {
+        $this->makeTest('m1', [$this->singleQuestion('Q-1')]);
+        $this->actingAs($this->student())->get('/student/test?test=m1')->assertOk();
+        $attempt = Attempt::firstOrFail();
+        $this->postJson("/api/attempts/{$attempt->id}/submit", ['answers' => ['Q-1' => [0]]])->assertOk();
+
+        // Пункт меню «Результаты» ведёт на отдельную страницу, а не на якорь «Моих тестов»
+        $page = $this->get('/student/results')->assertOk()->assertSee('href="'.route('student.results').'"', false);
+        $done = $page->viewData('appData')['studentDone'];
+        $this->assertCount(1, $done);
+        $this->assertSame($attempt->id, $done[0]['attemptId']);
+        $this->assertSame(100, $done[0]['percent']);
+        $this->assertTrue($done[0]['graded']);
+        $this->actingAs($this->teacher())->get('/student/results')->assertRedirect();
+    }
 }

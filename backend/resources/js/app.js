@@ -661,12 +661,21 @@
     return text ? '<pre class="q-context">' + esc(text) + '</pre>' : '';
   }
 
+  // Строки сданных попыток студента (M.studentDone): «Мои тесты» и «Результаты»
+  function doneRows(list) {
+    return list.map(function (d) {
+      return '<a href="result?attempt=' + d.attemptId + '" class="done-row"><div style="flex: 1; min-width: 220px"><div class="strong">' + esc(d.title) + '</div>' +
+        '<div class="muted small" style="margin-top: 2px">' + esc(d.meta) + '</div></div>' + chip(d.status[0], d.status[1]) +
+        '<span class="done-row__score">' + esc(d.score) + '</span></a>';
+    }).join('');
+  }
+
   window.App = {
     M: M, esc: esc, context: context, $: $, $$: $$, chip: chip, plural: plural, param: param, url: url,
     icons: icons, toast: toast, api: api, csrf: csrf, authFailed: authFailed,
     questions: questions, saveQuestion: saveQuestion, reviews: reviews, saveReview: saveReview,
     ask: ask, choose: choose, form: form, confirm: confirmBox, keepFocus: keepFocus, menu: menu, closeMenu: closeMenu,
     sortBy: sortBy, sortTh: sortTh, nextSort: nextSort, filterTabs: filterTabs, recall: recall, remember: remember,
-    fileIcon: fileIcon, num: num, copyText: copyText
+    fileIcon: fileIcon, num: num, copyText: copyText, doneRows: doneRows
   };
 })();

@@ -68,7 +68,7 @@ class FlowTest extends TestCase
             $this->get($url)->assertOk();
         }
         $this->actingAs($this->student());
-        foreach (['/student/tests', '/student/test', '/student/test?mode=training', '/student/result', '/profile'] as $url) {
+        foreach (['/student/tests', '/student/test', '/student/test?mode=training', '/student/result', '/student/results', '/profile'] as $url) {
             $this->get($url)->assertOk();
         }
     }
