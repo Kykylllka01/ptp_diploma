@@ -24,7 +24,7 @@
     var items = [
       t.count && main.indexOf('preview?') < 0 ? { label: 'Пройти самому', href: 'preview?test=' + q } : null,
       t.status !== 'draft' && main.indexOf('analytics?') < 0 ? { label: 'Результаты и аналитика', href: 'analytics?test=' + q } : null,
-      { label: 'Срок и группы', attrs: 'data-settings="' + id + '"' },
+      { label: t.status === 'training' ? 'Срок и группы' : 'Срок, группы и прокторинг', attrs: 'data-settings="' + id + '"' },
       t.graded ? { label: t.weight != null ? 'Баллы в Модеус: ' + A.num(t.weight) : 'Задать баллы в Модеус', attrs: 'data-weight="' + id + '"' } : null,
       t.status === 'running' ? { label: 'Закрыть приём', attrs: 'data-status="closed" data-id="' + id + '"' } : null,
       t.status === 'closed' && main.indexOf('data-status') < 0 ? { label: 'Открыть приём снова', attrs: 'data-status="running" data-id="' + id + '"' } : null,
@@ -45,7 +45,7 @@
 
   function row(t) {
     var meta = [t.status === 'training' ? 'тренировка без оценки' : (t.minutes ? t.minutes + ' мин' : 'без лимита времени'), t.group || 'все студенты курса',
-      t.individual ? 'свой вариант каждому' : '', t.weight != null ? weightLabel(t.weight) : ''].filter(Boolean).join(' · ');
+      t.individual ? 'свой вариант каждому' : '', t.proctoring ? 'жёсткий прокторинг' : '', t.weight != null ? weightLabel(t.weight) : ''].filter(Boolean).join(' · ');
     var title = t.status !== 'draft'
       ? '<a href="analytics?test=' + encodeURIComponent(t.id) + '" class="table__title">' + esc(t.title) + '</a>'
       : '<span class="table__title">' + esc(t.title) + '</span>';
@@ -128,16 +128,21 @@
     A.keepFocus(render);
   }
 
-  // Срок сдачи и группы-участники после публикации
+  // Срок сдачи, группы-участники и прокторинг после публикации
   function settings(t) {
+    var proctor = t.status !== 'training';
     var html = '<label class="field">Срок сдачи<input class="input" type="datetime-local" id="set-deadline" value="' + esc(t.deadlineLocal || '') + '">' +
         '<span class="field__hint">Пусто — без срока. После срока начатые попытки досдаются автоматически.</span></label>' +
       (groups.length ? '<div class="field"><span>Кто проходит <span class="field__hint">ни одной группы — все студенты курса</span></span><div class="pick" id="set-groups">' +
         groups.map(function (g) { var on = t.groups.indexOf(g.id) >= 0; return '<button type="button" aria-pressed="' + on + '" data-g="' + g.id + '">' + esc(g.name) + ' <small>' + g.students + '</small></button>'; }).join('') +
-        '</div></div>' : '');
-    A.form({ title: 'Срок и группы', text: '«' + t.title + '»', html: html, ok: 'Сохранить', collect: function (d) {
+        '</div></div>' : '') +
+      (proctor ? '<div class="tg"><div><div>Жёсткий прокторинг</div><div class="muted xsmall" style="margin-top: 2px" id="set-proctoring-hint">Уход на другие вкладки и окна прячет вопросы и записывается — видно в ответах студента</div></div>' +
+        '<button type="button" class="sw" id="set-proctoring" aria-label="Жёсткий прокторинг" aria-describedby="set-proctoring-hint" aria-pressed="' + !!t.proctoring + '"><span></span></button></div>' : '');
+    A.form({ title: proctor ? 'Срок, группы и прокторинг' : 'Срок и группы', text: '«' + t.title + '»', html: html, ok: 'Сохранить', collect: function (d) {
       var v = d.querySelector('#set-deadline').value;
       var data = { groups: A.$$('#set-groups [aria-pressed="true"]', d).map(function (b) { return +b.getAttribute('data-g'); }) };
+      var sw = d.querySelector('#set-proctoring');
+      if (sw && (sw.getAttribute('aria-pressed') === 'true') !== !!t.proctoring) data.proctoring = sw.getAttribute('aria-pressed') === 'true';
       if ((v || '') !== (t.deadlineLocal || '')) data.deadline_at = v || null;   // срок отправляем, только если его поменяли
       return { value: data };
     } }).then(function (data) {

@@ -59,6 +59,9 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::middleware('role:student')->group(function () {
         Route::put('attempts/{attempt}', [AttemptController::class, 'update']);
         Route::post('attempts/{attempt}/submit', [AttemptController::class, 'submit']);
+        // Прокторинг: уход со страницы теста и возвращение
+        Route::post('attempts/{attempt}/proctor', [AttemptController::class, 'proctor'])->middleware('throttle:120,1');
+        Route::post('attempts/{attempt}/proctor/back', [AttemptController::class, 'proctorBack'])->middleware('throttle:120,1');
         // Проверка SQL-ответа запускает учебную базу — частоту ограничиваем, как у sql/run
         Route::post('questions/{question}/check', [QuestionController::class, 'check'])->middleware('throttle:60,1');
         Route::post('answers/{answer}/appeal', [AttemptController::class, 'appeal']);

@@ -8,6 +8,7 @@ use App\Models\Attempt;
 use App\Models\GenerationRun;
 use App\Models\Group;
 use App\Models\Material;
+use App\Models\ProctorEvent;
 use App\Models\Question;
 use App\Models\Review;
 use App\Models\Test;
@@ -141,6 +142,9 @@ class FrontendData
             'attemptId' => $attempt?->id,
             'minutes' => $test->minutes,
             'shuffle' => $test->setting('shuffle', true),
+            // Жёсткий прокторинг: сколько уходов со страницы уже записано в этой попытке
+            'proctoring' => $attempt !== null && $test->isProctored(),
+            'proctorCount' => $attempt !== null && $test->isProctored() ? $attempt->proctorEvents()->count() : 0,
             'startedAt' => $attempt?->started_at?->getTimestampMs() ?? now()->getTimestampMs(),
             'serverNow' => now()->getTimestampMs(),
             'answers' => (object) $answers,
@@ -203,7 +207,31 @@ class FrontendData
                 'reviewNote' => $reviewAllowed && ! $showReview
                     ? 'Разбор с правильными ответами откроется, когда закончатся попытки или тест закроется.'
                     : null,
+                // Журнал прокторинга — только преподавателю
+                'proctor' => $forTeacher ? $this->proctor($attempt) : null,
             ],
+        ];
+    }
+
+    /** Уходы со страницы теста во время попытки; null — прокторинг в тесте не включён и уходов нет. */
+    private function proctor(Attempt $attempt): ?array
+    {
+        $events = $attempt->proctorEvents()->get();
+        if ($events->isEmpty() && ! $attempt->test->setting('proctoring')) {
+            return null;
+        }
+        $away = $events->sum(fn (ProctorEvent $e) => $e->seconds() ?? 0);
+
+        return [
+            'count' => $events->count(),
+            'seconds' => $away,
+            'events' => $events->map(fn (ProctorEvent $e) => [
+                'kind' => $e->kind,
+                'label' => ProctorEvent::LABELS[$e->kind] ?? $e->kind,
+                'at' => $e->left_at->format('H:i:s'),
+                'minute' => $attempt->started_at ? max(0, (int) floor($attempt->started_at->diffInSeconds($e->left_at) / 60)) : null,
+                'seconds' => $e->seconds(),
+            ])->all(),
         ];
     }
 
@@ -357,6 +385,7 @@ class FrontendData
             'graded' => $t->graded,
             'weight' => $t->weight(),
             'individual' => $t->isIndividual(),
+            'proctoring' => $t->isProctored(),
             'pool' => $pool,
             'isOpen' => $t->isOpenNow(),
             'mode' => $t->mode,

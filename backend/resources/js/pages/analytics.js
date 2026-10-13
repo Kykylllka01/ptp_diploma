@@ -59,14 +59,18 @@
   function renderStudents() {
     A.remember('analytics-students', st);
     var c = R.counts;
-    A.$('#st-filters').innerHTML = A.filterTabs([['all', 'Все', c.total], ['final', 'Итог', c.final], ['pending', 'Предварительно', c.pending], ['none', 'Не сдавали', c.none]], st.filter, 'Какие студенты');
+    // Вкладка «Уходили со страницы» — когда в тесте прокторинг или уходы уже записаны
+    var tabs = [['all', 'Все', c.total], ['final', 'Итог', c.final], ['pending', 'Предварительно', c.pending], ['none', 'Не сдавали', c.none]];
+    if (R.proctoring || c.proctor) tabs.push(['proctor', 'Уходили со страницы', c.proctor || 0]);
+    else if (st.filter === 'proctor') st.filter = 'all';
+    A.$('#st-filters').innerHTML = A.filterTabs(tabs, st.filter, 'Какие студенты');
     var s = st.sort;
     A.$('#st-head').innerHTML = '<tr>' + A.sortTh('name', 'Студент', s) + A.sortTh('group', 'Группа', s) + A.sortTh('attempts', 'Попыток', s, 'num-col') +
       A.sortTh('percent', 'Лучший результат', s) + A.sortTh('points', R.weight != null ? 'Баллы в Модеус' : 'Баллы', s, 'num-col') + A.sortTh('status', 'Статус', s) +
       A.sortTh('submitted', 'Сдан', s) + '<th><span class="sr-only">Ответы</span></th></tr>';
     var q = stQuery.toLowerCase();
     var list = A.sortBy(R.students.filter(function (x) {
-      return (st.filter === 'all' || x.status === st.filter || (st.filter === 'none' && x.status === 'in_progress')) &&
+      return (st.filter === 'all' || x.status === st.filter || (st.filter === 'none' && x.status === 'in_progress') || (st.filter === 'proctor' && x.violations > 0)) &&
         (!q || (x.name + ' ' + x.email + ' ' + (x.group || '')).toLowerCase().indexOf(q) >= 0);
     }), GET[s.key] || GET.name, s.dir);
     A.$('#students').innerHTML = list.map(function (x) {
@@ -77,7 +81,8 @@
         '<td class="num-col" data-label="Попыток">' + (x.attempts || '—') + '</td>' +
         '<td data-label="Лучший результат">' + (x.percent == null ? '<span class="muted">—</span>' : '<div class="pc"><div class="progress progress--md" style="max-width: 120px"><div class="' + (x.percent < 50 ? 'is-weak' : '') + '" style="width:' + x.percent + '%"></div></div><span class="strong">' + x.percent + '%</span></div><div class="muted xsmall">' + num(x.score) + ' из ' + num(x.max) + '</div>') + '</td>' +
         '<td class="num-col strong" data-label="Баллы">' + (x.points != null ? num(x.points) + (R.weight != null ? ' <span class="muted xsmall" style="font-weight: 400">/ ' + num(R.weight) + '</span>' : '') : (x.percent != null && R.weight == null ? x.percent + '%' : '<span class="muted" style="font-weight: 400">—</span>')) + '</td>' +
-        '<td data-label="Статус">' + A.chip(label[0], label[1]) + '</td>' +
+        '<td data-label="Статус"><div class="row-wrap" style="gap: 6px">' + A.chip(label[0], label[1]) +
+          (x.violations ? '<span title="Уходы со страницы теста во всех попытках — подробности в ответах студента">' + A.chip('Уходы со страницы: ' + x.violations, 'red') + '</span>' : '') + '</div></td>' +
         '<td class="small" data-label="Сдан">' + esc(x.submitted || '—') + '</td>' +
         '<td class="right td-actions">' + (x.attemptId ? '<a href="attempt?id=' + x.attemptId + '" class="btn btn--xs">Ответы</a>' : '') + '</td></tr>';
     }).join('') || '<tr><td colspan="8" class="empty">Никого в этом списке.</td></tr>';

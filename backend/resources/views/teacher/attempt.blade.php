@@ -25,6 +25,12 @@
     </div>
   </section>
 
+  <section class="card card--pad" id="proctor-card" hidden>
+    <div class="between"><h2 class="card-title" style="font-size: 19px">Прокторинг</h2><span id="proctor-sum"></span></div>
+    <p class="muted small" style="margin: 6px 0 0" id="proctor-note"></p>
+    <ol class="proctor-log" id="proctor-log"></ol>
+  </section>
+
   <div class="split split--stretch">
     <section class="card card--pad" style="flex: 1 1 380px; min-width: 0">
       <h2 class="card-title" style="font-size: 19px">По темам</h2>
