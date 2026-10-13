@@ -8,7 +8,7 @@
 <main class="page" style="gap: 32px">
   <div class="page-head">
     <div>
-      <div class="lbl">Курс · Базы данных</div>
+      <div class="lbl">Курс · {{ $appData['course']['title'] }}</div>
       <h1 class="page-title" style="font-size: 36px">Добрый день, <span id="teacher-name"></span></h1>
       <p class="page-sub" id="greeting-sub"></p>
     </div>

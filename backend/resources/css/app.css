@@ -329,6 +329,7 @@ button.chip--dark.is-on { background: #fff; color: var(--navy); }
 .modal--sm .modal__body { padding-top: 14px; padding-bottom: 8px; gap: 14px; }
 .modal__text { margin: 0; color: var(--text-2); font-size: 15px; line-height: 1.55; white-space: pre-line; }
 .modal__foot { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 16px 24px 22px; }
+.choose { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: none; max-height: 50vh; overflow-y: auto; }
 .field__error { color: var(--red-text); font-size: 13px; font-weight: 500; }
 .field__error:empty, .field__hint:empty { display: none; }
 .input[aria-invalid="true"], .textarea[aria-invalid="true"] { border-color: var(--red-text); }
@@ -443,7 +444,11 @@ a.table__title:hover { color: var(--tsu-blue); text-decoration: underline; text-
 .q-row:hover { background: var(--surface-3); }
 .q-row__text { font-size: 16px; line-height: 1.5; font-weight: 500; color: var(--text); text-decoration: none; }
 .q-row__text:hover { color: var(--tsu-blue); }
-.q-row__side { text-align: right; flex: none; }
+.q-row__side { text-align: right; flex: none; max-width: 200px; }
+/* Замечание Критика или Каталогизатора — строкой под текстом вопроса, а не огромным чипом справа */
+.q-row__flag { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; padding: 8px 10px; border-radius: 8px; font-size: 14px; line-height: 1.45; background: var(--amber-soft); color: #6B4100; }
+.q-row__flag svg { flex: none; margin-top: 2px; }
+.q-row__flag--red { background: var(--red-soft); color: var(--red-text); }
 .q-row__id { color: var(--muted); font-size: 12px; margin-top: 8px; font-family: var(--mono); }
 .empty { padding: 32px 20px; text-align: center; color: var(--muted); }
 

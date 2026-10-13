@@ -10,7 +10,7 @@
     <div class="note note--info" role="status">{{ session('status') }}</div>
   @endif
   <div>
-    <div class="lbl">Базы данных · осенний семестр</div>
+    <div class="lbl">{{ collect([$appData['course']['title'], $appData['course']['semester']])->filter()->implode(' · ') }}</div>
     <h1 class="page-title">Мои тесты</h1>
   </div>
 

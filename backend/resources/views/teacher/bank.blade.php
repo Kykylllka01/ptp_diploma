@@ -8,7 +8,7 @@
 <main class="page">
   <div class="page-head">
     <div>
-      <div class="lbl">Базы данных</div>
+      <div class="lbl">{{ $appData['course']['title'] }}</div>
       <h1 class="page-title">Банк вопросов</h1>
     </div>
     <div class="actions">
