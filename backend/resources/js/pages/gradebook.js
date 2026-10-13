@@ -88,15 +88,15 @@
 
     var list = visible(), s = state.sort;
     var head = '<thead><tr><th class="journal__n" title="Номер в списке группы">№</th>' +
-      A.sortTh('name', 'Студент', s, 'journal__name') + J.tests.map(headCell).join('') +
+      A.sortTh('name', 'Студент', s, 'journal__name') + J.tests.map(headCell).join('') + '<th class="journal__fill" aria-hidden="true"></th>' +
       (maxTotal ? A.sortTh('total', 'Итого <span class="muted xsmall" style="font-weight: 400">из ' + num(maxTotal) + '</span>', s, 'journal__total') : '') + '</tr></thead>';
 
     var body = '<tbody>' + (list.map(function (st) {
       return '<tr><td class="journal__n">' + st.n + '</td>' +
         '<td class="journal__name"><div class="strong">' + esc(st.name) + '</div><div class="muted xsmall">' + esc(st.email) + '</div></td>' +
-        J.tests.map(function (t) { return cell(t, st.cells[t.id]); }).join('') +
+        J.tests.map(function (t) { return cell(t, st.cells[t.id]); }).join('') + '<td class="journal__fill"></td>' +
         (maxTotal ? '<td class="journal__total">' + num(st.total) + '</td>' : '') + '</tr>';
-    }).join('') || '<tr><td colspan="' + (J.tests.length + 3) + '" class="empty">Никого не нашлось. <button type="button" class="link-btn" id="reset">Показать всех</button></td></tr>') + '</tbody>';
+    }).join('') || '<tr><td colspan="' + (J.tests.length + 4) + '" class="empty">Никого не нашлось. <button type="button" class="link-btn" id="reset">Показать всех</button></td></tr>') + '</tbody>';
 
     // Итоговая строка: средний балл сдавших и сколько сдали — по всей группе, без учёта фильтров
     var foot = '<tfoot><tr><td class="journal__n"></td><td class="journal__name"><div class="strong">Средний</div><div class="muted xsmall">у сдавших, по группе</div></td>' +
@@ -105,7 +105,7 @@
         var avg = vals.length ? Math.round(vals.reduce(function (a, b) { return a + b; }, 0) / vals.length * 10) / 10 : null;
         return '<td class="journal__cell"><div class="strong">' + (avg == null ? '—' : num(avg) + (t.weight == null ? '%' : '')) + '</div>' +
           '<div class="muted xsmall">сдали ' + vals.length + ' из ' + J.students.length + '</div></td>';
-      }).join('') + (maxTotal ? '<td class="journal__total"></td>' : '') + '</tr></tfoot>';
+      }).join('') + '<td class="journal__fill"></td>' + (maxTotal ? '<td class="journal__total"></td>' : '') + '</tr></tfoot>';
 
     A.$('#journal').innerHTML = head + body + foot;
     var notes = [];

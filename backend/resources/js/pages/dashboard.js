@@ -51,7 +51,8 @@
   modal.addEventListener('click', function (e) { if (e.target === modal && downOnBackdrop) modal.close(); });
   var request = 0;
 
-  var STATE = { uploaded: 'Загружен', processing: 'В обработке', ready: 'Текст извлечён', error: 'Ошибка чтения' };
+  var STATE = { uploaded: ['Загружен', 'gray'], processing: ['В обработке', 'blue'], ready: ['Текст извлечён', 'green'], review: ['Вопросы ждут проверки', 'amber'], error: ['Ошибка чтения', 'red'] };
+  var KIND = { PDF: 'PDF', DOCX: 'Документ Word', PPTX: 'Презентация PowerPoint', TXT: 'Текст', MP4: 'Видео' };
   var RUN = { queued: ['В очереди', 'gray'], running: ['Идёт', 'blue'], paused: ['Пауза', 'gray'], done: ['Готово', 'green'], failed: ['Ошибка', 'red'], cancelled: ['Остановлен', 'gray'] };
 
   function tile(value, label, tone) {
@@ -62,7 +63,8 @@
   function fileCard(d) {
     var kind = String(d.kind || '').toUpperCase();
     var opens = d.isLink ? 'Открыть страницу' : (kind === 'PDF' || kind === 'TXT' || kind === 'MP4') ? 'Открыть файл' : 'Скачать файл';
-    var info = [d.isLink ? 'ссылка' : kind, d.size, d.meta].filter(Boolean).join(' · ');
+    // «документ», «презентация» в meta повторяют тип файла — показываем только полезное (страницы, слайды)
+    var info = [d.isLink ? 'Ссылка на страницу' : (KIND[kind] || kind), d.size, /^(документ|презентация|текст)$/i.test(d.meta || '') ? '' : d.meta].filter(Boolean).join(' · ');
     var inner = A.fileIcon(d.kind, 60) +
       '<span class="file-card__main"><span class="file-card__name">' + esc(d.isLink || !d.fileUrl ? d.title : d.title + '.' + kind.toLowerCase()) + '</span><span class="muted small">' + esc(info) + '</span>' +
       (d.fileUrl ? '<span class="file-card__go">' + (opens === 'Скачать файл' ? A.icons.download : A.icons.external) + opens + '</span>' : '') + '</span>';
@@ -73,6 +75,8 @@
 
   function details(d) {
     var q = d.questions;
+    // «review» ставится после генерации; когда все вопросы разобраны, показываем просто, что текст извлечён
+    var status = d.status === 'review' && !q.pending ? 'ready' : d.status;
     var types = Object.keys(q.byType).map(function (k) { return A.chip((M.types || {})[k] || k) + '<span class="muted small">' + q.byType[k] + '</span>'; }).join(' ');
     var runs = d.runs.map(function (r) {
       var st = RUN[r.status] || [r.status, 'gray'];
@@ -83,7 +87,7 @@
         (r.cost != null ? '<span class="muted small run-row__cost">$' + A.num(r.cost) + '</span>' : '') + A.chip(st[0], st[1]) + '</a>';
     }).join('');
     return fileCard(d) +
-      '<div class="row-wrap" style="gap: 8px 12px">' + A.chip(STATE[d.status] || d.status, d.status === 'error' ? 'red' : (d.status === 'processing' ? 'blue' : 'green')) +
+      '<div class="row-wrap" style="gap: 8px 12px">' + A.chip((STATE[status] || [status])[0], (STATE[status] || [0, 'gray'])[1]) +
         '<span class="muted small">' + esc(['загружен ' + d.date, d.chars ? d.chars.toLocaleString('ru-RU') + ' символов текста' : ''].filter(Boolean).join(' · ')) + '</span></div>' +
       (d.chars ? '' : '<p class="note note--warn" style="margin: 0">Текст не извлечён — по этому материалу агенты не составят вопросы. Если это скан, загрузите версию с текстовым слоем.</p>') +
       '<section><div class="lbl">Вопросы по материалу</div>' +

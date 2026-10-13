@@ -10,7 +10,7 @@
     <div>
       <div class="lbl">{{ $appData['course']['title'] }}</div>
       <h1 class="page-title">Аналитика</h1>
-      <p class="page-sub">Как курс усваивает материал: темы, группы и вопросы по всем тестам. Разбор одного теста — в списке ниже или через выбор справа.</p>
+      <p class="page-sub">Как курс усваивает материал: темы, группы и вопросы по всем тестам. Подробный разбор теста — по клику на тест в списке ниже.</p>
     </div>
     <div class="actions">
       <select class="select" id="test-pick" aria-label="Разбор теста" style="width: auto; min-width: 240px" hidden></select>

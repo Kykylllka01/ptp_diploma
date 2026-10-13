@@ -236,7 +236,7 @@ class FrontendData
             'date' => $this->date($m->created_at),
             'status' => $m->status,
             'hasText' => $m->has_text,
-            'size' => $m->size_bytes ? str_replace('.', ',', number_format($m->size_bytes / 1048576, 1)).' МБ' : null,
+            'size' => $this->fileSize($m->size_bytes),
             // Исходный файл или страница-источник: открывается из карточки материала
             'fileUrl' => $m->file_path || $m->url ? route('teacher.material.file', $m) : null,
             'isLink' => (bool) $m->url,
@@ -437,6 +437,17 @@ class FrontendData
     {
         return ['id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'since' => $this->date($u->created_at),
             'initials' => $u->initials, 'avatar' => $u->avatarUrl()];
+    }
+
+    /** Размер файла по-человечески: 340 КБ, 2,4 МБ (маленький файл — не «0,0 МБ»). */
+    private function fileSize(?int $bytes): ?string
+    {
+        return match (true) {
+            ! $bytes => null,
+            $bytes < 1024 => $bytes.' Б',
+            $bytes < 1048576 => max(1, (int) round($bytes / 1024)).' КБ',
+            default => str_replace('.', ',', number_format($bytes / 1048576, 1)).' МБ',
+        };
     }
 
     private function date(?Carbon $d): string

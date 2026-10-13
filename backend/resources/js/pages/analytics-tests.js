@@ -61,7 +61,11 @@
     return bar('<span class="strong">' + esc(t.title) + '</span> ' + A.chip(st[0], st[1], 'chip--sm'), t.avg, side, 'analytics?test=' + encodeURIComponent(t.id), extra);
   }).join('');
 
-  // Трудные вопросы курса
+  // Трудные вопросы курса: пока выводов нет — короткая строка вместо пустой таблицы
+  if (!O.problems.length) {
+    A.$('#problems-card .table-wrap').outerHTML = '<p class="muted small" style="margin: 14px 0 0">Появятся, когда у вопросов наберётся хотя бы по пять ответов — раньше выводы делать рано.</p>';
+    return;
+  }
   A.$('#problems').innerHTML = O.problems.map(function (p) {
     var low = p.correct < 50;
     return '<tr><td style="min-width: 320px"><div class="clamp-2">' + esc(p.text) + '</div><div class="muted xsmall mono" style="margin-top: 2px">' + esc(p.id) + ' · ' + esc((M.types || {})[p.type] || p.type) + '</div></td>' +
@@ -69,5 +73,5 @@
       '<td><div class="pc"><div class="progress progress--md"><div class="' + (low ? 'is-weak' : '') + '" style="width:' + p.correct + '%"></div></div><span class="strong' + (low ? ' t-orange' : '') + '">' + p.correct + '%</span></div></td>' +
       '<td class="num-col">' + p.answers + '</td>' +
       '<td class="right"><a href="question?id=' + encodeURIComponent(p.id) + '" class="btn btn--xs">Открыть</a></td></tr>';
-  }).join('') || '<tr><td colspan="5" class="empty">Пока у вопросов меньше пяти ответов — выводы делать рано.</td></tr>';
+  }).join('');
 })();

@@ -32,12 +32,12 @@
     <div class="toolbar" id="journal-tools">
       <label class="search"><span class="sr-only">Поиск студента</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5A6070" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="search" placeholder="Найти студента" autocomplete="off"></label>
       <div id="filters"></div>
-      <div class="toolbar__end row-wrap xsmall muted" id="legend" style="gap: 6px 14px"></div>
     </div>
     <div class="result-line" id="result-line" aria-live="polite"></div>
     <div class="table-wrap journal-wrap">
       <table class="journal" id="journal"></table>
     </div>
+    <div class="row-wrap xsmall muted journal-legend" id="legend"></div>
   </section>
 </main>
 @endsection
