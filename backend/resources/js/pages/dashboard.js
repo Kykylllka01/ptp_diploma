@@ -117,7 +117,7 @@
     // Быстро открыли другой материал — поздний ответ по прежнему не должен подменить карточку
     var mine = ++request;
     A.api('GET', 'materials/' + m.id).then(function (d) { if (mine === request) { A.$('#mm-body').innerHTML = details(d); A.$('#mm-body').setAttribute('aria-busy', 'false'); } },
-      function () { if (mine === request) A.$('#mm-body').innerHTML = '<div class="t-red small">Не удалось загрузить сведения о материале.</div>'; });
+      function () { if (mine === request) { A.$('#mm-body').innerHTML = '<div class="t-red small">Не удалось загрузить сведения о материале.</div>'; A.$('#mm-body').setAttribute('aria-busy', 'false'); } });
   });
 
   var dot = { done: 'green', warn: 'amber', work: 'blue', wait: 'gray' };

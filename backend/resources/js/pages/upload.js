@@ -13,8 +13,12 @@
   function sizeOf(bytes) { return bytes < 1048576 ? Math.max(1, Math.round(bytes / 1024)) + ' КБ' : (bytes / 1048576).toFixed(1).replace('.', ',') + ' МБ'; }
 
   /* ---------- Загруженные материалы курса ---------- */
-  var library = (M.materials || []).slice();
+  var library = (M.materials || []).slice(), librarySig = null;
   function renderLibrary() {
+    // Прогресс загрузки перерисовывает набор часто; библиотеку — только когда изменился её состав
+    var sig = library.map(function (m) { return m.id; }).join() + '|' + files.map(function (f) { return f.id || ''; }).join();
+    if (sig === librarySig) return;
+    librarySig = sig;
     A.$('#library-count').textContent = library.length ? library.length + ' ' + A.plural(library.length, 'материал', 'материала', 'материалов') : '';
     A.$('#library').innerHTML = library.map(function (m) {
       var inSet = files.some(function (f) { return f.id === m.id; });
@@ -31,7 +35,7 @@
           esc([m.size, m.meta && !/^(документ|презентация|текст)$/i.test(m.meta) ? m.meta : '', 'загружен ' + m.date].filter(Boolean).join(' · ')) + '</span></div>' +
         status +
         (m.hasText ? '<button type="button" class="btn btn--xs" data-use="' + m.id + '"' + (inSet ? ' disabled' : '') + '>' + (inSet ? 'В наборе' : 'В новый набор') + '</button>' : '') +
-        A.menu('Действия с материалом «' + m.title + '»', items) + '</div>';
+        A.menu('Действия с материалом «' + m.title + '»', items, 'material-' + m.id) + '</div>';
     }).join('') || '<div class="empty">Материалов пока нет — загрузите первую лекцию ниже.</div>';
   }
   function useMaterial(m) {

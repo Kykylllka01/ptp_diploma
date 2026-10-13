@@ -203,6 +203,8 @@
         renderAll();
       });
     } else if (act === 'export') {
+      // Адрес с сотнями ids упрётся в лимит длины URL — выгружаем частями
+      if (n > 150) { A.toast('За раз можно выгрузить до 150 вопросов — сузьте выбор фильтром', true); return; }
       location.href = '/api/questions-export?' + ids.map(function (id) { return 'ids[]=' + encodeURIComponent(id); }).join('&');
     } else if (act === 'regen') {
       // По одному: каждый вопрос — запрос к Составителю и Критику, это до минуты
