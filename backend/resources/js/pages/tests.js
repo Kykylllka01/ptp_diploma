@@ -24,6 +24,7 @@
     var items = [
       t.count && main.indexOf('preview?') < 0 ? { label: 'Пройти самому', href: 'preview?test=' + q } : null,
       t.status !== 'draft' && main.indexOf('analytics?') < 0 ? { label: 'Результаты и аналитика', href: 'analytics?test=' + q } : null,
+      { label: 'Срок и группы', attrs: 'data-settings="' + id + '"' },
       t.graded ? { label: t.weight != null ? 'Баллы в Модеус: ' + A.num(t.weight) : 'Задать баллы в Модеус', attrs: 'data-weight="' + id + '"' } : null,
       t.status === 'running' ? { label: 'Закрыть приём', attrs: 'data-status="closed" data-id="' + id + '"' } : null,
       t.status === 'closed' && main.indexOf('data-status') < 0 ? { label: 'Открыть приём снова', attrs: 'data-status="running" data-id="' + id + '"' } : null,
@@ -126,6 +127,27 @@
     A.keepFocus(render);
   }
 
+  // Срок сдачи и группы-участники после публикации
+  function settings(t) {
+    var html = '<label class="field">Срок сдачи<input class="input" type="datetime-local" id="set-deadline" value="' + esc(t.deadlineLocal || '') + '">' +
+        '<span class="field__hint">Пусто — без срока. После срока начатые попытки досдаются автоматически.</span></label>' +
+      (groups.length ? '<div class="field"><span>Кто проходит <span class="field__hint">ни одной группы — все студенты курса</span></span><div class="pick" id="set-groups">' +
+        groups.map(function (g) { var on = t.groups.indexOf(g.id) >= 0; return '<button type="button" aria-pressed="' + on + '" data-g="' + g.id + '">' + esc(g.name) + ' <small>' + g.students + '</small></button>'; }).join('') +
+        '</div></div>' : '');
+    A.form({ title: 'Срок и группы', text: '«' + t.title + '»', html: html, ok: 'Сохранить', collect: function (d) {
+      var v = d.querySelector('#set-deadline').value;
+      return { value: { deadline_at: v || null, groups: A.$$('#set-groups [aria-pressed="true"]', d).map(function (b) { return +b.getAttribute('data-g'); }) } };
+    } }).then(function (data) {
+      if (!data) return;
+      if (!groups.length) delete data.groups;
+      A.api('PATCH', 'tests/' + encodeURIComponent(t.id), data).then(function (fresh) { replace(fresh); A.toast('Настройки теста сохранены'); });
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('#set-groups button');
+    if (b) b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+  });
+
   A.$('#tests').addEventListener('click', function (e) {
     if (e.target.closest('#reset')) {
       state.filter = 'all'; state.group = ''; query = '';
@@ -143,6 +165,8 @@
       });
       return;
     }
+    var st = e.target.closest('[data-settings]');
+    if (st) { settings(byId(st.getAttribute('data-settings'))); return; }
     var w = e.target.closest('[data-weight]');
     if (w) {
       var tw = byId(w.getAttribute('data-weight'));

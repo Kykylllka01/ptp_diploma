@@ -121,11 +121,11 @@ class TestController extends Controller
         $data = $request->validate([
             'status' => ['sometimes', Rule::in(['running', 'closed', 'training', 'draft'])],
             'title' => 'sometimes|string|max:255',
-            'deadline_at' => 'sometimes|nullable|date',
+            'deadline_at' => 'sometimes|nullable|date|after:now',
             'groups' => 'sometimes|nullable|array|max:50',
             'groups.*' => ['integer', Rule::exists('student_groups', 'id')->where('course_id', $test->course_id)],
             'weight' => 'sometimes|nullable|numeric|min:0|max:100',
-        ]);
+        ], ['deadline_at.after' => 'Срок сдачи уже прошёл — выберите время в будущем']);
         // Повторное открытие после срока: продлеваем на неделю, иначе тест сразу снова закроется
         if (($data['status'] ?? null) === 'running' && $test->deadline_at?->isPast() && ! array_key_exists('deadline_at', $data)) {
             $data['deadline_at'] = now()->addWeek()->setTime(23, 59);

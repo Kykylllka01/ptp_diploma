@@ -66,6 +66,25 @@ class UxPolishTest extends TestCase
         $this->assertSame($attempt->id, $review['attemptId']);
     }
 
+    public function test_deadline_and_groups_can_be_changed_after_publishing(): void
+    {
+        $test = $this->makeTest('m1', [$this->singleQuestion('Q-1')]);
+        $other = $this->group('ИСиТ-2');
+        $this->actingAs($this->teacher());
+
+        $local = now()->addDays(3)->setTime(18, 30)->format('Y-m-d\TH:i');
+        $r = $this->patchJson('/api/tests/m1', ['deadline_at' => $local, 'groups' => [$other->id]])->assertOk()->json();
+        $this->assertSame($local, $r['deadlineLocal']);                 // тот же час, без сдвига поясов
+        $this->assertSame([$other->id], $r['groups']);
+        $this->assertSame('groups', $test->fresh()->audience);
+
+        $this->patchJson('/api/tests/m1', ['deadline_at' => now()->subDay()->format('Y-m-d\TH:i')])
+            ->assertStatus(422)->assertJsonPath('errors.deadline_at.0', 'Срок сдачи уже прошёл — выберите время в будущем');
+        // Ни одной группы — тест снова для всех студентов курса
+        $this->patchJson('/api/tests/m1', ['groups' => []])->assertOk();
+        $this->assertSame('all', $test->fresh()->audience);
+    }
+
     public function test_error_pages_are_in_russian(): void
     {
         $this->get('/no-such-page')->assertNotFound()->assertSee('Страница не найдена')->assertSee('На главную');

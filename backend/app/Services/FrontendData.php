@@ -345,6 +345,8 @@ class FrontendData
             'avgPercent' => $avg !== null && $t->status !== 'draft' ? (int) round($avg) : null,
             'students' => $students,
             'deadlineTs' => $t->deadline_at?->getTimestamp(),
+            // Для поля datetime-local: время в поясе сервера, чтобы правка срока не сдвигалась из-за пояса браузера
+            'deadlineLocal' => $t->deadline_at?->format('Y-m-d\TH:i'),
             'createdTs' => $t->created_at?->getTimestamp(),
             'deadline' => $deadline,
             'minutes' => $t->minutes,

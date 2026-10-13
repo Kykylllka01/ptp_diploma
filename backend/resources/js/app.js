@@ -390,7 +390,8 @@
         '<div class="modal__head"><h2 class="card-title" id="' + id + '-t">' + esc(opts.title) + '</h2></div>' +
         '<div class="modal__body">' +
           (opts.text ? '<p class="modal__text" id="' + id + '-d">' + esc(opts.text) + '</p>' : '') +
-          (opts.options ? '<fieldset class="choose" id="' + id + '-in" aria-describedby="' + id + '-err"><legend class="sr-only">' + esc(opts.label || opts.title) + '</legend>' +
+          (opts.html ? opts.html + '<span class="field__error" id="' + id + '-err" role="alert"></span>' :
+          opts.options ? '<fieldset class="choose" id="' + id + '-in" aria-describedby="' + id + '-err"><legend class="sr-only">' + esc(opts.label || opts.title) + '</legend>' +
             opts.options.map(function (o, i) {
               return '<label class="opt"><input type="radio" name="' + id + '-r" value="' + esc(o.value) + '"' + (String(o.value) === String(opts.value) || (opts.value == null && i === 0) ? ' checked' : '') + '>' +
                 '<span><span class="strong">' + esc(o.label) + '</span>' + (o.hint ? '<span class="opt__desc" style="display: block">' + esc(o.hint) + '</span>' : '') + '</span></label>';
@@ -417,6 +418,11 @@
       d.querySelector('form').addEventListener('submit', function (e) {
         e.preventDefault();
         if (!withInput) { finish(true); return; }
+        if (opts.html) {
+          var res = opts.collect(d);
+          if (res && res.error) err.textContent = res.error; else finish(res ? res.value : true);
+          return;
+        }
         if (opts.options) {
           var picked = d.querySelector('input[type=radio]:checked');
           if (picked) finish(picked.value); else err.textContent = 'Выберите вариант';
@@ -432,7 +438,7 @@
         }
         finish(v);
       });
-      if (input && !opts.options) input.addEventListener('input', function () { err.textContent = ''; input.removeAttribute('aria-invalid'); });
+      if (input && !opts.options && !opts.html) input.addEventListener('input', function () { err.textContent = ''; input.removeAttribute('aria-invalid'); });
       d.querySelector('[data-cancel]').addEventListener('click', function () { finish(none); });
       d.addEventListener('cancel', function (e) { e.preventDefault(); finish(none); });
       // Клик по фону закрывает окно — но не выделение текста, отпущенное над фоном
@@ -440,7 +446,8 @@
       d.addEventListener('mousedown', function (e) { downOnBackdrop = e.target === d; });
       d.addEventListener('click', function (e) { if (e.target === d && downOnBackdrop) finish(none); });
       d.showModal();
-      if (opts.options) (d.querySelector('input[type=radio]:checked') || d.querySelector('input[type=radio]')).focus();
+      if (opts.html) { var first = d.querySelector('.modal__body input, .modal__body select, .modal__body button'); if (first) first.focus(); }
+      else if (opts.options) (d.querySelector('input[type=radio]:checked') || d.querySelector('input[type=radio]')).focus();
       else if (input) { input.value = opts.value == null ? '' : opts.value; input.focus(); input.select(); }
       // Опасное действие: фокус на «Отмене», чтобы случайный Enter ничего не удалил
       else d.querySelector(opts.danger ? '[data-cancel]' : '[type=submit]').focus();
@@ -449,6 +456,8 @@
   function ask(opts) { return dialog(opts, true); }
   // Выбор одного варианта: options [{ value, label, hint }] → Promise<value | null>
   function choose(opts) { return dialog(opts, true); }
+  // Окно с произвольной формой: html — поля, collect(окно) → { value } или { error: 'текст' }
+  function form(opts) { return dialog(opts, true); }
   function confirmBox(opts) { return dialog(Object.assign({ ok: 'Да' }, opts), false); }
 
   /* ---------- Меню «⋯» ----------
@@ -603,7 +612,7 @@
     M: M, esc: esc, context: context, $: $, $$: $$, chip: chip, plural: plural, param: param, url: url,
     icons: icons, toast: toast, api: api, csrf: csrf, authFailed: authFailed,
     questions: questions, saveQuestion: saveQuestion, reviews: reviews, saveReview: saveReview,
-    ask: ask, choose: choose, confirm: confirmBox, keepFocus: keepFocus, menu: menu, closeMenu: closeMenu,
+    ask: ask, choose: choose, form: form, confirm: confirmBox, keepFocus: keepFocus, menu: menu, closeMenu: closeMenu,
     sortBy: sortBy, sortTh: sortTh, nextSort: nextSort, filterTabs: filterTabs, recall: recall, remember: remember,
     fileIcon: fileIcon, num: num
   };
