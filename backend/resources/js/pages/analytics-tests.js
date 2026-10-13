@@ -54,12 +54,26 @@
   }).join('') + (O.groups.length < 2 ? '<p class="muted small" style="margin: 14px 0 0">Сравнение появится, когда тесты сдадут студенты из нескольких групп. Группы и ссылки-приглашения — на странице <a href="groups">«Группы»</a>.</p>' : '');
 
   // Тесты рядом: средний балл, сколько сдали, что ждёт проверки
-  A.$('#tests').innerHTML = O.tests.map(function (t) {
-    var st = STATUS[t.status] || ['', 'gray'];
-    var side = (t.participants != null ? 'сдали ' + t.submitted + ' из ' + t.participants : 'сдали ' + t.submitted) + (t.last ? ' · ' + esc(t.last) : '');
-    var extra = t.pending ? ' ' + A.chip(t.pending + ' ждут проверки', 'amber', 'chip--sm') : '';
-    return bar('<span class="strong">' + esc(t.title) + '</span> ' + A.chip(st[0], st[1], 'chip--sm'), t.avg, side, 'analytics?test=' + encodeURIComponent(t.id), extra);
-  }).join('');
+  // Тестов у нескольких преподавателей много — сначала 12, остальные по кнопке
+  var TESTS_SHOWN = 12, allTests = false;
+  function renderTests() {
+    var list = allTests ? O.tests : O.tests.slice(0, TESTS_SHOWN);
+    A.$('#tests').innerHTML = list.map(function (t) {
+      var st = STATUS[t.status] || ['', 'gray'];
+      var side = (t.participants != null ? 'сдали ' + t.submitted + ' из ' + t.participants : 'сдали ' + t.submitted) + (t.last ? ' · ' + esc(t.last) : '');
+      var extra = t.pending ? ' ' + A.chip(t.pending + ' ждут проверки', 'amber', 'chip--sm') : '';
+      return bar('<span class="strong">' + esc(t.title) + '</span> ' + A.chip(st[0], st[1], 'chip--sm'), t.avg, side, 'analytics?test=' + encodeURIComponent(t.id), extra);
+    }).join('') + (O.tests.length > TESTS_SHOWN && !allTests
+      ? '<button type="button" class="btn btn--sm" id="tests-all" style="margin-top: 14px">Показать все тесты (' + O.tests.length + ')</button>' : '');
+  }
+  renderTests();
+  A.$('#tests').addEventListener('click', function (e) {
+    if (!e.target.closest('#tests-all')) return;
+    allTests = true;
+    renderTests();
+    var links = A.$$('#tests a');
+    if (links[TESTS_SHOWN]) links[TESTS_SHOWN].focus();
+  });
 
   // Трудные вопросы курса: пока выводов нет — короткая строка вместо пустой таблицы
   if (!O.problems.length) {

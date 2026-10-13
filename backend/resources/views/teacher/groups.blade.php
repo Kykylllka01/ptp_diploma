@@ -24,6 +24,11 @@
     <span>Тест назначается группам при сборке. Когда все студенты зарегистрировались, закройте регистрацию по ссылке — тогда её нельзя будет переслать посторонним. Если ссылка ушла не туда, выпустите новую: старая перестанет работать.</span>
   </div>
 
+  <div class="toolbar" id="student-tools" hidden>
+    <label class="search"><span class="sr-only">Найти студента</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5A6070" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="student-search" placeholder="Найти студента по фамилии или почте" autocomplete="off"></label>
+    <div class="result-line" id="student-result" aria-live="polite"></div>
+  </div>
+
   <div class="grid-groups" id="groups"></div>
 
   <section class="card card--pad" id="ungrouped-card" hidden>
