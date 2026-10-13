@@ -25,7 +25,7 @@
     </div>
     <div class="result-line" id="result-line" aria-live="polite"></div>
     <div class="table-wrap">
-      <table class="table table--stack" style="min-width: 900px">
+      <table class="table table--stack" style="min-width: 900px"><caption class="sr-only">Тесты курса</caption>
         <thead id="head"></thead>
         <tbody id="tests"></tbody>
       </table>

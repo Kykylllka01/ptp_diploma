@@ -34,7 +34,7 @@
       <div id="st-filters"></div>
     </div>
     <div class="table-wrap">
-      <table class="table table--stack" style="min-width: 900px">
+      <table class="table table--stack" style="min-width: 900px"><caption class="sr-only">Студенты и их лучшие результаты</caption>
         <thead id="st-head"></thead>
         <tbody id="students"></tbody>
       </table>
@@ -59,7 +59,7 @@
     <div class="between"><h2 class="card-title">Вопросы</h2><span class="muted small">сначала проблемные</span></div>
     <div class="table-wrap">
       <table class="table" style="min-width: 820px">
-        <thead><tr><th>Вопрос</th><th>Тип</th><th style="width: 200px">Верно ответили</th><th>Сигнал</th><th></th></tr></thead>
+        <caption class="sr-only">Вопросы теста, сначала проблемные</caption><thead><tr><th>Вопрос</th><th>Тип</th><th style="width: 200px">Верно ответили</th><th>Сигнал</th><th><span class="sr-only">Открыть</span></th></tr></thead>
         <tbody id="problems"></tbody>
       </table>
     </div>

@@ -39,8 +39,8 @@
   <section class="card card--pad" id="problems-card">
     <div class="between"><h2 class="card-title">Трудные вопросы</h2><span class="muted small">меньше всего полностью верных ответов, от 5 ответов</span></div>
     <div class="table-wrap">
-      <table class="table table--stack" style="min-width: 760px">
-        <thead><tr><th>Вопрос</th><th>Тема</th><th style="width: 220px">Верно ответили</th><th class="num-col">Ответов</th><th></th></tr></thead>
+      <table class="table table--stack" style="min-width: 760px"><caption class="sr-only">Трудные вопросы курса</caption>
+        <thead><tr><th>Вопрос</th><th>Тема</th><th style="width: 220px">Верно ответили</th><th class="num-col">Ответов</th><th><span class="sr-only">Открыть</span></th></tr></thead>
         <tbody id="problems"></tbody>
       </table>
     </div>

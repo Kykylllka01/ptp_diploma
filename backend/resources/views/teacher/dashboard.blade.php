@@ -52,8 +52,8 @@
       <a href="tests" class="small" style="font-weight: 500" id="all-tests">Все тесты</a>
     </div>
     <div class="table-wrap">
-      <table class="table table--stack" style="min-width: 720px">
-        <thead><tr><th>Название</th><th class="num-col">Вопросов</th><th>Статус</th><th>Сдали</th><th class="num-col">Средний балл</th><th></th></tr></thead>
+      <table class="table table--stack" style="min-width: 720px"><caption class="sr-only">Последние тесты</caption>
+        <thead><tr><th>Название</th><th class="num-col">Вопросов</th><th>Статус</th><th>Сдали</th><th class="num-col">Средний балл</th><th><span class="sr-only">Действие</span></th></tr></thead>
         <tbody id="tests"></tbody>
       </table>
     </div>
