@@ -75,7 +75,7 @@ class MaterialController extends Controller
                     $fail('Поддерживаются файлы PDF, DOCX, PPTX, TXT и MP4.');
                 }
             }],
-            'url' => 'required_without_all:file,text|nullable|url|max:1000',
+            'url' => 'required_without_all:file,text|nullable|url:http,https|max:1000',
             'text' => 'required_without_all:file,url|nullable|string|max:500000',
             'title' => 'nullable|string|max:255',
         ]);

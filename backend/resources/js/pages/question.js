@@ -22,7 +22,7 @@
 
   function fillSelect(el, dict, val) {
     el.innerHTML = Object.keys(dict).map(function (k) {
-      return '<option value="' + k + '"' + (k === val ? ' selected' : '') + '>' + dict[k] + '</option>';
+      return '<option value="' + esc(k) + '"' + (k === val ? ' selected' : '') + '>' + esc(dict[k]) + '</option>';
     }).join('');
   }
 
@@ -143,7 +143,11 @@
     }
     if (draft.type === 'sql' && !String(draft.reference || '').trim()) return 'Заполните эталонный запрос';
     if (draft.type === 'match') {
-      draft.options.forEach(function (o) { if (o.correct) o.text = o.text.replace(/\s+[–-]\s+/, ' — '); });
+      var changed = false;
+      draft.options.forEach(function (o) {
+        if (o.correct && o.text.indexOf(' — ') < 0) { var t = o.text.replace(/\s+[–-]\s+/, ' — '); changed = changed || t !== o.text; o.text = t; }
+      });
+      if (changed) renderOptions();
       if (draft.options.some(function (o) { return o.correct && o.text.indexOf(' — ') < 0; })) return 'Пары записывайте как «термин — определение» (подойдёт и обычный дефис с пробелами)';
       if (draft.options.filter(function (o) { return o.correct; }).length < 2) return 'Нужно минимум две пары';
     }
@@ -152,12 +156,13 @@
 
   function save(status) {
     var patch = {
-      status: status, topic: draft.topic, text: draft.text, context: draft.context || null, type: draft.type, difficulty: draft.difficulty, points: draft.points,
+      status: status, text: draft.text, context: draft.context || null, type: draft.type, difficulty: draft.difficulty, points: draft.points,
       options: CHOICE.indexOf(draft.type) >= 0 || draft.type === 'match' ? draft.options.map(function (o) { return o.correct ? { text: o.text, correct: true } : { text: o.text }; }) : null,
       explanation: draft.explanation, reference: draft.reference, tags: draft.tags,
       criteria: draft.type === 'open' ? draft.criteria.map(function (c) { return [String(c[0]).trim(), +c[1]]; }) : undefined
     };
     if (!status) delete patch.status;
+    if (draft.topic) patch.topic = draft.topic;
     if (draft.fixApplied) { patch.fixApplied = true; patch.critic = draft.critic; }
     return A.saveQuestion(q.id, patch).then(function (fresh) { setDirty(false); return fresh; });
   }
@@ -279,6 +284,7 @@
     draft.fixApplied = true;
     draft.critic = Object.assign({}, draft.critic, { checks: draft.critic.checks.map(function (c) { return c.ok ? c : { ok: true, text: 'Учтено предложение критика: ' + c.text.charAt(0).toLowerCase() + c.text.slice(1) }; }) });
     history.push([time(), 'Применено предложение критика']);
+    setDirty(true);
     renderOptions(); renderSide();
     A.toast('Вариант ' + LETTERS[fix.optionIndex] + ' заменён на «' + fix.text + '»');
   });
@@ -309,10 +315,12 @@
     var btn = A.$('#regen');
     (dirty ? A.confirm({ title: 'Перегенерировать вопрос?', text: 'Ваши несохранённые правки пропадут: Составитель перепишет вопрос заново.', ok: 'Перегенерировать', danger: true }) : Promise.resolve(true)).then(function (yes) {
       if (!yes) return;
-      btn.disabled = true;
+      var lock = function (v) { ['#regen', '#approve', '#save', '#reject'].forEach(function (s) { A.$(s).disabled = v; }); };
+      lock(true);
       btn.textContent = 'Переписываю…';
       A.toast('Составитель переписывает вопрос с учётом замечаний Критика — это до минуты');
-      regen().then(function () { btn.disabled = false; btn.textContent = 'Перегенерировать'; }, function () { btn.disabled = false; btn.textContent = 'Перегенерировать'; });
+      var done = function () { lock(false); btn.textContent = 'Перегенерировать'; };
+      regen().then(done, done);
     });
   });
   function regen() {

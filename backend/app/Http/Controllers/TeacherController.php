@@ -154,12 +154,16 @@ class TeacherController extends Controller
     {
         abort_unless($material->course_id === CurrentUser::course()->id, 404);
         if ($material->url) {
+            abort_unless(preg_match('#^https?://#i', $material->url), 404);
+
             return redirect()->away($material->url);
         }
         abort_unless($material->file_path && Storage::exists($material->file_path), 404);
 
-        $ext = strtolower(pathinfo($material->file_path, PATHINFO_EXTENSION));
-        $name = Str::limit(trim(preg_replace('/[\\\\\/:*?"<>|]+/u', ' ', $material->title)), 150, '').'.'.$ext;
+        // Расширение — из исходного имени файла: при сохранении Laravel угадывает его по содержимому (DOCX → zip)
+        $ext = in_array($material->kind, Material::KINDS, true) ? strtolower($material->kind) : strtolower(pathinfo($material->file_path, PATHINFO_EXTENSION));
+        $base = trim((string) preg_replace('~[\p{Cc}\\\\/:*?"<>|]+~u', ' ', (string) $material->title));
+        $name = Str::limit($base !== '' ? $base : 'material', 150, '').'.'.$ext;
         $inline = ['pdf' => 'application/pdf', 'txt' => 'text/plain; charset=utf-8', 'mp4' => 'video/mp4'];
         $headers = ['X-Content-Type-Options' => 'nosniff'];
 

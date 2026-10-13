@@ -440,11 +440,11 @@
       });
       if (input && !opts.options && !opts.html) input.addEventListener('input', function () { err.textContent = ''; input.removeAttribute('aria-invalid'); });
       d.querySelector('[data-cancel]').addEventListener('click', function () { finish(none); });
-      d.addEventListener('cancel', function (e) { e.preventDefault(); finish(none); });
+      d.addEventListener('cancel', function (e) { e.preventDefault(); if (!opts.persist) finish(none); });
       // Клик по фону закрывает окно — но не выделение текста, отпущенное над фоном
       var downOnBackdrop = false;
       d.addEventListener('mousedown', function (e) { downOnBackdrop = e.target === d; });
-      d.addEventListener('click', function (e) { if (e.target === d && downOnBackdrop) finish(none); });
+      d.addEventListener('click', function (e) { if (e.target === d && downOnBackdrop && !opts.persist) finish(none); });
       d.showModal();
       if (opts.html) { var first = d.querySelector('.modal__body input, .modal__body select, .modal__body button'); if (first) first.focus(); }
       else if (opts.options) (d.querySelector('input[type=radio]:checked') || d.querySelector('input[type=radio]')).focus();
@@ -516,11 +516,15 @@
   window.addEventListener('scroll', function (e) {
     if (openMenu && !openMenu.list.contains(e.target)) closeMenu();
   }, true);
-  window.addEventListener('resize', function () { closeMenu(); });
+  var menuWidth = window.innerWidth;
+  window.addEventListener('resize', function () {
+    if (window.innerWidth !== menuWidth) closeMenu();
+    menuWidth = window.innerWidth;
+  });
 
   /* keepFocus(render): перерисовать часть страницы, не выбросив фокус клавиатуры в начало страницы.
      Элемент в фокусе узнаётся по data-атрибуту (data-sort, data-filter, …) или id и после перерисовки получает фокус снова. */
-  var FOCUS_KEYS = ['data-sort', 'data-filter', 'data-tab', 'data-diff', 'data-done', 'data-copy', 'data-select', 'id'];
+  var FOCUS_KEYS = ['data-sort', 'data-filter', 'data-tab', 'data-diff', 'data-done', 'data-copy', 'data-select', 'data-go', 'id'];
   function keepFocus(render) {
     var el = document.activeElement, sel = null;
     if (el && el !== document.body && window.CSS && CSS.escape) {
@@ -529,7 +533,11 @@
         if (v) sel = k === 'id' ? '#' + CSS.escape(v) : (el.closest('.menu') ? null : '[' + k + '="' + CSS.escape(v) + '"]');
       }
       // Пункт меню: возвращаемся на кнопку «⋯» той же строки
-      if (!sel && el.closest('.menu')) { var b = el.closest('.menu').querySelector('[data-menu]'); if (b && b.getAttribute('aria-label')) sel = '[data-menu][aria-label="' + CSS.escape(b.getAttribute('aria-label')) + '"]'; }
+      if (!sel && el.closest('.menu')) {
+        var b = el.closest('.menu').querySelector('[data-menu]');
+        if (b && b.getAttribute('data-menu-key')) sel = '[data-menu-key="' + CSS.escape(b.getAttribute('data-menu-key')) + '"]';
+        else if (b && b.getAttribute('aria-label')) sel = '[data-menu][aria-label="' + CSS.escape(b.getAttribute('aria-label')) + '"]';
+      }
     }
     var result = render();
     if (sel && (!document.activeElement || document.activeElement === document.body || !document.activeElement.isConnected)) {
@@ -540,8 +548,9 @@
   }
 
   // Пункты меню: [подпись, атрибуты] → разметка; null пропускается, '-' — разделитель
-  function menu(label, items) {
-    return '<div class="menu"><button type="button" class="btn btn--xs btn--more" data-menu aria-haspopup="menu" aria-expanded="false" aria-label="' + esc(label) + '" title="' + esc(label) + '">' + icons.more + '</button>' +
+  // key — постоянный ключ строки (код теста, id): по нему «⋯» находится снова после перерисовки и переименования
+  function menu(label, items, key) {
+    return '<div class="menu"><button type="button" class="btn btn--xs btn--more" data-menu' + (key != null ? ' data-menu-key="' + esc(key) + '"' : '') + ' aria-haspopup="menu" aria-expanded="false" aria-label="' + esc(label) + '" title="' + esc(label) + '">' + icons.more + '</button>' +
       '<div class="menu__list" role="menu" hidden>' + items.filter(Boolean).map(function (it) {
         if (it === '-') return '<div class="menu__sep" role="separator"></div>';
         return it.href
@@ -603,6 +612,22 @@
     '</svg>';
   }
 
+  /* Копирование в буфер. На http:// (не «безопасный контекст») — через выделение текста;
+     execCommand может вернуть false без исключения — тогда промис отклоняется, а не делает вид, что скопировал. */
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    var t = document.createElement('textarea');
+    t.value = text;
+    t.setAttribute('readonly', '');
+    t.style.position = 'fixed'; t.style.opacity = '0';
+    (document.querySelector('dialog[open]') || document.body).appendChild(t);
+    t.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    t.remove();
+    return ok ? Promise.resolve() : Promise.reject(new Error('copy'));
+  }
+
   // Исходные данные вопроса (схема отношения, зависимости, строки таблицы) — над формулировкой
   function context(text) {
     return text ? '<pre class="q-context">' + esc(text) + '</pre>' : '';
@@ -614,6 +639,6 @@
     questions: questions, saveQuestion: saveQuestion, reviews: reviews, saveReview: saveReview,
     ask: ask, choose: choose, form: form, confirm: confirmBox, keepFocus: keepFocus, menu: menu, closeMenu: closeMenu,
     sortBy: sortBy, sortTh: sortTh, nextSort: nextSort, filterTabs: filterTabs, recall: recall, remember: remember,
-    fileIcon: fileIcon, num: num
+    fileIcon: fileIcon, num: num, copyText: copyText
   };
 })();

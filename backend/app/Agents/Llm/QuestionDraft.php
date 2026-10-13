@@ -110,7 +110,7 @@ class QuestionDraft
                 if (str_starts_with($o['text'], 'Лишнее: ')) {
                     $q['extra'] = mb_substr($o['text'], 8);
                 } else {
-                    [$term, $def] = array_pad(explode(' — ', $o['text'], 2), 2, '');
+                    [$term, $def] = array_pad(explode(' — ', \App\Models\Question::normalizePair((string) $o['text']), 2), 2, '');
                     $q['pairs'][] = ['term' => $term, 'definition' => $def];
                 }
             }

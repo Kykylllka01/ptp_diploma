@@ -98,6 +98,7 @@
 
   A.$('#queue').addEventListener('click', function (e) {
     var b = e.target.closest('[data-id]');
+    if (saving) { A.toast('Сохраняю оценку — секунду'); return; }
     if (b && +b.getAttribute('data-id') !== current.id) guard().then(function (ok) { if (ok) open(+b.getAttribute('data-id'), true); });
   });
   A.$('#queue-filters').addEventListener('click', function (e) {
@@ -116,18 +117,21 @@
     });
     renderTotal();
   });
+  var saving = false;
   A.$('#confirm').addEventListener('click', function () {
     var total = scores.reduce(function (s, x) { return s + x; }, 0);
     var id = current.id, name = current.student, max = maxOf(current);
     var btn = A.$('#confirm');
     btn.disabled = true;
+    saving = true;
     // К следующему ответу — только когда оценка сохранена; при ошибке ответ остаётся на экране
     A.saveReview(id, { status: 'confirmed', final: total, scores: scores.slice(), comment: A.$('#comment').value }).then(function () {
       A.toast(name + ': ' + total + ' из ' + max + ' — подтверждено');
+      if (current.id !== id) return;   // пока сохраняли, открыли другой ответ — остаёмся на нём
       current = all().filter(function (r) { return r.id === id; })[0];
       saved = state();
       next();
-    }, function () { renderQueue(); }).then(function () { btn.disabled = false; });
+    }, function () { renderQueue(); }).then(function () { saving = false; btn.disabled = false; }, function () { saving = false; btn.disabled = false; });
   });
   A.$('#skip').addEventListener('click', function () { guard().then(function (ok) { if (ok) next(); }); });
   window.addEventListener('beforeunload', function (e) { if (current && state() !== saved) { e.preventDefault(); e.returnValue = ''; } });

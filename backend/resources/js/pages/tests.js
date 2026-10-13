@@ -32,7 +32,7 @@
       '-',
       { label: 'Удалить', attrs: 'data-delete="' + id + '"', danger: true }
     ];
-    return A.menu('Действия с тестом «' + t.title + '»', items);
+    return A.menu('Действия с тестом «' + t.title + '»', items, 'test-' + t.id);
   }
 
   function passed(t) {
@@ -62,7 +62,7 @@
     title: function (t) { return t.title; },
     count: function (t) { return t.count; },
     status: function (t) { return STATUS_ORDER[t.status]; },
-    deadline: function (t) { return t.deadlineTs; },
+    deadline: function (t) { return t.deadline ? t.deadlineTs : null; },
     passed: function (t) { return t.status === 'draft' ? null : t.submitted; },
     avg: function (t) { return t.avgPercent; },
     created: function (t) { return t.createdTs; }
@@ -102,6 +102,7 @@
     gs.innerHTML = '<option value="">Все группы</option>' + groups.map(function (g) { return '<option value="' + g.id + '">' + esc(g.name) + '</option>'; }).join('') +
       '<option value="all">Только «для всех»</option>';
     gs.value = state.group || '';
+    state.group = gs.value;
     gs.hidden = false;
     gs.addEventListener('change', function () { state.group = gs.value; render(); });
   } else state.group = '';
@@ -136,7 +137,9 @@
         '</div></div>' : '');
     A.form({ title: 'Срок и группы', text: '«' + t.title + '»', html: html, ok: 'Сохранить', collect: function (d) {
       var v = d.querySelector('#set-deadline').value;
-      return { value: { deadline_at: v || null, groups: A.$$('#set-groups [aria-pressed="true"]', d).map(function (b) { return +b.getAttribute('data-g'); }) } };
+      var data = { groups: A.$$('#set-groups [aria-pressed="true"]', d).map(function (b) { return +b.getAttribute('data-g'); }) };
+      if ((v || '') !== (t.deadlineLocal || '')) data.deadline_at = v || null;   // срок отправляем, только если его поменяли
+      return { value: data };
     } }).then(function (data) {
       if (!data) return;
       if (!groups.length) delete data.groups;

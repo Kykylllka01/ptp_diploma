@@ -240,7 +240,7 @@ class FrontendData
             // Исходный файл или страница-источник: открывается из карточки материала
             'fileUrl' => $m->file_path || $m->url ? route('teacher.material.file', $m) : null,
             'isLink' => (bool) $m->url,
-            'questionCount' => $m->questions_count,
+            'questionCount' => $m->questions_count ?? $m->questions()->count(),
         ];
     }
 

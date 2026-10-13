@@ -665,6 +665,7 @@ mark.good { background: #DDF1E5; }
 .journal thead .journal__n, .journal thead .journal__name, .journal thead .journal__total,
 .journal tfoot .journal__n, .journal tfoot .journal__name, .journal tfoot .journal__total { z-index: 3; }
 .journal thead .journal__total { text-align: center; }
+.journal thead th:has(.menu.is-open) { z-index: 6; }
 .journal__test { width: 196px; min-width: 176px; max-width: 220px; }
 /* Пустой столбец забирает лишнюю ширину: при паре тестов столбец «Студент» не растягивается на пол-экрана */
 .journal th.journal__fill, .journal td.journal__fill { width: auto; min-width: 0; padding: 0; }

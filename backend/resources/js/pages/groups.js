@@ -21,7 +21,7 @@
     return '<div class="list-row" style="padding: 10px 0; gap: 12px">' + ava + '<div class="list-row__main"><div class="strong small">' + esc(s.name) + '</div>' +
       '<div class="list-row__meta xsmall">' + esc(s.email) + (s.since ? ' · зарегистрирован ' + esc(s.since) : '') + '</div></div>' +
       '<div style="width: 190px">' + moveSelect(s, groupId) + '</div>' +
-      A.menu('Действия со студентом ' + s.name, [{ label: 'Выдать новый пароль', attrs: 'data-password="' + s.id + '"' }]) + '</div>';
+      A.menu('Действия со студентом ' + s.name, [{ label: 'Выдать новый пароль', attrs: 'data-password="' + s.id + '"' }], 'student-' + s.id) + '</div>';
   }
 
   function card(g) {
@@ -82,15 +82,7 @@
     });
   });
 
-  function copy(text) {
-    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
-    // http://ptp.localhost не «безопасный контекст» в некоторых браузерах — копируем через выделение
-    var t = document.createElement('textarea');
-    t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
-    document.body.appendChild(t); t.select();
-    try { document.execCommand('copy'); } finally { document.body.removeChild(t); }
-    return Promise.resolve();
-  }
+  var copy = A.copyText;
 
   A.$('#groups').addEventListener('click', function (e) {
     var b = e.target.closest('button');
@@ -99,7 +91,7 @@
     var g = find(id);
     if (!g) return;
     if (b.hasAttribute('data-copy')) {
-      copy(g.url).then(function () { A.toast('Ссылка скопирована'); });
+      copy(g.url).then(function () { A.toast('Ссылка скопирована'); }, function () { A.$('#inv-' + id).select(); A.toast('Браузер не дал скопировать — ссылка выделена, нажмите Ctrl+C', true); });
     } else if (b.hasAttribute('data-toggle')) {
       A.api('PATCH', 'groups/' + id, { invite_open: !g.open }).then(function (fresh) {
         replace(fresh);
@@ -148,6 +140,12 @@
     }, function () { render(); });
   });
 
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('#copy-password')) return;
+    var input = A.$('#new-password');
+    copy(input.value).then(function () { A.toast('Пароль скопирован'); }, function () { input.select(); A.toast('Браузер не дал скопировать — пароль выделен, нажмите Ctrl+C', true); });
+  });
+
   // Забытый пароль: преподаватель выдаёт временный и передаёт студенту лично
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-password]');
@@ -158,8 +156,14 @@
       .then(function (yes) {
         if (!yes) return;
         A.api('POST', 'students/' + sid + '/password').then(function (r) {
-          A.confirm({ title: 'Новый пароль', text: st.name + ' (' + st.email + ')\nВременный пароль: ' + r.password + '\n\nСтудент сможет сменить его в личном кабинете.', ok: 'Скопировать и закрыть', cancel: 'Закрыть' })
-            .then(function (copyIt) { if (copyIt) copy(r.password).then(function () { A.toast('Пароль скопирован'); }); });
+          A.form({ title: 'Новый пароль', persist: true, ok: 'Готово',
+            text: st.name + ' (' + st.email + '). Передайте пароль студенту лично — больше он не покажется. Сменить его можно в личном кабинете.',
+            html: '<div class="invite__row"><input class="input mono" id="new-password" value="' + esc(r.password) + '" readonly aria-label="Временный пароль"><button type="button" class="btn" id="copy-password">Копировать</button></div>',
+            collect: function () { return { value: true }; } });
+          setTimeout(function () {
+            var input = A.$('#new-password');
+            if (input) { input.focus(); input.select(); }
+          }, 0);
         });
       });
   });

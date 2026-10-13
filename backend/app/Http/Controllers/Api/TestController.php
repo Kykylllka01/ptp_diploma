@@ -121,7 +121,9 @@ class TestController extends Controller
         $data = $request->validate([
             'status' => ['sometimes', Rule::in(['running', 'closed', 'training', 'draft'])],
             'title' => 'sometimes|string|max:255',
-            'deadline_at' => 'sometimes|nullable|date|after:now',
+            // Срок в прошлом запрещаем, только когда его меняют: у закрытого теста можно поправить группы, не трогая срок
+            'deadline_at' => array_merge(['sometimes', 'nullable', 'date'],
+                $request->filled('deadline_at') && $request->input('deadline_at') !== $test->deadline_at?->format('Y-m-d\TH:i') ? ['after:now'] : []),
             'groups' => 'sometimes|nullable|array|max:50',
             'groups.*' => ['integer', Rule::exists('student_groups', 'id')->where('course_id', $test->course_id)],
             'weight' => 'sometimes|nullable|numeric|min:0|max:100',

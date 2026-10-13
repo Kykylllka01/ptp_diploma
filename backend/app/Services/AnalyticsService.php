@@ -122,14 +122,16 @@ class AnalyticsService
      */
     public function forCourse(int $courseId): array
     {
-        $tests = Test::where('course_id', $courseId)->where('status', '!=', 'draft')->orderBy('id')->get();
+        $tests = Test::with('groups')->where('course_id', $courseId)->where('status', '!=', 'draft')->orderBy('id')->get();
         $best = Attempt::whereIn('test_id', $tests->pluck('id'))->whereIn('status', ['submitted', 'confirmed'])
             ->get(['id', 'test_id', 'user_id', 'group_id', 'percent', 'submitted_at'])
             ->groupBy(fn ($a) => $a->test_id.':'.$a->user_id)
             ->map(fn ($own) => $own->sortByDesc(fn ($a) => [(float) $a->percent, $a->id])->first())->values();
 
-        $answers = Answer::whereIn('attempt_id', $best->pluck('id'))->get(['attempt_id', 'question_id', 'score', 'max_score']);
+        $answers = Answer::whereIn('attempt_id', $best->pluck('id'))->get(['attempt_id', 'question_id', 'score', 'max_score', 'is_final']);
         $questions = Question::whereIn('id', $answers->pluck('question_id')->unique())->get(['id', 'code', 'text', 'topic', 'type'])->keyBy('id');
+        // Развёрнутый ответ, который ещё оценивает агент или ждёт преподавателя, — не «ноль»: в темы и трудные вопросы не идёт
+        $answers = $answers->filter(fn ($a) => $a->is_final || ($questions[$a->question_id]->type ?? null) !== 'open')->values();
 
         // Темы: доля набранных баллов по всем ответам курса; слабые сверху
         $topics = [];
@@ -168,25 +170,30 @@ class AnalyticsService
             ->where('reviews.status', 'pending')->whereIn('attempts.test_id', $tests->pluck('id'))
             ->groupBy('attempts.test_id')->selectRaw('attempts.test_id, count(*) as n')->pluck('n', 'test_id');
         $byTest = $best->groupBy('test_id');
+        $lastSubmitted = Attempt::whereIn('test_id', $tests->pluck('id'))->where('status', '!=', 'in_progress')
+            ->groupBy('test_id')->selectRaw('test_id, max(submitted_at) as last')->pluck('last', 'test_id');
+        $studentsByGroup = User::where('role', User::ROLE_STUDENT)->selectRaw('group_id, count(*) as n')->groupBy('group_id')->pluck('n', 'group_id');
+        $allStudents = (int) $studentsByGroup->sum();
 
         return [
             'avg' => $best->count() ? (int) round($best->avg('percent')) : null,
             'works' => $best->count(),
             'students' => $best->pluck('user_id')->unique()->count(),
-            'studentsTotal' => User::where('role', User::ROLE_STUDENT)->count(),
+            'studentsTotal' => $allStudents,
             'pending' => (int) $pending->sum(),
             'topics' => $topics,
             'groups' => $groups,
             'problems' => $problems,
-            'tests' => $tests->map(function (Test $t) use ($byTest, $pending) {
+            'tests' => $tests->map(function (Test $t) use ($byTest, $pending, $lastSubmitted, $studentsByGroup, $allStudents) {
                 $list = $byTest->get($t->id, collect());
-                $last = $list->max('submitted_at');
+                $last = isset($lastSubmitted[$t->id]) ? \Carbon\Carbon::parse($lastSubmitted[$t->id]) : null;
+                $participants = $t->forAll() ? $allStudents : (int) $t->groups->sum(fn ($g) => $studentsByGroup[$g->id] ?? 0);
 
                 return [
                     'id' => $t->code, 'title' => $t->title, 'status' => $t->status,
                     'avg' => $list->count() ? (int) round($list->avg('percent')) : null,
                     'submitted' => $list->count(),
-                    'participants' => $t->status === 'training' ? null : max($t->participants()->count(), $list->count()),
+                    'participants' => $t->status === 'training' ? null : max($participants, $list->count()),
                     'pending' => (int) ($pending[$t->id] ?? 0),
                     'last' => $last?->translatedFormat('j F'),
                     'lastTs' => $last?->getTimestamp() ?? 0,

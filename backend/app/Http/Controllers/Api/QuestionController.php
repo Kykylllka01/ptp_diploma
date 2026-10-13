@@ -242,6 +242,9 @@ class QuestionController extends Controller
         if (isset($data['fixApplied'])) {
             $data['fix_applied'] = $data['fixApplied'];
         }
+        if (($data['type'] ?? $question->type) === 'match' && ! empty($data['options'])) {
+            $data['options'] = array_map(fn ($o) => ['text' => Question::normalizePair((string) $o['text'])] + $o, $data['options']);
+        }
         // Флаг критика снимаем, когда преподаватель принял решение
         if (in_array($data['status'] ?? null, ['approved', 'rejected'], true)) {
             $data['flag_text'] = null;

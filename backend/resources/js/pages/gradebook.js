@@ -29,6 +29,7 @@
     '<span class="jlegend"><i class="jlegend__none">—</i>не сдавал</span>';
 
   var maxTotal = J.tests.reduce(function (s, t) { return s + (t.weight || 0); }, 0);
+  if (state.sort.key === 'total' && !maxTotal) state.sort = { key: 'name', dir: 'asc' };
 
   function headCell(t) {
     var pending = J.students.filter(function (s) { return s.cells[t.id].status === 'pending'; }).length;
@@ -42,7 +43,7 @@
       '-',
       { label: 'Аналитика теста', href: 'analytics?test=' + encodeURIComponent(t.id) },
       { label: t.weight != null ? 'Изменить баллы теста' : 'Задать баллы теста', href: 'tests' }
-    ]);
+    ], 'col-' + t.id);
     return '<th class="journal__test"' + (on ? ' aria-sort="' + (state.sort.dir === 'desc' ? 'descending' : 'ascending') + '"' : '') + '>' +
       '<button type="button" class="jt__title th-sort' + (on ? ' is-on is-' + state.sort.dir : '') + '" data-sort="' + esc(t.id) + '" title="' + esc(t.title) + ' — сортировать по баллам">' +
         '<span>' + esc(t.title) + '</span><svg class="th-sort__icon" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5 9 5H3zM6 10.5 3 7h6z" fill="currentColor"/></svg></button>' +
@@ -115,14 +116,7 @@
     A.$('#result-line').textContent = notes.join('. ');
   }
 
-  function copy(text) {
-    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
-    var t = document.createElement('textarea');
-    t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
-    document.body.appendChild(t); t.select();
-    try { document.execCommand('copy'); } finally { document.body.removeChild(t); }
-    return Promise.resolve();
-  }
+  var copy = A.copyText;
 
   function copyColumn(t) {
     // Несдавшие — пустая строка: порядок строк должен совпасть со списком группы
