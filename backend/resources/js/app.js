@@ -219,8 +219,15 @@
     var active = -1;
     function options() { return Array.prototype.slice.call(sel.options); }
     function sync() {
-      var o = sel.options[sel.selectedIndex];
-      btn.innerHTML = '<span class="cselect__text">' + esc(o ? o.text : '') + '</span>' + CHEVRON;
+      var o = sel.options[sel.selectedIndex], text = o ? o.text : '';
+      // Содержимое кнопки не пересоздаём: при открытии sync() вызывается прямо во время клика,
+      // и новый span на месте нажатого выглядел бы для закрывающего обработчика кликом «снаружи»
+      var span = btn.firstChild;
+      if (!span || span.className !== 'cselect__text') {
+        btn.innerHTML = '<span class="cselect__text"></span>' + CHEVRON;
+        span = btn.firstChild;
+      }
+      if (span.textContent !== text) span.textContent = text;
       btn.disabled = sel.disabled;
       wrap.hidden = sel.hidden;
     }
@@ -348,7 +355,9 @@
     if (root.querySelectorAll) Array.prototype.forEach.call(root.querySelectorAll('select.select'), enhanceSelect);
   }
   document.addEventListener('click', function (e) {
-    if (openSelect && !openSelect.wrap.contains(e.target)) openSelect.close();
+    // Путь события, а не только target: элемент под курсором мог успеть перерисоваться и выпасть из DOM
+    var path = e.composedPath ? e.composedPath() : [e.target];
+    if (openSelect && path.indexOf(openSelect.wrap) < 0 && !openSelect.wrap.contains(e.target)) openSelect.close();
   });
   // На телефоне resize приходит и при прокрутке (прячется адресная строка) — закрываем только при смене ширины
   var lastWidth = window.innerWidth;
