@@ -318,8 +318,9 @@
       var lock = function (v) { ['#regen', '#approve', '#save', '#reject'].forEach(function (s) { A.$(s).disabled = v; }); };
       lock(true);
       btn.textContent = 'Переписываю…';
+      btn.setAttribute('aria-busy', 'true');
       A.toast('Составитель переписывает вопрос с учётом замечаний Критика — это до минуты');
-      var done = function () { lock(false); btn.textContent = 'Перегенерировать'; };
+      var done = function () { lock(false); btn.removeAttribute('aria-busy'); btn.textContent = 'Перегенерировать'; };
       regen().then(done, done);
     });
   });

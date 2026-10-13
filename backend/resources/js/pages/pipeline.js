@@ -37,6 +37,8 @@
     var total = run.total || 0, done = Math.min(total, run.checked);
     A.$('#total-label').textContent = done + ' / ' + total;
     A.$('#total-bar').style.width = (total ? Math.round(done / total * 100) : 0) + '%';
+    // Пока агенты работают, полоса «бежит»
+    A.$('#total-bar').parentNode.classList.toggle('is-live', !/^(done|failed|cancelled)$/.test(run.status));
 
     A.$('#fresh').innerHTML = run.fresh.slice().reverse().map(function (q) {
       var warn = !!q.flag;

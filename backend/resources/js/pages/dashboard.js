@@ -100,7 +100,7 @@
       (runs ? '<section><div class="lbl">Запуски агентов</div><div style="margin-top: 4px">' + runs + '</div></section>' : '') +
       '<div class="actions" style="gap: 10px">' +
         (q.total ? '<a class="btn btn--primary" href="bank?status=' + (q.pending ? 'pending' : 'all') + '&source=' + d.id + '">Вопросы в банке</a>' : '') +
-        (d.chars ? '<a class="btn" href="upload?material=' + d.id + '#new-set">' + (q.total ? 'Сгенерировать ещё' : 'Сгенерировать вопросы') + '</a>' : '') +
+        (d.chars ? '<a class="btn btn--ai-soft" href="upload?material=' + d.id + '#new-set">' + (q.total ? 'Сгенерировать ещё' : 'Сгенерировать вопросы') + '</a>' : '') +
       '</div>';
   }
 
@@ -111,7 +111,7 @@
     A.$('#mm-kind').textContent = 'Материал курса';
     A.$('#mm-title').textContent = m.title;
     A.$('#mm-body').setAttribute('aria-busy', 'true');
-    A.$('#mm-body').innerHTML = '<div class="muted small">Загружаю…</div>';
+    A.$('#mm-body').innerHTML = '<span class="sr-only">Загружаю…</span><span class="skel skel--block" aria-hidden="true"></span><span class="skel" style="width: 70%; margin-top: 18px" aria-hidden="true"></span><span class="skel" style="width: 45%" aria-hidden="true"></span>';
     A.$('#mm-body').scrollTop = 0;
     modal.showModal();
     // Быстро открыли другой материал — поздний ответ по прежнему не должен подменить карточку

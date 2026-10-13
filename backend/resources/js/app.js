@@ -369,6 +369,25 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startSelects);
   else startSelects();
 
+  /* ---------- Целые числа в сводках «набегают» от нуля при открытии страницы ---------- */
+  function countUp() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    Array.prototype.forEach.call(document.querySelectorAll('.stat__value, .tile__value'), function (el) {
+      var node = el.firstChild, m = node && node.nodeType === 3 && /^(\s*)(\d{1,6})(\s*)$/.exec(node.nodeValue);
+      if (!m || +m[2] < 2) return;
+      var to = +m[2], start = null;
+      function step(t) {
+        if (start === null) start = t;
+        var k = Math.min(1, (t - start) / 700);
+        node.nodeValue = m[1] + Math.round(to * (1 - Math.pow(1 - k, 3))) + m[3];
+        if (k < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', countUp);
+  else countUp();
+
   /* ---------- Окна вместо prompt() и confirm() ----------
      ask({ title, label, value, hint, placeholder, ok, required, validate, multiline, inputmode, maxlength }) → Promise<строка | null>
      confirm({ title, text, ok, danger }) → Promise<true | false>

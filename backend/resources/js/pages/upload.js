@@ -205,6 +205,7 @@
     var btn = form.querySelector('[type=submit]');
     btn.disabled = true;
     btn.textContent = 'Агенты работают…';
+    btn.setAttribute('aria-busy', 'true');
     A.api('POST', 'generation-runs', {
       material_ids: ready.map(function (f) { return f.id; }),
       types: types,
@@ -217,6 +218,7 @@
       location.href = 'pipeline?run=' + run.id;
     }).catch(function () {
       btn.disabled = false;
+      btn.removeAttribute('aria-busy');
       btn.textContent = 'Запустить агентов';
     });
   });

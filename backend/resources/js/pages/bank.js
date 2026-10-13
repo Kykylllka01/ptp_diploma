@@ -211,6 +211,7 @@
       A.toast('Составитель переписывает ' + n + ' ' + word + '. Это до минуты на вопрос — не закрывайте страницу');
       var done = 0, failed = [];
       A.$$('#bulk button').forEach(function (x) { x.disabled = true; });
+      b.setAttribute('aria-busy', 'true');
       A.$('#bulk-count').textContent = 'Переписано 0 из ' + n + '…';
       ids.reduce(function (chain, id) {
         return chain.then(function () {
@@ -223,6 +224,7 @@
         });
       }, Promise.resolve()).then(function () {
         A.$$('#bulk button').forEach(function (x) { x.disabled = false; });
+        b.removeAttribute('aria-busy');
         A.toast(failed.length ? 'Переписано ' + done + ' из ' + n + '. Не удалось: ' + failed.join(', ') + ' — попробуйте ещё раз'
           : 'Составитель переписал ' + n + ' ' + word + ', Критик проверил их заново', !!failed.length);
         selected = {};

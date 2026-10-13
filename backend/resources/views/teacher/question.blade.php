@@ -15,7 +15,7 @@
     <div class="actions actions--sm">
       <span class="muted small" id="dirty" aria-live="polite"></span>
       <button type="button" class="btn" id="reject">Отклонить</button>
-      <button type="button" class="btn" id="regen">Перегенерировать</button>
+      <button type="button" class="btn btn--ai-soft" id="regen">Перегенерировать</button>
       <button type="button" class="btn" id="save">Сохранить</button>
       <button type="button" class="btn btn--primary" id="approve">Одобрить и далее</button>
     </div>
