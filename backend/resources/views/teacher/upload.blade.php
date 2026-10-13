@@ -6,17 +6,29 @@
 
 @section('content')
 <main class="page" style="gap: 28px">
-  <div>
-    <a href="dashboard" class="back">← Обзор</a>
-    <h1 class="page-title" style="margin-top: 10px">Новый набор вопросов</h1>
+  <div class="page-head">
+    <div>
+      <div class="lbl">{{ $appData['course']['title'] }}</div>
+      <h1 class="page-title">Материалы</h1>
+      <p class="page-sub">Лекции и конспекты курса. По ним агенты составляют вопросы для банка.</p>
+    </div>
+    <div class="actions"><a href="#new-set" class="btn btn--primary">Новый набор вопросов</a></div>
   </div>
 
-  <ol class="steps">
-    <li class="is-done"><span>1</span>Материалы</li>
-    <li class="is-done"><span>2</span>Параметры генерации</li>
-    <li><span>3</span>Работа агентов</li>
-    <li><span>4</span>Проверка</li>
-  </ol>
+  <section class="card card--pad" id="library-card">
+    <div class="between"><h2 class="card-title">Загруженные материалы</h2><span class="muted small" id="library-count"></span></div>
+    <div id="library" style="margin-top: 8px"></div>
+  </section>
+
+  <div id="new-set" style="scroll-margin-top: 24px">
+    <h2 class="page-title" style="font-size: 26px; margin-top: 8px">Новый набор вопросов</h2>
+    <ol class="steps" style="margin-top: 16px" aria-label="Шаги">
+      <li class="is-current" aria-current="step"><span>1</span>Материалы</li>
+      <li class="is-current"><span>2</span>Параметры генерации</li>
+      <li><span>3</span>Работа агентов</li>
+      <li><span>4</span>Проверка вопросов</li>
+    </ol>
+  </div>
 
   <form class="split" id="gen-form">
     <div class="split__main">

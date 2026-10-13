@@ -37,7 +37,7 @@ class FrontendData
         $data = $this->base() + ['teacher' => $this->user(CurrentUser::teacher())];
 
         if ($want('materials')) {
-            $data['materials'] = Material::where('course_id', $course->id)->orderByDesc('created_at')->orderByDesc('id')->get()->map(fn ($m) => $this->material($m))->all();
+            $data['materials'] = Material::where('course_id', $course->id)->withCount('questions')->orderByDesc('created_at')->orderByDesc('id')->get()->map(fn ($m) => $this->material($m))->all();
         }
         if ($want('agents')) {
             $data['agents'] = Agent::orderBy('id')->whereIn('code', ['analyst', 'writer', 'critic', 'grader'])->get()
@@ -240,6 +240,7 @@ class FrontendData
             // Исходный файл или страница-источник: открывается из карточки материала
             'fileUrl' => $m->file_path || $m->url ? route('teacher.material.file', $m) : null,
             'isLink' => (bool) $m->url,
+            'questions' => $m->questions_count,
         ];
     }
 

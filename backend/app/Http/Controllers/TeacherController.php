@@ -46,7 +46,7 @@ class TeacherController extends Controller
 
     public function upload()
     {
-        return $this->page('upload', 'Загрузка материалов', 'materials');
+        return $this->page('upload', 'Материалы', 'materials');
     }
 
     public function pipeline(Request $request)

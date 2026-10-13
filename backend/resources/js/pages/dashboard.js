@@ -100,7 +100,7 @@
       (runs ? '<section><div class="lbl">Запуски агентов</div><div style="margin-top: 4px">' + runs + '</div></section>' : '') +
       '<div class="actions" style="gap: 10px">' +
         (q.total ? '<a class="btn btn--primary" href="bank?status=' + (q.pending ? 'pending' : 'all') + '&source=' + d.id + '">Вопросы в банке</a>' : '') +
-        '<a class="btn" href="upload">' + (q.total ? 'Сгенерировать ещё' : 'Сгенерировать вопросы') + '</a>' +
+        (d.chars ? '<a class="btn" href="upload?material=' + d.id + '#new-set">' + (q.total ? 'Сгенерировать ещё' : 'Сгенерировать вопросы') + '</a>' : '') +
       '</div>';
   }
 

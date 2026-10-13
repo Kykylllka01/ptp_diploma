@@ -443,6 +443,9 @@ a.table__title:hover { color: var(--tsu-blue); text-decoration: underline; text-
 .steps li span { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid #B9BFCB; display: grid; place-items: center; font-size: 13px; }
 .steps li.is-done { color: var(--text); font-weight: 600; }
 .steps li.is-done span { background: var(--tsu-blue); border-color: var(--tsu-blue); color: #fff; }
+.steps li.is-current { color: var(--text); font-weight: 600; }
+.steps li.is-current span { border: 2px solid var(--tsu-blue); color: var(--tsu-blue); }
+.steps li span { border-color: #8A90A0; }
 
 .tabs { display: flex; flex-wrap: wrap; gap: 4px 28px; border-bottom: 1px solid var(--border); }
 .tab { padding: 12px 4px; font-weight: 500; color: var(--muted); text-decoration: none; border: none; border-bottom: 2px solid transparent; background: none; font-size: 16px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
