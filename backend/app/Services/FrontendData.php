@@ -357,6 +357,11 @@ class FrontendData
             'statusLabel' => $statusLabel,
             'passed' => $t->status === 'draft' ? '—' : ($t->status === 'training' ? (string) $submitted : $submitted.' / '.max($students, $submitted)),
             'avg' => $avg !== null && $t->status !== 'draft' ? round($avg).'%' : '—',
+            // Сырые значения для сортировки в таблицах (подписи выше — для показа)
+            'avgPercent' => $avg !== null && $t->status !== 'draft' ? (int) round($avg) : null,
+            'students' => $students,
+            'deadlineTs' => $t->deadline_at?->getTimestamp(),
+            'createdTs' => $t->created_at?->getTimestamp(),
             'deadline' => $deadline,
             'minutes' => $t->minutes,
             'attempts' => $t->attempts_allowed,

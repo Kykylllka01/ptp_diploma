@@ -1,81 +1,194 @@
-/* Тесты преподавателя: список, пробное прохождение, открыть/закрыть приём, удаление */
+/* Тесты преподавателя: поиск, фильтр по статусу и группе, сортировка; у строки — главное действие и меню «⋯» */
 (function () {
   var A = window.App, M = A.M, esc = A.esc;
   var tone = { running: 'blue', training: 'blue', draft: 'gray', closed: 'gray' };
+  var STATUS_ORDER = { running: 0, training: 1, draft: 2, closed: 3 };
+  var FILTERS = [['all', 'Все'], ['running', 'Идут'], ['draft', 'Черновики'], ['closed', 'Приём закрыт'], ['training', 'Тренировки']];
 
-  function actions(t) {
-    var a = [];
-    if (t.count) a.push('<a href="preview?test=' + encodeURIComponent(t.id) + '" class="btn btn--xs">Пройти самому</a>');
-    if (t.status === 'draft') a.push('<a href="bank?status=approved" class="btn btn--xs">Добавить вопросы</a>');
-    if (t.status !== 'draft') a.push('<a href="analytics?test=' + encodeURIComponent(t.id) + '" class="btn btn--xs">Результаты</a>');
-    if (t.graded) a.push('<button type="button" class="btn btn--xs" data-weight="' + esc(t.id) + '">' + (t.weight != null ? 'Баллы: ' + String(t.weight).replace('.', ',') : 'Задать баллы') + '</button>');
-    if (t.status === 'running') a.push('<button type="button" class="btn btn--xs" data-status="closed" data-id="' + esc(t.id) + '">Закрыть приём</button>');
-    if (t.status === 'closed' || (t.status === 'draft' && t.count)) a.push('<button type="button" class="btn btn--xs" data-status="running" data-id="' + esc(t.id) + '">Открыть приём</button>');
-    a.push('<button type="button" class="btn btn--xs" data-rename="' + esc(t.id) + '">Переименовать</button>');
-    a.push('<button type="button" class="btn btn--xs" data-delete="' + esc(t.id) + '" aria-label="Удалить тест «' + esc(t.title) + '»">Удалить</button>');
-    return '<div class="row-wrap" style="justify-content: flex-end; gap: 6px">' + a.join('') + '</div>';
+  var state = A.recall('tests', { filter: 'all', group: '', sort: { key: 'created', dir: 'desc' } });
+  var query = '';
+
+  function byId(id) { return M.tests.filter(function (t) { return t.id === id; })[0]; }
+  function weightLabel(w) { return A.num(w) + ' ' + A.plural(Math.ceil(w) === w ? w : 2, 'балл', 'балла', 'баллов'); }
+
+  // Главное действие зависит от состояния теста; всё остальное — в меню
+  function primary(t) {
+    var q = encodeURIComponent(t.id);
+    if (t.status === 'draft' && !t.count) return '<a href="bank?status=approved" class="btn btn--xs">Добавить вопросы</a>';
+    if (t.status === 'draft' || (t.status === 'closed' && !t.submitted)) return '<button type="button" class="btn btn--xs" data-status="running" data-id="' + esc(t.id) + '">Открыть приём</button>';
+    if (t.submitted) return '<a href="analytics?test=' + q + '" class="btn btn--xs">Результаты</a>';
+    return '<a href="preview?test=' + q + '" class="btn btn--xs">Пройти самому</a>';
+  }
+  function menuFor(t) {
+    var q = encodeURIComponent(t.id), id = esc(t.id), main = primary(t);
+    var items = [
+      t.count && main.indexOf('preview?') < 0 ? { label: 'Пройти самому', href: 'preview?test=' + q } : null,
+      t.status !== 'draft' && main.indexOf('analytics?') < 0 ? { label: 'Результаты и аналитика', href: 'analytics?test=' + q } : null,
+      t.graded ? { label: t.weight != null ? 'Баллы в Модеус: ' + A.num(t.weight) : 'Задать баллы в Модеус', attrs: 'data-weight="' + id + '"' } : null,
+      t.status === 'running' ? { label: 'Закрыть приём', attrs: 'data-status="closed" data-id="' + id + '"' } : null,
+      t.status === 'closed' && main.indexOf('data-status') < 0 ? { label: 'Открыть приём снова', attrs: 'data-status="running" data-id="' + id + '"' } : null,
+      { label: 'Переименовать', attrs: 'data-rename="' + id + '"' },
+      '-',
+      { label: 'Удалить', attrs: 'data-delete="' + id + '"', danger: true }
+    ];
+    return A.menu('Действия с тестом «' + t.title + '»', items);
+  }
+
+  function passed(t) {
+    if (t.status === 'draft') return '<span class="muted">—</span>';
+    if (t.status === 'training' || !t.students) return '<span class="strong">' + t.submitted + '</span>';
+    var total = Math.max(t.students, t.submitted), p = Math.round(t.submitted / total * 100);
+    return '<div class="strong">' + t.submitted + ' <span class="muted" style="font-weight: 400">/ ' + total + '</span></div>' +
+      '<div class="progress" style="width: 72px; margin-top: 6px"><div style="width:' + p + '%"></div></div>';
+  }
+
+  function row(t) {
+    var meta = [t.status === 'training' ? 'тренировка без оценки' : (t.minutes ? t.minutes + ' мин' : 'без лимита времени'), t.group || 'все студенты курса',
+      t.individual ? 'свой вариант каждому' : '', t.weight != null ? weightLabel(t.weight) : ''].filter(Boolean).join(' · ');
+    var title = t.status !== 'draft'
+      ? '<a href="analytics?test=' + encodeURIComponent(t.id) + '" class="table__title">' + esc(t.title) + '</a>'
+      : '<span class="table__title">' + esc(t.title) + '</span>';
+    return '<tr><td style="min-width: 260px">' + title + '<div class="muted xsmall" style="margin-top: 2px">' + esc(meta) + '</div></td>' +
+      '<td class="num-col">' + t.count + '</td>' +
+      '<td>' + A.chip(t.statusLabel, tone[t.status]) + '</td>' +
+      '<td class="small" style="min-width: 150px">' + esc(t.deadline || '—') + '</td>' +
+      '<td>' + passed(t) + '</td>' +
+      '<td class="num-col strong">' + (t.avgPercent == null ? '<span class="muted" style="font-weight: 400">—</span>' : t.avgPercent + '%') + '</td>' +
+      '<td><div class="row-actions">' + primary(t) + menuFor(t) + '</div></td></tr>';
+  }
+
+  var GET = {
+    title: function (t) { return t.title; },
+    count: function (t) { return t.count; },
+    status: function (t) { return STATUS_ORDER[t.status]; },
+    deadline: function (t) { return t.deadlineTs; },
+    passed: function (t) { return t.status === 'draft' ? null : t.submitted; },
+    avg: function (t) { return t.avgPercent; },
+    created: function (t) { return t.createdTs; }
+  };
+
+  function visible() {
+    var q = query.toLowerCase();
+    return M.tests.filter(function (t) {
+      return (state.filter === 'all' || t.status === state.filter) &&
+        (!state.group || (state.group === 'all' ? !t.groups.length : t.groups.indexOf(+state.group) >= 0 || !t.groups.length)) &&
+        (!q || t.title.toLowerCase().indexOf(q) >= 0);
+    });
   }
 
   function render() {
-    var list = M.tests.slice().reverse();
-    A.$('#tests').innerHTML = list.map(function (t) {
-      var meta = [t.status === 'training' ? 'тренировка без оценки' : (t.minutes ? t.minutes + ' мин' : 'без лимита времени'), t.group || 'все студенты курса',
-        t.individual ? 'свой вариант каждому · в пуле ' + t.pool : ''].filter(Boolean).join(' · ');
-      return '<tr><td><div class="strong">' + esc(t.title) + '</div><div class="muted xsmall">' + esc(meta) + '</div></td>' +
-        '<td>' + t.count + '</td>' +
-        '<td>' + A.chip(t.statusLabel, tone[t.status]) + '</td>' +
-        '<td class="small">' + esc(t.deadline || '—') + '</td>' +
-        '<td>' + t.passed + '</td><td>' + t.avg + '</td>' +
-        '<td class="right">' + actions(t) + '</td></tr>';
-    }).join('') || '<tr><td colspan="7" class="empty">Тестов пока нет. <a href="test-builder">Соберите первый</a> из одобренных вопросов банка.</td></tr>';
+    A.remember('tests', state);
+    var counts = {};
+    M.tests.forEach(function (t) { counts[t.status] = (counts[t.status] || 0) + 1; });
+    A.$('#filters').innerHTML = A.filterTabs(FILTERS.filter(function (f) { return f[0] === 'all' || counts[f[0]] || state.filter === f[0]; })
+      .map(function (f) { return [f[0], f[1], f[0] === 'all' ? M.tests.length : (counts[f[0]] || 0)]; }), state.filter, 'Статус теста');
+
+    var s = state.sort;
+    A.$('#head').innerHTML = '<tr>' + A.sortTh('title', 'Название', s) + A.sortTh('count', 'Вопросов', s, 'num-col') + A.sortTh('status', 'Статус', s) +
+      A.sortTh('deadline', 'Срок', s) + A.sortTh('passed', 'Сдали', s) + A.sortTh('avg', 'Средний', s, 'num-col') + '<th class="right"><span class="sr-only">Действия</span></th></tr>';
+
+    var list = A.sortBy(visible(), GET[s.key] || GET.created, s.dir);
+    A.$('#tests').innerHTML = list.map(row).join('') || '<tr><td colspan="7" class="empty">' + (M.tests.length
+      ? 'Ничего не нашлось. <button type="button" class="link-btn" id="reset">Сбросить фильтры</button>'
+      : 'Тестов пока нет. <a href="test-builder">Соберите первый</a> из одобренных вопросов банка.') + '</td></tr>';
+    A.$('#result-line').textContent = list.length !== M.tests.length ? 'Показано ' + list.length + ' из ' + M.tests.length : '';
+  }
+
+  // Фильтр по группе — только если групп больше одной
+  var groups = M.groups || [];
+  if (groups.length > 1) {
+    var gs = A.$('#group-filter');
+    gs.innerHTML = '<option value="">Все группы</option>' + groups.map(function (g) { return '<option value="' + g.id + '">' + esc(g.name) + '</option>'; }).join('') +
+      '<option value="all">Только «для всех»</option>';
+    gs.value = state.group || '';
+    gs.hidden = false;
+    gs.addEventListener('change', function () { state.group = gs.value; render(); });
+  } else state.group = '';
+
+  A.$('#search').addEventListener('input', function (e) { query = e.target.value.trim(); render(); });
+  A.$('#filters').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-filter]');
+    if (b) { state.filter = b.getAttribute('data-filter'); render(); }
+  });
+  A.$('#head').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-sort]');
+    if (!b) return;
+    var key = b.getAttribute('data-sort');
+    // Числа и даты сначала по убыванию: свежие и лучшие сверху
+    state.sort = A.nextSort(state.sort, key, key === 'title' || key === 'status' || key === 'deadline' ? 'asc' : 'desc');
+    render();
+    var again = A.$('#head [data-sort="' + key + '"]');
+    if (again) again.focus();
+  });
+
+  function replace(fresh) {
+    M.tests = M.tests.map(function (t) { return t.id === fresh.id ? fresh : t; });
+    render();
   }
 
   A.$('#tests').addEventListener('click', function (e) {
+    if (e.target.closest('#reset')) {
+      state.filter = 'all'; state.group = ''; query = '';
+      A.$('#search').value = '';
+      if (groups.length > 1) A.$('#group-filter').value = '';
+      render();
+      return;
+    }
     var rn = e.target.closest('[data-rename]');
     if (rn) {
-      var tr = M.tests.filter(function (x) { return x.id === rn.getAttribute('data-rename'); })[0];
-      var name = prompt('Новое название теста', tr.title);
-      if (!name || !name.trim() || name.trim() === tr.title) return;
-      A.api('PATCH', 'tests/' + encodeURIComponent(tr.id), { title: name.trim() }).then(function (fresh) {
-        M.tests = M.tests.map(function (t) { return t.id === tr.id ? fresh : t; });
-        render();
-        A.toast('Тест переименован');
+      var tr = byId(rn.getAttribute('data-rename'));
+      A.ask({ title: 'Переименовать тест', label: 'Название теста', value: tr.title, ok: 'Сохранить' }).then(function (name) {
+        if (!name || name === tr.title) return;
+        A.api('PATCH', 'tests/' + encodeURIComponent(tr.id), { title: name }).then(function (fresh) { replace(fresh); A.toast('Тест переименован'); });
       });
       return;
     }
     var w = e.target.closest('[data-weight]');
     if (w) {
-      var tw = M.tests.filter(function (x) { return x.id === w.getAttribute('data-weight'); })[0];
-      var v = prompt('Сколько баллов в Модеус даёт тест «' + tw.title + '» за 100 %? Пусто — без веса (в журнале проценты).', tw.weight != null ? String(tw.weight).replace('.', ',') : '');
-      if (v === null) return;
-      v = v.trim().replace(',', '.');
-      if (v !== '' && (isNaN(+v) || +v < 0 || +v > 100)) { A.toast('Нужно число от 0 до 100', true); return; }
-      A.api('PATCH', 'tests/' + encodeURIComponent(tw.id), { weight: v === '' ? null : +v }).then(function (fresh) {
-        M.tests = M.tests.map(function (t) { return t.id === tw.id ? fresh : t; });
-        render();
-        A.toast(fresh.weight != null ? 'Тест стоит ' + String(fresh.weight).replace('.', ',') + ' баллов' : 'Вес снят');
+      var tw = byId(w.getAttribute('data-weight'));
+      A.ask({
+        title: 'Баллы в Модеус', label: 'Сколько баллов даёт тест при 100 %', value: tw.weight != null ? A.num(tw.weight) : '',
+        hint: 'Студент получит долю от этого числа по своему лучшему результату. Оставьте пустым — в журнале будут проценты.',
+        placeholder: 'Например, 20', inputmode: 'decimal', maxlength: 6, required: false, ok: 'Сохранить',
+        validate: function (v) { var n = +v.replace(',', '.'); return v && (isNaN(n) || n < 0 || n > 100) ? 'Нужно число от 0 до 100' : ''; }
+      }).then(function (v) {
+        if (v === null) return;
+        A.api('PATCH', 'tests/' + encodeURIComponent(tw.id), { weight: v === '' ? null : +v.replace(',', '.') }).then(function (fresh) {
+          replace(fresh);
+          A.toast(fresh.weight != null ? 'Тест стоит ' + weightLabel(fresh.weight) : 'Баллы сняты — в журнале будут проценты');
+        });
       });
       return;
     }
     var s = e.target.closest('[data-status]');
     if (s) {
-      var id = s.getAttribute('data-id'), status = s.getAttribute('data-status');
-      A.api('PATCH', 'tests/' + encodeURIComponent(id), { status: status }).then(function (fresh) {
-        M.tests = M.tests.map(function (t) { return t.id === id ? fresh : t; });
-        render();
-        A.toast(status === 'closed' ? 'Приём ответов закрыт' : 'Тест открыт для студентов');
-      });
+      var id = s.getAttribute('data-id'), status = s.getAttribute('data-status'), t = byId(id);
+      var go = function () {
+        A.api('PATCH', 'tests/' + encodeURIComponent(id), { status: status }).then(function (fresh) {
+          replace(fresh);
+          A.toast(status === 'closed' ? 'Приём ответов закрыт' : 'Тест открыт для студентов' + (fresh.deadline ? '. ' + fresh.deadline : ''));
+        });
+      };
+      if (status === 'closed') {
+        A.confirm({ title: 'Закрыть приём ответов?', text: 'Студенты больше не смогут начать «' + t.title + '». Начатые попытки будут сданы с теми ответами, которые студенты успели сохранить. Приём можно открыть снова.', ok: 'Закрыть приём' })
+          .then(function (yes) { if (yes) go(); });
+      } else go();
       return;
     }
     var d = e.target.closest('[data-delete]');
     if (d) {
-      var t = M.tests.filter(function (x) { return x.id === d.getAttribute('data-delete'); })[0];
-      var warn = t.submitted ? '\nВместе с тестом удалятся ' + t.submitted + ' ' + A.plural(t.submitted, 'попытка', 'попытки', 'попыток') + ' студентов.' : '';
-      if (!confirm('Удалить тест «' + t.title + '»?' + warn)) return;
-      A.api('DELETE', 'tests/' + encodeURIComponent(t.id)).then(function () {
-        M.tests = M.tests.filter(function (x) { return x.id !== t.id; });
-        render();
-        A.toast('Тест удалён');
+      var td = byId(d.getAttribute('data-delete'));
+      A.confirm({
+        title: 'Удалить тест?', ok: 'Удалить', danger: true,
+        text: '«' + td.title + '» будет удалён без возможности восстановления.' +
+          (td.submitted ? '\nВместе с ним удалятся попытки студентов: ' + td.submitted + '.' : '')
+      }).then(function (yes) {
+        if (!yes) return;
+        A.api('DELETE', 'tests/' + encodeURIComponent(td.id)).then(function () {
+          M.tests = M.tests.filter(function (x) { return x.id !== td.id; });
+          render();
+          A.toast('Тест удалён');
+        });
       });
     }
   });

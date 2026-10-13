@@ -40,8 +40,15 @@
     search: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5A6070" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
     flag: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h12l-2 4 2 4H5"/></svg>',
     clock: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>',
-    x: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5A6070" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>'
+    x: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5A6070" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+    more: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>',
+    copy: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>',
+    external: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+    download: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M4 20h16"/></svg>',
+    chevron: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>'
   };
+  // Число по-русски: 12,5 вместо 12.5; null — пусто
+  function num(v) { return v == null ? '' : String(v).replace('.', ','); }
 
   /* ---------- Тост ---------- */
   var toastEl, toastTimer;
@@ -338,6 +345,193 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startSelects);
   else startSelects();
 
+  /* ---------- Окна вместо prompt() и confirm() ----------
+     ask({ title, label, value, hint, placeholder, ok, required, validate, multiline, inputmode, maxlength }) → Promise<строка | null>
+     confirm({ title, text, ok, danger }) → Promise<true | false>
+     validate(значение) возвращает текст ошибки или ничего. */
+  function dialog(opts, withInput) {
+    return new Promise(function (resolve) {
+      var id = 'dlg-' + (++uid), opener = document.activeElement, done = false;
+      var d = document.createElement('dialog');
+      d.className = 'modal modal--sm';
+      d.setAttribute('aria-labelledby', id + '-t');
+      var attrs = ' id="' + id + '-in" aria-describedby="' + id + '-hint ' + id + '-err"' +
+        (opts.placeholder ? ' placeholder="' + esc(opts.placeholder) + '"' : '') +
+        (opts.inputmode ? ' inputmode="' + esc(opts.inputmode) + '"' : '') +
+        ' maxlength="' + (opts.maxlength || 255) + '" autocomplete="off"';
+      d.innerHTML = '<form class="modal__form" novalidate>' +
+        '<div class="modal__head"><h2 class="card-title" id="' + id + '-t">' + esc(opts.title) + '</h2></div>' +
+        '<div class="modal__body">' +
+          (opts.text ? '<p class="modal__text">' + esc(opts.text) + '</p>' : '') +
+          (withInput ? '<div class="field"><label for="' + id + '-in">' + esc(opts.label || '') + '</label>' +
+            (opts.multiline ? '<textarea class="textarea" rows="4"' + attrs + '></textarea>' : '<input class="input"' + attrs + '>') +
+            '<span class="field__hint" id="' + id + '-hint">' + esc(opts.hint || '') + '</span>' +
+            '<span class="field__error" id="' + id + '-err" role="alert"></span></div>' : '') +
+        '</div>' +
+        '<div class="modal__foot"><button type="button" class="btn" data-cancel>' + esc(opts.cancel || 'Отмена') + '</button>' +
+          '<button type="submit" class="btn ' + (opts.danger ? 'btn--danger' : 'btn--primary') + '">' + esc(opts.ok || 'Сохранить') + '</button></div>' +
+      '</form>';
+      document.body.appendChild(d);
+      var input = d.querySelector('#' + id + '-in'), err = d.querySelector('#' + id + '-err');
+      var none = withInput ? null : false;
+      function finish(v) {
+        if (done) return;
+        done = true;
+        d.close();
+        d.remove();
+        if (opener && opener.isConnected && opener.focus) opener.focus();
+        resolve(v);
+      }
+      d.querySelector('form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!withInput) { finish(true); return; }
+        var v = input.value.trim();
+        var problem = opts.validate ? opts.validate(v) : (opts.required !== false && !v ? 'Заполните поле' : '');
+        if (problem) {
+          err.textContent = problem;
+          input.setAttribute('aria-invalid', 'true');
+          input.focus();
+          return;
+        }
+        finish(v);
+      });
+      if (input) input.addEventListener('input', function () { err.textContent = ''; input.removeAttribute('aria-invalid'); });
+      d.querySelector('[data-cancel]').addEventListener('click', function () { finish(none); });
+      d.addEventListener('cancel', function (e) { e.preventDefault(); finish(none); });
+      // Клик по фону закрывает окно — но не выделение текста, отпущенное над фоном
+      var downOnBackdrop = false;
+      d.addEventListener('mousedown', function (e) { downOnBackdrop = e.target === d; });
+      d.addEventListener('click', function (e) { if (e.target === d && downOnBackdrop) finish(none); });
+      d.showModal();
+      if (input) { input.value = opts.value == null ? '' : opts.value; input.focus(); input.select(); }
+      // Опасное действие: фокус на «Отмене», чтобы случайный Enter ничего не удалил
+      else d.querySelector(opts.danger ? '[data-cancel]' : '[type=submit]').focus();
+    });
+  }
+  function ask(opts) { return dialog(opts, true); }
+  function confirmBox(opts) { return dialog(Object.assign({ ok: 'Да' }, opts), false); }
+
+  /* ---------- Меню «⋯» ----------
+     <div class="menu"><button type="button" class="btn btn--xs btn--more" data-menu aria-haspopup="menu" aria-expanded="false" aria-label="…">…</button>
+       <div class="menu__list" role="menu" hidden><button type="button" role="menuitem" …>…</button></div></div>
+     Пункт меню — обычная кнопка или ссылка: страница ловит её клик своим делегированием, как раньше.
+     Список позиционируется fixed — его не обрезает прокрутка таблицы. */
+  var openMenu = null;
+  function closeMenu(focus) {
+    if (!openMenu) return;
+    var m = openMenu;
+    openMenu = null;
+    m.list.hidden = true;
+    m.wrap.classList.remove('is-open');
+    m.btn.setAttribute('aria-expanded', 'false');
+    if (focus && m.btn.isConnected) m.btn.focus();
+  }
+  function menuItems(list) { return $$('[role="menuitem"]:not([disabled])', list); }
+  function placeMenu(m) {
+    var r = m.btn.getBoundingClientRect(), w = m.list.offsetWidth, h = m.list.offsetHeight;
+    var left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
+    var below = window.innerHeight - r.bottom - 8;
+    m.list.style.left = left + 'px';
+    m.list.style.top = (below < h + 6 && r.top > h + 14 ? r.top - h - 6 : r.bottom + 6) + 'px';
+  }
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-menu]');
+    if (btn) {
+      var same = openMenu && openMenu.btn === btn;
+      closeMenu();
+      if (same) return;
+      var wrap = btn.closest('.menu'), list = wrap.querySelector('.menu__list');
+      openMenu = { wrap: wrap, btn: btn, list: list };
+      list.hidden = false;
+      wrap.classList.add('is-open');
+      btn.setAttribute('aria-expanded', 'true');
+      placeMenu(openMenu);
+      // Открыли с клавиатуры (Enter/пробел дают click с detail 0) — фокус на первый пункт
+      if (e.detail === 0) { var first = menuItems(list)[0]; if (first) first.focus(); }
+      return;
+    }
+    if (openMenu && (!openMenu.wrap.contains(e.target) || e.target.closest('[role="menuitem"]'))) closeMenu();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (!openMenu) return;
+    var items = menuItems(openMenu.list), i = items.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); closeMenu(true); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); (items[i + 1] || items[0]).focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); (items[i - 1] || items[items.length - 1]).focus(); }
+    else if (e.key === 'Home') { e.preventDefault(); items[0].focus(); }
+    else if (e.key === 'End') { e.preventDefault(); items[items.length - 1].focus(); }
+    else if (e.key === 'Tab') closeMenu();
+  });
+  // Прокрутка страницы или таблицы сдвигает кнопку — fixed-список закрываем, а не оставляем висеть
+  window.addEventListener('scroll', function (e) {
+    if (openMenu && !openMenu.list.contains(e.target)) closeMenu();
+  }, true);
+  window.addEventListener('resize', function () { closeMenu(); });
+
+  // Пункты меню: [подпись, атрибуты] → разметка; null пропускается, '-' — разделитель
+  function menu(label, items) {
+    return '<div class="menu"><button type="button" class="btn btn--xs btn--more" data-menu aria-haspopup="menu" aria-expanded="false" aria-label="' + esc(label) + '" title="' + esc(label) + '">' + icons.more + '</button>' +
+      '<div class="menu__list" role="menu" hidden>' + items.filter(Boolean).map(function (it) {
+        if (it === '-') return '<div class="menu__sep" role="separator"></div>';
+        return it.href
+          ? '<a role="menuitem" class="menu__item" href="' + esc(it.href) + '">' + esc(it.label) + '</a>'
+          : '<button type="button" role="menuitem" class="menu__item' + (it.danger ? ' menu__item--danger' : '') + '" ' + it.attrs + '>' + esc(it.label) + '</button>';
+      }).join('') + '</div></div>';
+  }
+
+  /* ---------- Сортировка таблиц ----------
+     sortBy(список, значение(x), 'asc'|'desc') — по-русски и с числами, пустые значения всегда внизу.
+     sortTh(ключ, подпись, состояние) — заголовок-кнопка с aria-sort. */
+  var collator = new Intl.Collator('ru', { numeric: true, sensitivity: 'base' });
+  function sortBy(list, get, dir) {
+    var k = dir === 'desc' ? -1 : 1;
+    return list.map(function (x, i) { return [x, get(x), i]; }).sort(function (a, b) {
+      var an = a[1] == null || a[1] === '', bn = b[1] == null || b[1] === '';
+      if (an || bn) return an === bn ? a[2] - b[2] : (an ? 1 : -1);
+      var c = typeof a[1] === 'number' && typeof b[1] === 'number' ? a[1] - b[1] : collator.compare(String(a[1]), String(b[1]));
+      return c ? c * k : a[2] - b[2];
+    }).map(function (x) { return x[0]; });
+  }
+  var SORT_ICON = '<svg class="th-sort__icon" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 1.5 9 5H3zM6 10.5 3 7h6z" fill="currentColor"/></svg>';
+  function sortTh(key, label, state, cls) {
+    var on = state.key === key;
+    return '<th' + (cls ? ' class="' + cls + '"' : '') + (on ? ' aria-sort="' + (state.dir === 'desc' ? 'descending' : 'ascending') + '"' : '') + '>' +
+      '<button type="button" class="th-sort' + (on ? ' is-on is-' + state.dir : '') + '" data-sort="' + esc(key) + '">' + label + SORT_ICON + '</button></th>';
+  }
+  // Повторный клик по тому же столбцу меняет направление; новый столбец — со своего направления
+  function nextSort(state, key, firstDir) {
+    return state.key === key ? { key: key, dir: state.dir === 'asc' ? 'desc' : 'asc' } : { key: key, dir: firstDir || 'asc' };
+  }
+  // Кнопки-фильтры с числами: [[значение, подпись, число], …]
+  function filterTabs(options, value, label) {
+    return '<div class="ftabs" role="group" aria-label="' + esc(label) + '">' + options.map(function (o) {
+      return '<button type="button" class="ftabs__btn' + (o[0] === value ? ' is-on' : '') + '" aria-pressed="' + (o[0] === value) + '" data-filter="' + esc(o[0]) + '">' +
+        esc(o[1]) + (o[2] != null ? '<span class="ftabs__n">' + o[2] + '</span>' : '') + '</button>';
+    }).join('') + '</div>';
+  }
+  // Запомнить выбор на странице (сортировку, фильтр) — только в этом браузере; без хранилища всё работает
+  function recall(key, fallback) {
+    try { var v = JSON.parse(localStorage.getItem('ptp:' + key)); return v == null ? fallback : v; } catch (e) { return fallback; }
+  }
+  function remember(key, value) {
+    try { localStorage.setItem('ptp:' + key, JSON.stringify(value)); } catch (e) { /* приватный режим */ }
+  }
+
+  /* ---------- Иконка файла ----------
+     Лист с загнутым углом и цветной плашкой типа: PDF красная, DOCX синяя, PPTX оранжевая… */
+  var FILE_TONES = { PDF: '#D93025', DOCX: '#2B579A', PPTX: '#C4471F', TXT: '#5A6070', MP4: '#7B3FC4', URL: '#0072BC' };
+  function fileIcon(kind, size) {
+    var k = String(kind || 'FILE').toUpperCase().slice(0, 4), c = FILE_TONES[k] || '#5A6070', s = size || 40;
+    var w = k.length > 3 ? 25 : 20;
+    return '<svg class="ficon" width="' + s + '" height="' + s + '" viewBox="0 0 40 40" aria-hidden="true" focusable="false">' +
+      '<path d="M11 3h13.5L33 11.5V35a2 2 0 0 1-2 2H11a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" fill="#fff" stroke="#C9CED8" stroke-width="1.4"/>' +
+      '<path d="M24.5 3v6.5a2 2 0 0 0 2 2H33" fill="none" stroke="#C9CED8" stroke-width="1.4" stroke-linejoin="round"/>' +
+      '<path d="M13 9.5h7M13 14h14M13 32.5h14" stroke="#E1E4EA" stroke-width="1.6" stroke-linecap="round"/>' +
+      '<rect x="' + (k.length > 3 ? 3 : 4) + '" y="18" width="' + w + '" height="11" rx="2.5" fill="' + c + '"/>' +
+      '<text x="' + ((k.length > 3 ? 3 : 4) + w / 2) + '" y="26" text-anchor="middle" font-size="' + (k.length > 3 ? 6.6 : 7) + '" font-weight="700" fill="#fff" font-family="Onest, system-ui, sans-serif" letter-spacing=".2">' + esc(k) + '</text>' +
+    '</svg>';
+  }
+
   // Исходные данные вопроса (схема отношения, зависимости, строки таблицы) — над формулировкой
   function context(text) {
     return text ? '<pre class="q-context">' + esc(text) + '</pre>' : '';
@@ -346,6 +540,9 @@
   window.App = {
     M: M, esc: esc, context: context, $: $, $$: $$, chip: chip, plural: plural, param: param, url: url,
     icons: icons, toast: toast, api: api, csrf: csrf, authFailed: authFailed,
-    questions: questions, saveQuestion: saveQuestion, reviews: reviews, saveReview: saveReview
+    questions: questions, saveQuestion: saveQuestion, reviews: reviews, saveReview: saveReview,
+    ask: ask, confirm: confirmBox, menu: menu, closeMenu: closeMenu,
+    sortBy: sortBy, sortTh: sortTh, nextSort: nextSort, filterTabs: filterTabs, recall: recall, remember: remember,
+    fileIcon: fileIcon, num: num
   };
 })();
