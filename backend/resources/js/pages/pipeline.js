@@ -26,13 +26,22 @@
   function render() {
     // warn — шаг завершён, но часть работы не удалась (подробности в журнале); error — запуск упал
     var tones = { done: 'green', work: 'blue', wait: 'gray', warn: 'amber', error: 'red' };
-    A.$('#agents').innerHTML = agents.map(function (a) {
-      var st = run.states[a.id] || ['wait', 'Ожидает', ''];
-      return '<div class="card agent ' + (st[0] === 'done' ? 'is-done' : st[0] === 'work' ? 'is-work' : '') + (a.id === 'writer' && st[0] === 'work' ? ' is-focus' : '') + '">' +
-        '<div class="between"><span class="mono muted xsmall">' + a.no + '</span>' + A.chip(st[1], tones[st[0]]) + '</div>' +
-        '<div class="agent__name">' + a.name + '</div><div class="agent__desc">' + a.role + '</div>' +
-        '<div class="agent__status' + (st[0] === 'wait' ? ' muted' : '') + '">' + esc(st[2]) + '</div></div>';
-    }).join('');
+    // Карточки строятся один раз, дальше меняются на месте: опрос раз в 2 секунды не перезапускает анимацию рамки
+    var box = A.$('#agents');
+    if (box.children.length !== agents.length) {
+      box.innerHTML = agents.map(function (a) {
+        return '<div class="card agent"><div class="between"><span class="mono muted xsmall">' + a.no + '</span><span data-chip></span></div>' +
+          '<div class="agent__name">' + a.name + '</div><div class="agent__desc">' + a.role + '</div><div class="agent__status"></div></div>';
+      }).join('');
+    }
+    agents.forEach(function (a, i) {
+      var st = run.states[a.id] || ['wait', 'Ожидает', ''], card = box.children[i];
+      card.className = 'card agent' + (st[0] === 'done' ? ' is-done' : st[0] === 'work' ? ' is-work' : '') + (a.id === 'writer' && st[0] === 'work' ? ' is-focus' : '');
+      card.querySelector('[data-chip]').innerHTML = A.chip(st[1], tones[st[0]]);
+      var status = card.querySelector('.agent__status');
+      status.className = 'agent__status' + (st[0] === 'wait' ? ' muted' : '');
+      status.textContent = st[2];
+    });
 
     var total = run.total || 0, done = Math.min(total, run.checked);
     A.$('#total-label').textContent = done + ' / ' + total;

@@ -12,16 +12,11 @@
       <h1 class="page-title">Материалы</h1>
       <p class="page-sub">Лекции и конспекты курса. По ним агенты составляют вопросы для банка.</p>
     </div>
-    <div class="actions"><a href="#new-set" class="btn btn--primary">Новый набор вопросов</a></div>
+    <div class="actions"><a href="#library-card" class="btn" id="to-library">Загруженные материалы</a></div>
   </div>
 
-  <section class="card card--pad" id="library-card">
-    <div class="between"><h2 class="card-title">Загруженные материалы</h2><span class="muted small" id="library-count"></span></div>
-    <div id="library" style="margin-top: 8px"></div>
-  </section>
-
   <div id="new-set" style="scroll-margin-top: 24px">
-    <h2 class="page-title" style="font-size: 26px; margin-top: 8px">Новый набор вопросов</h2>
+    <h2 class="card-title">Новый набор вопросов</h2>
     <ol class="steps" style="margin-top: 16px" aria-label="Шаги">
       <li class="is-current" aria-current="step"><span>1</span>Материалы</li>
       <li class="is-current"><span>2</span>Параметры генерации</li>
@@ -90,5 +85,26 @@
       <button type="submit" class="btn btn--ai btn--block">Запустить агентов</button>
     </aside>
   </form>
+
+  <section class="card card--pad" id="library-card" style="scroll-margin-top: 24px">
+    <div class="between"><h2 class="card-title">Загруженные материалы</h2><span class="muted small" id="library-count"></span></div>
+    <div class="toolbar" id="lib-tools" style="margin-top: 16px" hidden>
+      <label class="search"><span class="sr-only">Поиск по названию</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5A6070" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="lib-search" placeholder="Найти материал по названию" autocomplete="off"></label>
+      <div id="lib-filters"></div>
+      <div class="toolbar__end">
+        <select class="select select--sm" id="lib-kind" aria-label="Тип файла" style="width: auto" hidden></select>
+        <select class="select select--sm" id="lib-sort" aria-label="Порядок" style="width: auto">
+          <option value="new">Сначала новые</option>
+          <option value="old">Сначала старые</option>
+          <option value="title">По названию</option>
+          <option value="questions">Больше вопросов</option>
+          <option value="size">Крупнее</option>
+        </select>
+      </div>
+    </div>
+    <div class="result-line" id="lib-result" aria-live="polite"></div>
+    <div id="library" style="margin-top: 8px"></div>
+    <div class="between small muted" id="lib-more-row" style="margin-top: 12px" hidden><span id="lib-shown"></span><button type="button" class="btn btn--sm" id="lib-more">Показать ещё</button></div>
+  </section>
 </main>
 @endsection

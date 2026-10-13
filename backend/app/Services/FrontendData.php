@@ -234,9 +234,11 @@ class FrontendData
             'kind' => $m->kind,
             'meta' => $m->meta ?? '',
             'date' => $this->date($m->created_at),
+            'createdTs' => $m->created_at?->getTimestamp(),
             'status' => $m->status,
             'hasText' => $m->has_text,
             'size' => $this->fileSize($m->size_bytes),
+            'sizeBytes' => $m->size_bytes,
             // Исходный файл или страница-источник: открывается из карточки материала
             'fileUrl' => $m->file_path || $m->url ? route('teacher.material.file', $m) : null,
             'isLink' => (bool) $m->url,
