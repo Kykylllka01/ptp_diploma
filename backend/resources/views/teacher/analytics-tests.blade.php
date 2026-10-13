@@ -8,25 +8,40 @@
 <main class="page">
   <div class="page-head">
     <div>
-      <div class="lbl">Базы данных</div>
+      <div class="lbl">{{ $appData['course']['title'] }}</div>
       <h1 class="page-title">Аналитика</h1>
-      <p class="page-sub">Выберите тест, чтобы посмотреть распределение баллов, результаты по темам и проблемные вопросы.</p>
+      <p class="page-sub">Как курс усваивает материал: темы, группы и вопросы по всем тестам. Разбор одного теста — в списке ниже или через выбор справа.</p>
     </div>
     <div class="actions">
-      <select class="select" id="filter" aria-label="Какие тесты показать" style="width: auto">
-        <option value="all">Все тесты</option>
-        <option value="running">Идут</option>
-        <option value="closed">Приём закрыт</option>
-        <option value="training">Тренировки</option>
-      </select>
+      <select class="select" id="test-pick" aria-label="Разбор теста" style="width: auto; min-width: 240px" hidden></select>
     </div>
   </div>
 
+  <div class="grid-stats" id="stats"></div>
+
+  <div class="split split--stretch" id="charts">
+    <section class="card card--pad split__main" style="gap: 0">
+      <div class="between"><h2 class="card-title">Темы курса</h2><span class="muted small">доля набранных баллов, слабые сверху</span></div>
+      <div class="bars" id="topics"></div>
+      <div class="note" style="margin-top: 18px" id="topic-note" hidden></div>
+    </section>
+    <aside class="card card--pad split__side" style="flex-basis: 340px">
+      <h2 class="card-title">Группы</h2>
+      <div class="bars" id="groups"></div>
+    </aside>
+  </div>
+
   <section class="card card--pad">
+    <div class="between"><h2 class="card-title">Тесты</h2><span class="muted small">средний балл лучших попыток · откройте тест для разбора</span></div>
+    <div class="bars bars--tests" id="tests"></div>
+  </section>
+
+  <section class="card card--pad" id="problems-card">
+    <div class="between"><h2 class="card-title">Трудные вопросы</h2><span class="muted small">меньше всего полностью верных ответов, от 5 ответов</span></div>
     <div class="table-wrap">
-      <table class="table" style="min-width: 860px">
-        <thead><tr><th>Тест</th><th>Статус</th><th>Сдали</th><th>Средний балл</th><th>Ждут проверки</th><th>Последняя сдача</th><th class="right"></th></tr></thead>
-        <tbody id="tests"></tbody>
+      <table class="table" style="min-width: 760px">
+        <thead><tr><th>Вопрос</th><th>Тема</th><th style="width: 220px">Верно ответили</th><th class="num-col">Ответов</th><th></th></tr></thead>
+        <tbody id="problems"></tbody>
       </table>
     </div>
   </section>

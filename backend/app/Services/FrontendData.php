@@ -85,30 +85,10 @@ class FrontendData
         return ['analytics' => $test ? $this->analytics->forTest($test) : null];
     }
 
-    /**
-     * Список тестов на странице «Аналитика»: к строкам из tests добавляются ответы,
-     * ждущие проверки преподавателем, и дата последней сдачи — по ним видно, куда смотреть.
-     */
+    /** Стартовая страница «Аналитики»: курс целиком — темы, группы, трудные вопросы и тесты рядом. */
     public function analyticsTests(): array
     {
-        $pending = Review::query()
-            ->join('answers', 'answers.id', '=', 'reviews.answer_id')
-            ->join('attempts', 'attempts.id', '=', 'answers.attempt_id')
-            ->where('reviews.status', 'pending')
-            ->groupBy('attempts.test_id')
-            ->selectRaw('attempts.test_id, count(*) as n')
-            ->pluck('n', 'test_id');
-        $last = Attempt::where('status', '!=', 'in_progress')
-            ->groupBy('test_id')
-            ->selectRaw('test_id, max(submitted_at) as last')
-            ->pluck('last', 'test_id');
-
-        return ['analyticsTests' => Test::where('course_id', CurrentUser::course()->id)->pluck('id', 'code')
-            ->map(fn ($id) => [
-                'pending' => (int) ($pending[$id] ?? 0),
-                'lastSubmitted' => isset($last[$id]) ? Carbon::parse($last[$id])->translatedFormat('j F, H:i') : null,
-                'lastTs' => isset($last[$id]) ? Carbon::parse($last[$id])->getTimestamp() : 0,
-            ])->all()];
+        return ['overview' => $this->analytics->forCourse(CurrentUser::course()->id)];
     }
 
     public function pipeline(?GenerationRun $run): array

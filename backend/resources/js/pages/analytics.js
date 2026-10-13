@@ -24,7 +24,11 @@
     sw.addEventListener('change', function () { location.href = 'analytics?test=' + encodeURIComponent(sw.value); });
   }
   A.$('#test-status').textContent = 'Тест · ' + test.statusLabel.toLowerCase();
-  A.$('#to-review').textContent = waiting ? 'Проверить ' + waiting + ' ' + A.plural(waiting, 'ответ', 'ответа', 'ответов') : 'Все ответы проверены';
+  // Кнопка проверки — только когда есть что проверять
+  if (waiting) {
+    A.$('#to-review').hidden = false;
+    A.$('#to-review').textContent = 'Проверить ' + waiting + ' ' + A.plural(waiting, 'ответ', 'ответа', 'ответов');
+  }
 
   A.$('#stats').innerHTML =
     '<div class="card stat"><div class="lbl">Сдали</div><div class="stat__value">' + D.submitted + ' <small>/ ' + D.total + '</small></div></div>' +
@@ -34,47 +38,67 @@
 
   // ---------- Студенты: лучшая попытка каждого, включая тех, кто не сдавал ----------
   var R = M.results || { students: [], counts: {} };
-  var stFilter = 'all';
+  var st = A.recall('analytics-students', { filter: 'all', sort: { key: 'name', dir: 'asc' } });
+  var stQuery = '';
   var ST = { final: ['Итог', 'green'], pending: ['Предварительно', 'amber'], in_progress: ['Проходит сейчас', 'blue'], none: ['Не сдавал', 'gray'] };
-  function num(v) { return v == null ? '—' : String(v).replace('.', ','); }
+  var ST_ORDER = { final: 0, pending: 1, in_progress: 2, none: 3 };
+  var num = function (v) { return v == null ? '—' : A.num(v); };
   A.$('#weight-line').innerHTML = R.weight != null
-    ? 'Тест стоит <b class="strong">' + num(R.weight) + '</b> баллов: баллы = процент лучшей попытки × ' + num(R.weight) + ' / 100.'
-    : 'Вес теста в баллах не задан — задайте его на странице <a href="tests">«Тесты»</a>, чтобы видеть баллы для Модеуса.';
-  if (R.weight == null) A.$('#points-head').textContent = 'Баллы';
-  function renderStudentFilters() {
-    var c = R.counts;
-    var opts = [['all', 'Все · ' + c.total], ['final', 'Итог · ' + c.final], ['pending', 'Предварительно · ' + c.pending], ['none', 'Не сдавали · ' + c.none]];
-    A.$('#st-filters').innerHTML = opts.map(function (o) {
-      return '<button type="button" class="btn btn--xs' + (stFilter === o[0] ? ' is-on' : '') + '" aria-pressed="' + (stFilter === o[0]) + '" data-sf="' + o[0] + '">' + o[1] + '</button>';
-    }).join('');
-  }
+    ? 'Тест стоит <b class="strong">' + num(R.weight) + '</b> ' + A.plural(Math.ceil(R.weight) === R.weight ? R.weight : 2, 'балл', 'балла', 'баллов') + ': баллы = процент лучшей попытки × ' + num(R.weight) + ' / 100.'
+    : 'Вес теста в баллах не задан — задайте его на странице <a href="tests">«Тесты»</a> (меню «⋯» у теста), чтобы видеть баллы для Модеуса.';
+  var GET = {
+    name: function (s) { return s.name; },
+    group: function (s) { return s.group; },
+    attempts: function (s) { return s.attempts || null; },
+    percent: function (s) { return s.percent; },
+    points: function (s) { return s.points != null ? s.points : s.percent; },
+    status: function (s) { return ST_ORDER[s.status]; },
+    submitted: function (s) { return s.submitted ? s.submitted.replace(/^(\d\d)\.(\d\d)\.(\d{4}) (.*)$/, '$3$2$1 $4') : null; }
+  };
   function renderStudents() {
-    var list = R.students.filter(function (s) {
-      return stFilter === 'all' || s.status === stFilter || (stFilter === 'none' && s.status === 'in_progress');
-    });
-    A.$('#students').innerHTML = list.map(function (s) {
-      var st = ST[s.status];
-      var link = s.attemptId ? '<a href="attempt?id=' + s.attemptId + '">Ответы</a>' : '';
-      return '<tr' + (s.attemptId ? ' class="is-clickable" data-attempt="' + s.attemptId + '"' : '') + '>' +
-        '<td><div class="strong">' + esc(s.name) + '</div><div class="muted xsmall">' + esc(s.email) + '</div></td>' +
-        '<td>' + esc(s.group || '—') + '</td>' +
-        '<td>' + (s.attempts || '—') + '</td>' +
-        '<td>' + (s.percent == null ? '<span class="muted">—</span>' : '<div class="pc"><div class="progress progress--md" style="max-width: 120px"><div class="' + (s.percent < 50 ? 'is-weak' : '') + '" style="width:' + s.percent + '%"></div></div><span>' + s.percent + '%</span></div><div class="muted xsmall">' + num(s.score) + ' из ' + num(s.max) + '</div>') + '</td>' +
-        '<td class="strong">' + (s.points != null ? num(s.points) + (R.weight != null ? ' <span class="muted xsmall">/ ' + num(R.weight) + '</span>' : '') : (s.percent != null && R.weight == null ? s.percent + '%' : '—')) + '</td>' +
-        '<td>' + A.chip(st[0], st[1]) + '</td>' +
-        '<td class="small">' + esc(s.submitted || '') + '</td>' +
-        '<td class="right">' + link + '</td></tr>';
+    A.remember('analytics-students', st);
+    var c = R.counts;
+    A.$('#st-filters').innerHTML = A.filterTabs([['all', 'Все', c.total], ['final', 'Итог', c.final], ['pending', 'Предварительно', c.pending], ['none', 'Не сдавали', c.none]], st.filter, 'Какие студенты');
+    var s = st.sort;
+    A.$('#st-head').innerHTML = '<tr>' + A.sortTh('name', 'Студент', s) + A.sortTh('group', 'Группа', s) + A.sortTh('attempts', 'Попыток', s, 'num-col') +
+      A.sortTh('percent', 'Лучший результат', s) + A.sortTh('points', R.weight != null ? 'Баллы в Модеус' : 'Баллы', s, 'num-col') + A.sortTh('status', 'Статус', s) +
+      A.sortTh('submitted', 'Сдан', s) + '<th><span class="sr-only">Ответы</span></th></tr>';
+    var q = stQuery.toLowerCase();
+    var list = A.sortBy(R.students.filter(function (x) {
+      return (st.filter === 'all' || x.status === st.filter || (st.filter === 'none' && x.status === 'in_progress')) &&
+        (!q || (x.name + ' ' + x.email + ' ' + (x.group || '')).toLowerCase().indexOf(q) >= 0);
+    }), GET[s.key] || GET.name, s.dir);
+    A.$('#students').innerHTML = list.map(function (x) {
+      var label = ST[x.status];
+      return '<tr' + (x.attemptId ? ' class="is-clickable" data-attempt="' + x.attemptId + '"' : '') + '>' +
+        '<td><div class="strong">' + esc(x.name) + '</div><div class="muted xsmall">' + esc(x.email) + '</div></td>' +
+        '<td class="small">' + esc(x.group || '—') + '</td>' +
+        '<td class="num-col">' + (x.attempts || '—') + '</td>' +
+        '<td>' + (x.percent == null ? '<span class="muted">—</span>' : '<div class="pc"><div class="progress progress--md" style="max-width: 120px"><div class="' + (x.percent < 50 ? 'is-weak' : '') + '" style="width:' + x.percent + '%"></div></div><span class="strong">' + x.percent + '%</span></div><div class="muted xsmall">' + num(x.score) + ' из ' + num(x.max) + '</div>') + '</td>' +
+        '<td class="num-col strong">' + (x.points != null ? num(x.points) + (R.weight != null ? ' <span class="muted xsmall" style="font-weight: 400">/ ' + num(R.weight) + '</span>' : '') : (x.percent != null && R.weight == null ? x.percent + '%' : '<span class="muted" style="font-weight: 400">—</span>')) + '</td>' +
+        '<td>' + A.chip(label[0], label[1]) + '</td>' +
+        '<td class="small">' + esc(x.submitted || '') + '</td>' +
+        '<td class="right">' + (x.attemptId ? '<a href="attempt?id=' + x.attemptId + '" class="btn btn--xs">Ответы</a>' : '') + '</td></tr>';
     }).join('') || '<tr><td colspan="8" class="empty">Никого в этом списке.</td></tr>';
   }
   A.$('#st-filters').addEventListener('click', function (e) {
-    var b = e.target.closest('[data-sf]');
-    if (b) { stFilter = b.getAttribute('data-sf'); renderStudentFilters(); renderStudents(); }
+    var b = e.target.closest('[data-filter]');
+    if (b) { st.filter = b.getAttribute('data-filter'); renderStudents(); }
   });
+  A.$('#st-head').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-sort]');
+    if (!b) return;
+    var key = b.getAttribute('data-sort');
+    st.sort = A.nextSort(st.sort, key, key === 'name' || key === 'group' || key === 'status' ? 'asc' : 'desc');
+    renderStudents();
+    var again = A.$('#st-head [data-sort="' + key + '"]');
+    if (again) again.focus();
+  });
+  A.$('#st-search').addEventListener('input', function (e) { stQuery = e.target.value.trim(); renderStudents(); });
   A.$('#students').addEventListener('click', function (e) {
     var tr = e.target.closest('[data-attempt]');
     if (tr && !e.target.closest('a')) location.href = 'attempt?id=' + tr.getAttribute('data-attempt');
   });
-  renderStudentFilters();
   renderStudents();
 
   var max = Math.max.apply(null, D.histogram) || 1;
@@ -96,11 +120,11 @@
 
   A.$('#problems').innerHTML = D.problems.map(function (p) {
     var weak = p.correct < 50;
-    return '<tr><td style="padding-right: 16px">' + p.id + ' ' + esc(p.text) + '</td><td>' + M.types[p.type] + '</td>' +
+    return '<tr><td style="min-width: 320px"><div class="clamp-2">' + esc(p.text) + '</div><div class="muted xsmall mono" style="margin-top: 2px">' + esc(p.id) + '</div></td><td class="small">' + esc(M.types[p.type]) + '</td>' +
       '<td><div class="pc"><div class="progress progress--md"><div class="' + (weak ? 'is-weak' : '') + '" style="width:' + p.correct + '%"></div></div><span>' + p.correct + '%</span></div></td>' +
       '<td>' + (p.signal ? A.chip(p.signal[0], p.signal[1]) : '<span class="muted">—</span>') + '</td>' +
-      '<td class="right"><a href="question?id=' + p.id + '">Открыть</a></td></tr>';
-  }).join('');
+      '<td class="right"><a href="question?id=' + encodeURIComponent(p.id) + '" class="btn btn--xs">Открыть</a></td></tr>';
+  }).join('') || '<tr><td colspan="5" class="empty">Появится, когда тест сдадут: здесь будет видно, на какие вопросы чаще отвечают неверно.</td></tr>';
 
   // Экспорт в CSV для Excel: строка на студента с баллами по каждому вопросу
   A.$('#export').addEventListener('click', function () {

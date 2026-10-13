@@ -104,6 +104,22 @@ class GradebookTest extends TestCase
         $this->assertTrue(Test::where('code', $code)->firstOrFail()->setting('shuffle', false));   // остальные настройки на месте
     }
 
+    public function test_course_analytics_overview_shows_topics_groups_and_tests_instead_of_a_test_list(): void
+    {
+        $this->takenTest();   // 1 из 2 верно
+        $this->makeTest('m2', [$this->singleQuestion('Q-3', 0, ['topic' => 'Другая тема'])], ['status' => 'draft']);
+
+        $o = $this->actingAs($this->teacher())->get('/teacher/analytics')->assertOk()->viewData('appData')['overview'];
+        $this->assertSame(50, $o['avg']);
+        $this->assertSame(1, $o['works']);
+        $this->assertSame(1, $o['students']);
+        $this->assertSame(['m1'], array_column($o['tests'], 'id'));                // черновики в аналитику не попадают
+        $this->assertSame(50, $o['tests'][0]['avg']);
+        $this->assertSame([['name' => \Database\Seeders\CourseSeeder::TOPICS[3], 'percent' => 50, 'answers' => 2]], $o['topics']);
+        $this->assertSame('Группа 1', $o['groups'][0]['name']);
+        $this->assertSame([], $o['problems']);                                     // меньше 5 ответов — выводов нет
+    }
+
     public function test_students_cannot_open_teacher_results(): void
     {
         $this->takenTest();

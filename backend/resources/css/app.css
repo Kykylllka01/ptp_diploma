@@ -494,6 +494,31 @@ mark.good { background: #DDF1E5; }
 .diff-bar { margin-top: 8px; display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--divider); }
 .diff-bar div { transition: width .2s; }
 
+/* Полосы аналитики курса: подпись · полоса · процент · пояснение (строка-ссылка — с шевроном) */
+.bars { display: flex; flex-direction: column; margin-top: 14px; }
+.bar-row { display: grid; grid-template-columns: minmax(150px, 1.2fr) minmax(90px, 2fr) 52px minmax(110px, auto) 18px; align-items: center; gap: 6px 14px; padding: 11px 0; border-top: 1px solid var(--divider); color: var(--text); text-decoration: none; font-size: 15px; }
+.bar-row:first-child { border-top: none; }
+.bars:not(.bars--tests) .bar-row { grid-template-columns: minmax(120px, 1.2fr) minmax(80px, 2fr) 48px minmax(80px, auto); }
+.bar-row--link { margin: 0 -12px; padding-left: 12px; padding-right: 12px; border-radius: 10px; }
+.bar-row--link:hover { background: var(--blue-soft); color: var(--text); }
+.bar-row--link:hover + .bar-row--link, .bar-row--link:hover { border-top-color: transparent; }
+.bar-row--link:focus-visible { outline: 2px solid var(--tsu-blue); outline-offset: -2px; }
+.bar-row--link > svg { color: #B9BFCB; transition: transform .12s, color .12s; }
+.bar-row--link:hover > svg { color: var(--tsu-blue); transform: translateX(2px); }
+.bar-row__label { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; overflow-wrap: anywhere; }
+.bar-row__track { height: 8px; border-radius: 4px; background: var(--divider); overflow: hidden; }
+.bar-row__fill { display: block; height: 100%; border-radius: 4px; background: var(--tsu-blue); }
+.bar-row__fill.is-weak { background: var(--orange); }
+.bar-row__value { font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.bar-row__side { color: var(--muted); font-size: 13px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.45; }
+@media (max-width: 640px) {
+  .bar-row, .bars:not(.bars--tests) .bar-row { grid-template-columns: 1fr 52px; }
+  .bar-row__label { grid-column: 1 / -1; }
+  .bar-row__side { grid-column: 1 / -1; }
+  .bar-row--link > svg { display: none; }
+}
+
 /* ---------- Проверка открытых ответов ---------- */
 .q-item { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: none; border-top: 1px solid var(--divider); background: none; text-align: left; color: var(--text); font: 14px var(--font); width: 100%; cursor: pointer; }
 .q-item:hover { background: var(--surface-3); }
