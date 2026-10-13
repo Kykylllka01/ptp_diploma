@@ -61,11 +61,9 @@
     });
   });
 
-  A.$('#done').innerHTML = M.studentDone.map(function (d) {
-    return '<a href="result?attempt=' + d.attemptId + '" class="done-row"><div style="flex: 1; min-width: 220px"><div class="strong">' + esc(d.title) + '</div>' +
-      '<div class="muted small" style="margin-top: 2px">' + esc(d.meta) + '</div></div>' + A.chip(d.status[0], d.status[1]) +
-      '<span class="done-row__score">' + esc(d.score) + '</span></a>';
-  }).join('') || '<div class="empty">Пока ничего не сдано</div>';
+  // Здесь — три последние сдачи; все — на странице «Результаты»
+  A.$('#done').innerHTML = A.doneRows(M.studentDone.slice(0, 3)) || '<div class="empty">Пока ничего не сдано</div>';
+  A.$('#all-results').hidden = M.studentDone.length <= 3;
 
   // Тренировка: блок виден, только если преподаватель создал тренировочный тест
   var trainings = M.tests.filter(function (t) { return t.status === 'training'; });

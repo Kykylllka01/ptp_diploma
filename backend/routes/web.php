@@ -45,6 +45,7 @@ Route::middleware('auth')->group(function () {
         Route::get('tests', 'tests')->name('tests');
         Route::get('test', 'test')->name('test');
         Route::get('result', 'result')->name('result');
+        Route::get('results', 'results')->name('results');
     });
 
     // Личный кабинет — для обеих ролей

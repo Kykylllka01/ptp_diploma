@@ -113,6 +113,9 @@ class FrontendData
                 'meta' => ($a->test->status === 'training' ? 'Тренировка · ' : 'Сдан ').$a->submitted_at?->translatedFormat('j F'),
                 'status' => $a->test->status === 'training' ? ['Без оценки', 'gray'] : ($a->status === 'confirmed' ? ['Итог подтверждён', 'green'] : ['Предварительно', 'amber']),
                 'score' => $a->test->status === 'training' ? $this->num($a->score).'/'.$this->num($a->max_score) : $a->percent.'%',
+                // Для сводки на странице «Результаты»: тренировки в средний процент не идут
+                'percent' => (int) $a->percent,
+                'graded' => $a->test->status !== 'training',
             ])->all();
 
         return $this->base() + [

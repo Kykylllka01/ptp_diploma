@@ -1,7 +1,7 @@
 @php
     $nav = [
         'tests' => ['Мои тесты', route('student.tests')],
-        'results' => ['Результаты', route('student.tests').'#results'],
+        'results' => ['Результаты', route('student.results')],
     ];
     $student = $appData['student'];
 @endphp

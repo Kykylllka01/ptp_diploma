@@ -28,8 +28,8 @@
     <a href="#" class="btn btn--white" id="train-start">Начать тренировку</a>
   </section>
 
-  <section class="stack" style="gap: 14px; scroll-margin-top: 24px" id="results">
-    <h2 class="card-title">Пройдено</h2>
+  <section class="stack" style="gap: 14px">
+    <div class="between"><h2 class="card-title">Недавно сданные</h2><a href="{{ route('student.results') }}" id="all-results" hidden>Все результаты →</a></div>
     <div class="card card--clip" id="done"></div>
   </section>
 </main>

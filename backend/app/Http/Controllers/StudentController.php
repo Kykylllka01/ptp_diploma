@@ -80,6 +80,17 @@ class StudentController extends Controller
         ]);
     }
 
+    /** Все сданные попытки студента — пункт меню «Результаты». */
+    public function results()
+    {
+        $this->attempts->finalizeOverdue(null, CurrentUser::student());
+
+        return view('student.results', [
+            'title' => 'Результаты', 'active' => 'results', 'script' => 'student-results',
+            'appData' => $this->data->student(),
+        ]);
+    }
+
     /** Результат: ?attempt=ID, без параметра — последняя сданная попытка. */
     public function result(Request $request)
     {
