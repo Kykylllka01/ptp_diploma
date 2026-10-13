@@ -33,7 +33,7 @@
         '<div><h2 class="card-title card-title--sm">' + esc(g.name) + '</h2>' +
         '<div class="muted small" style="margin-top: 4px">' + n + ' ' + A.plural(n, 'студент', 'студента', 'студентов') +
           (g.tests ? ' · ' + g.tests + ' ' + A.plural(g.tests, 'тест', 'теста', 'тестов') : '') + '</div></div>' +
-        A.chip(g.open ? 'Приём по ссылке открыт' : 'Приём закрыт', g.open ? 'green' : 'gray') +
+        A.chip(g.open ? 'Регистрация открыта' : 'Регистрация закрыта', g.open ? 'green' : 'gray') +
       '</div>' +
       '<div class="invite' + (g.open ? '' : ' is-off') + '">' +
         '<label class="lbl" for="inv-' + g.id + '">Ссылка для регистрации</label>' +
@@ -42,7 +42,7 @@
         '<div class="muted xsmall">Код для ввода вручную: <span class="mono strong">' + esc(g.code) + '</span></div>' +
       '</div>' +
       '<div class="row-wrap" style="gap: 8px">' +
-        '<button type="button" class="btn btn--xs" data-toggle="' + g.id + '">' + (g.open ? 'Закрыть приём' : 'Открыть приём') + '</button>' +
+        '<button type="button" class="btn btn--xs" data-toggle="' + g.id + '">' + (g.open ? 'Закрыть регистрацию' : 'Открыть регистрацию') + '</button>' +
         '<button type="button" class="btn btn--xs" data-regen="' + g.id + '">Новая ссылка</button>' +
         '<button type="button" class="btn btn--xs" data-rename="' + g.id + '">Переименовать</button>' +
         '<button type="button" class="btn btn--xs" data-del="' + g.id + '" data-why="' + esc(canDelete ? '' : why) + '"' + (canDelete ? '' : ' aria-disabled="true"') + '>Удалить</button>' +
@@ -103,7 +103,7 @@
     } else if (b.hasAttribute('data-toggle')) {
       A.api('PATCH', 'groups/' + id, { invite_open: !g.open }).then(function (fresh) {
         replace(fresh);
-        A.toast(fresh.open ? 'Приём по ссылке открыт' : 'Приём закрыт: по ссылке больше не зарегистрироваться');
+        A.toast(fresh.open ? 'Регистрация по ссылке открыта' : 'Регистрация закрыта: по ссылке больше не зарегистрироваться');
       });
     } else if (b.hasAttribute('data-regen')) {
       A.confirm({ title: 'Выпустить новую ссылку?', text: 'Старая ссылка группы «' + g.name + '» перестанет работать. Уже зарегистрированные студенты останутся в группе.', ok: 'Выпустить' }).then(function (yes) {

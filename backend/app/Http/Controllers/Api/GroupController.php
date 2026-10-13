@@ -63,7 +63,7 @@ class GroupController extends Controller
             return response()->json(['message' => 'В группе есть студенты — сначала переведите их в другую группу'], 409);
         }
         if ($group->tests()->exists()) {
-            return response()->json(['message' => 'Группе назначены тесты — удалить её нельзя. Закройте приём по ссылке'], 409);
+            return response()->json(['message' => 'Группе назначены тесты — удалить её нельзя. Закройте регистрацию по ссылке'], 409);
         }
         $group->delete();
 
