@@ -30,13 +30,16 @@ class QueueWorker
         if (! DB::table('jobs')->whereNull('reserved_at')->where('available_at', '<=', now()->getTimestamp())->exists()) {
             return;
         }
-        // Занятые обработчики (по взятым задачам) плюс только что запущенные, ещё не взявшие задачу
-        $busy = DB::table('jobs')->whereNotNull('reserved_at')->count();
-        $starting = (int) Cache::get('queue-worker-starting', 0);
-        if ($busy + $starting >= (int) config('agents.queue_max_workers', 3)) {
+        // Занятые обработчики — по взятым задачам; задача упавшего обработчика (взята давно,
+        // дольше самой долгой задачи) место не занимает. Плюс запущенные за последние 15 с, ещё без задачи.
+        $busy = DB::table('jobs')->whereNotNull('reserved_at')
+            ->where('reserved_at', '>', now()->subSeconds(1860)->getTimestamp())->count();
+        $now = now()->getTimestamp();
+        $started = array_values(array_filter((array) Cache::get('queue-worker-started', []), fn ($t) => $now - $t < 15));
+        if ($busy + count($started) >= (int) config('agents.queue_max_workers', 3)) {
             return;
         }
-        Cache::put('queue-worker-starting', $starting + 1, 20);
+        Cache::put('queue-worker-started', [...$started, $now], 60);
 
         $cmd = '"'.$php.'" "'.base_path('artisan').'" queue:work --stop-when-empty --tries=1 --timeout=1800';
         try {

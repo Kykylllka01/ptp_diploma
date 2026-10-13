@@ -38,7 +38,8 @@ class PilotCheck extends Command
                 ->diff(DB::table('migrations')->pluck('migration'));
             $this->check('Миграции', $pending->isEmpty(), 'не применены: '.$pending->implode(', ').' — php artisan migrate --force');
         } catch (Throwable $e) {
-            $this->check('База данных', false, 'нет соединения: '.$e->getMessage());
+            report($e);
+            $this->check('База данных', false, 'нет соединения (подробности — в журнале storage/logs)');
         }
 
         $this->check('Очередь', config('queue.default') === 'database', 'QUEUE_CONNECTION='.config('queue.default').': для оценки развёрнутых ответов в фоне нужен database');

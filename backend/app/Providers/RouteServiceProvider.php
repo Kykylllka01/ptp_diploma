@@ -19,6 +19,14 @@ class RouteServiceProvider extends ServiceProvider
      */
     public const HOME = '/';
 
+    /** Почта из формы для ключа лимита; массив вместо строки (email[]=…) — пусто, разберётся валидация. */
+    private static function email(Request $request): string
+    {
+        $email = $request->input('email');
+
+        return is_string($email) ? mb_strtolower(trim($email)) : '';
+    }
+
     /**
      * Define your route model bindings, pattern filters, and other route configuration.
      */
@@ -34,12 +42,12 @@ class RouteServiceProvider extends ServiceProvider
         });
         // Вход: подбор пароля к одной почте ограничен жёстко, а сам IP — с запасом на всю аудиторию
         RateLimiter::for('login', fn (Request $request) => [
-            Limit::perMinute(10)->by('login:'.mb_strtolower((string) $request->input('email')).'|'.$request->ip()),
+            Limit::perMinute(10)->by('login:'.self::email($request).'|'.$request->ip()),
             Limit::perMinute(600)->by('login-ip:'.$request->ip()),
         ]);
         // Регистрация по приглашению: группа регистрируется разом с одного IP
         RateLimiter::for('join', fn (Request $request) => [
-            Limit::perMinute(10)->by('join:'.mb_strtolower((string) $request->input('email')).'|'.$request->ip()),
+            Limit::perMinute(10)->by('join:'.self::email($request).'|'.$request->ip()),
             Limit::perMinute(400)->by('join-ip:'.$request->ip()),
         ]);
 

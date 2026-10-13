@@ -70,6 +70,8 @@ class PilotLoadTest extends TestCase
             $this->post('/login', ['email' => $s->email, 'password' => 'wrong'])->assertSessionHasErrors('email');
         }
         $this->post('/login', ['email' => $s->email, 'password' => 'wrong'])->assertStatus(429);
+        // Почта массивом — ошибка проверки формы, а не 500
+        $this->post('/login', ['email' => ['x@utmn.local'], 'password' => 'wrong'])->assertSessionHasErrors('email');
         // Соседу по Wi-Fi чужой подбор пароля не мешает
         $this->post('/login', ['email' => 's2-0@utmn.local', 'password' => 'secret123'])->assertRedirect(route('home'));
         $this->assertAuthenticated();
