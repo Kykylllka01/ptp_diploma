@@ -10,8 +10,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Test extends Model
 {
+    use Concerns\HasAuthor;
+
     protected $fillable = [
-        'code', 'course_id', 'title', 'status', 'mode', 'audience', 'minutes', 'attempts_allowed',
+        'code', 'course_id', 'user_id', 'title', 'status', 'mode', 'audience', 'minutes', 'attempts_allowed',
         'graded', 'opens_at', 'deadline_at', 'about', 'settings',
     ];
 

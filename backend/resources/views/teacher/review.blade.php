@@ -18,6 +18,7 @@
   <div class="split">
     <aside class="card card--clip split__nav">
       <div style="padding: 14px 16px 10px" class="strong">Очередь</div>
+      <div style="padding: 0 12px 8px" id="owner"></div>
       <div style="padding: 0 12px 12px" id="queue-filters"></div>
       <div id="queue"></div>
     </aside>

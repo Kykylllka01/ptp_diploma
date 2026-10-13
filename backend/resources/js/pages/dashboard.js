@@ -2,15 +2,21 @@
 (function () {
   var A = window.App, M = A.M, esc = A.esc;
 
-  var qs = A.questions();
+  // Несколько преподавателей: на обзоре — только своё (всё общее — на страницах «Материалы», «Банк», «Тесты»)
+  var several = (M.teacherCount || 1) > 1;
+  function own(list) { return several ? list.filter(function (x) { return x.mine !== false; }) : list; }
+  var qs = own(A.questions());
+  var materials = own(M.materials), tests = own(M.tests);
+  var SHOWN = 6;
+  if (several) A.$('#materials-title').textContent = 'Мои материалы';
   var pending = qs.filter(function (q) { return q.status === 'pending'; });
-  var openToReview = A.reviews().filter(function (r) { return r.status === 'pending'; }).length;
-  var running = M.tests.filter(function (t) { return t.status === 'running' || t.status === 'training'; }).length;
+  var openToReview = own(A.reviews()).filter(function (r) { return r.status === 'pending'; }).length;
+  var running = tests.filter(function (t) { return t.status === 'running' || t.status === 'training'; }).length;
 
   A.$('#btn-upload').insertAdjacentHTML('afterbegin', A.icons.upload);
   A.$('#btn-build').insertAdjacentHTML('afterbegin', A.icons.plus);
   A.$('#teacher-name').textContent = M.teacher.firstName;
-  var lastMaterial = M.materials.filter(function (m) { return qs.some(function (q) { return q.materialId === m.id && q.status === 'pending'; }); })[0];
+  var lastMaterial = materials.filter(function (m) { return qs.some(function (q) { return q.materialId === m.id && q.status === 'pending'; }); })[0];
   A.$('#greeting-sub').textContent = pending.length
     ? (lastMaterial ? 'Агенты разобрали «' + lastMaterial.title + '»: ' : 'Агенты подготовили вопросы: ') + pending.length + ' ' +
       A.plural(pending.length, 'новый вопрос ждёт', 'новых вопроса ждут', 'новых вопросов ждут') + ' вашей проверки.'
@@ -18,12 +24,17 @@
     : 'Банк вопросов пуст. Загрузите лекцию, и агенты составят по ней вопросы.';
 
   A.$('#stats').innerHTML =
-    '<div class="card stat"><div class="lbl">Вопросов в банке</div><div class="stat__value">' + qs.length + '</div><div class="stat__hint">' + (M.materials.length ? 'по ' + M.materials.length + ' ' + A.plural(M.materials.length, 'материалу', 'материалам', 'материалам') : 'материалов пока нет') + '</div></div>' +
+    '<div class="card stat"><div class="lbl">Вопросов в банке</div><div class="stat__value">' + qs.length + '</div><div class="stat__hint">' + (materials.length ? 'по ' + materials.length + ' ' + A.plural(materials.length, 'материалу', 'материалам', 'материалам') : 'материалов пока нет') + '</div></div>' +
     '<a href="bank" class="card stat' + (pending.length ? ' card--warn' : '') + '"><div class="lbl">Ждут одобрения</div><div class="stat__value">' + pending.length + '</div><div class="stat__hint">Открыть очередь →</div></a>' +
     '<div class="card stat"><div class="lbl">Активных тестов</div><div class="stat__value">' + running + '</div><div class="stat__hint">' + (M.participants ? M.participants + ' ' + A.plural(M.participants, 'участник', 'участника', 'участников') : 'участников пока нет') + '</div></div>' +
     '<a href="review" class="card stat"><div class="lbl">Развёрнутые ответы</div><div class="stat__value">' + openToReview + '</div><div class="stat__hint">агент оценил, нужна ваша подпись</div></a>';
 
-  A.$('#materials').innerHTML = M.materials.map(function (m) {
+  // Последние материалы; все — на странице «Материалы» с поиском и фильтрами
+  if (materials.length > SHOWN) {
+    A.$('#all-materials').hidden = false;
+    A.$('#all-materials').textContent = 'Все материалы (' + materials.length + ') →';
+  }
+  A.$('#materials').innerHTML = materials.slice(0, SHOWN).map(function (m) {
     var mine = qs.filter(function (q) { return q.materialId === m.id; });
     var p = mine.filter(function (q) { return q.status === 'pending'; }).length;
     // Статус материала, а не только вопросов: в обработке, ошибка, без вопросов
@@ -129,7 +140,7 @@
 
   // На «Обзоре» — пять самых свежих тестов, весь список на странице «Тесты»
   var tone = { running: 'blue', training: 'blue', draft: 'gray' };
-  var recent = M.tests.slice().reverse().slice(0, 5);
+  var recent = tests.slice().reverse().slice(0, 5);
   A.$('#tests').innerHTML = recent.map(function (t) {
     var link = t.submitted
       ? '<a href="analytics?test=' + encodeURIComponent(t.id) + '" class="btn btn--xs">Результаты</a>'
@@ -137,5 +148,5 @@
     return '<tr><td><span class="table__title">' + esc(t.title) + '</span></td><td class="num-col" data-label="Вопросов">' + t.count + '</td><td data-label="Статус">' + A.chip(t.statusLabel, tone[t.status]) +
       '</td><td data-label="Сдали">' + t.passed + '</td><td class="num-col" data-label="Средний балл">' + t.avg + '</td><td class="right td-actions">' + link + '</td></tr>';
   }).join('') || '<tr><td colspan="6" class="empty">Тестов пока нет. <a href="test-builder">Соберите первый</a>, когда в банке появятся одобренные вопросы.</td></tr>';
-  if (M.tests.length > recent.length) A.$('#all-tests').textContent = 'Все тесты (' + M.tests.length + ')';
+  if (tests.length > recent.length) A.$('#all-tests').textContent = 'Все тесты (' + tests.length + ')';
 })();

@@ -7,11 +7,16 @@
   var f = { status: A.param('status') || 'pending', types: [], diff: [], topics: [], source: A.param('source') || '', q: '', sort: 'flag', limit: PAGE };
   var selected = {};
 
+  // Несколько преподавателей: банк общий, по умолчанию — свои вопросы; чужие можно взять в свой тест
+  var own = A.owner('bank', function () { f.limit = PAGE; selected = {}; renderAll(); });
+  // Вопросы конкретного материала (ссылка из «Материалов») — все, чьи бы они ни были
+  function pool() { return f.source ? A.questions() : A.questions().filter(own.match); }
+
   var TABS = [['all', 'Все'], ['pending', 'Ждут одобрения'], ['approved', 'Одобрены'], ['rejected', 'Отклонены']];
 
   function filtered(ignoreStatus) {
     var q = f.q.trim().toLowerCase();
-    var list = A.questions().filter(function (x) {
+    var list = pool().filter(function (x) {
       return (ignoreStatus || f.status === 'all' || x.status === f.status) &&
         (!f.types.length || f.types.indexOf(x.type) >= 0) &&
         (!f.diff.length || f.diff.indexOf(x.difficulty) >= 0) &&
@@ -32,7 +37,8 @@
   }
 
   function renderTabs() {
-    var all = A.questions();
+    var all = pool();
+    A.$('#owner').innerHTML = own.html(A.questions());
     A.$('#tabs').innerHTML = TABS.map(function (t) {
       var n = t[0] === 'all' ? all.length : all.filter(function (q) { return q.status === t[0]; }).length;
       var badge = t[0] === 'pending' && n ? '<span class="chip chip--amber chip--sm">' + n + '</span>' : '<span class="muted">' + n + '</span>';
@@ -41,7 +47,7 @@
   }
 
   function renderFilters() {
-    var all = A.questions();
+    var all = pool();
     A.$('#f-types').innerHTML = Object.keys(M.types).map(function (k) {
       var n = all.filter(function (q) { return q.type === k; }).length;
       return '<label class="ck"><input type="checkbox" data-type="' + k + '"' + (f.types.indexOf(k) >= 0 ? ' checked' : '') + '>' + M.types[k] + ' <span class="ck__count">' + n + '</span></label>';
@@ -91,7 +97,7 @@
           '<a class="q-row__text" href="question?id=' + q.id + '">' + esc(q.text) + '</a>' +
           (q.flag && q.status === 'pending' ? '<div class="q-row__flag q-row__flag--' + esc(q.flag.level) + '">' + A.icons.flag + '<span>' + esc(q.flag.text) + '</span></div>' : '') +
           '<div class="row-wrap" style="margin-top: 10px">' + criticBadge(q) + A.chip(M.types[q.type]) + A.chip(M.difficulties[q.difficulty]) + A.chip(q.topic) +
-          '<span class="muted xsmall">' + esc(q.source) + '</span></div>' +
+          '<span class="muted xsmall">' + esc([own.by(q), q.source].filter(Boolean).join(' · ')) + '</span></div>' +
         '</div>' +
         '<div class="q-row__side">' + statusChip(q) + '<div class="q-row__id">' + q.id + '</div></div>' +
       '</div>';
@@ -107,7 +113,8 @@
   }
 
   function emptyText() {
-    var all = A.questions();
+    var all = pool();
+    if (!all.length && A.questions().length) return 'Своих вопросов у вас пока нет. <button type="button" class="link-btn" data-owner="all">Показать вопросы всех преподавателей</button>';
     if (!all.length) return 'Банк пуст. <a href="upload">Загрузите лекцию</a> — агенты составят по ней вопросы.';
     var filtersOn = f.types.length || f.diff.length || f.topics.length || f.source || f.q.trim();
     if (filtersOn) return 'Под фильтры ничего не подходит. <button type="button" class="link-btn" data-reset>Сбросить фильтры</button>';

@@ -20,6 +20,7 @@
   <section class="card card--pad">
     <div class="toolbar">
       <label class="search"><span class="sr-only">Поиск по названию</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5A6070" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="search" placeholder="Найти тест по названию" autocomplete="off"></label>
+      <div id="owner"></div>
       <div id="filters"></div>
       <div class="toolbar__end"><select class="select select--sm" id="group-filter" aria-label="Группа" style="width: auto" hidden></select></div>
     </div>

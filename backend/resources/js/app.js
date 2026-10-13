@@ -556,7 +556,7 @@
 
   /* keepFocus(render): перерисовать часть страницы, не выбросив фокус клавиатуры в начало страницы.
      Элемент в фокусе узнаётся по data-атрибуту (data-sort, data-filter, …) или id и после перерисовки получает фокус снова. */
-  var FOCUS_KEYS = ['data-sort', 'data-filter', 'data-tab', 'data-diff', 'data-done', 'data-copy', 'data-select', 'data-go', 'id'];
+  var FOCUS_KEYS = ['data-sort', 'data-filter', 'data-tab', 'data-diff', 'data-done', 'data-copy', 'data-select', 'data-go', 'data-owner', 'id'];
   function keepFocus(render) {
     var el = document.activeElement, sel = null;
     if (el && el !== document.body && window.CSS && CSS.escape) {
@@ -621,6 +621,37 @@
         esc(o[1]) + (o[2] != null ? '<span class="ftabs__n">' + o[2] + '</span>' : '') + '</button>';
     }).join('') + '</div>';
   }
+  /* ---------- Несколько преподавателей: «Мои / Все преподаватели» ----------
+     Курс общий, но по умолчанию каждый видит своё. Один преподаватель — переключателя нет, видно всё.
+     owner('tests', render): .match(запись) для фильтра, .html(записи) — сам переключатель (вставить в
+     элемент [data-owner-box]), .by(запись) — фамилия автора чужой записи. Выбор помнится для страницы. */
+  function owner(key, onChange) {
+    var multi = (M.teacherCount || 1) > 1;
+    var value = multi ? recall('owner.' + key, 'mine') : 'all';
+    if (value !== 'mine' && value !== 'all') value = 'mine';
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-owner]');
+      if (!b || b.getAttribute('data-owner') === value) return;
+      value = b.getAttribute('data-owner');
+      remember('owner.' + key, value);
+      keepFocus(onChange);
+    });
+    return {
+      multi: multi,
+      value: function () { return value; },
+      match: function (item) { return value === 'all' || !!item.mine; },
+      html: function (items) {
+        if (!multi) return '';
+        var mine = items.filter(function (x) { return x.mine; }).length;
+        return '<div class="ftabs" role="group" aria-label="Чьи записи показать">' + [['mine', 'Мои', mine], ['all', 'Все преподаватели', items.length]].map(function (o) {
+          return '<button type="button" class="ftabs__btn' + (o[0] === value ? ' is-on' : '') + '" aria-pressed="' + (o[0] === value) + '" data-owner="' + o[0] + '">' +
+            o[1] + '<span class="ftabs__n">' + o[2] + '</span></button>';
+        }).join('') + '</div>';
+      },
+      by: function (item) { return multi && !item.mine && item.author ? item.author : ''; }
+    };
+  }
+
   // Запомнить выбор на странице (сортировку, фильтр) — только в этом браузере; без хранилища всё работает
   function recall(key, fallback) {
     try { var v = JSON.parse(localStorage.getItem('ptp:' + key)); return v == null ? fallback : v; } catch (e) { return fallback; }
@@ -680,6 +711,6 @@
     questions: questions, saveQuestion: saveQuestion, reviews: reviews, saveReview: saveReview,
     ask: ask, choose: choose, form: form, confirm: confirmBox, keepFocus: keepFocus, menu: menu, closeMenu: closeMenu,
     sortBy: sortBy, sortTh: sortTh, nextSort: nextSort, filterTabs: filterTabs, recall: recall, remember: remember,
-    fileIcon: fileIcon, num: num, copyText: copyText, doneRows: doneRows
+    fileIcon: fileIcon, num: num, copyText: copyText, doneRows: doneRows, owner: owner
   };
 })();

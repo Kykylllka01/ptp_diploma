@@ -81,6 +81,7 @@ class TestController extends Controller
             $test = Test::create([
                 'code' => 't'.Str::lower(Str::random(6)),
                 'course_id' => $course->id,
+                'user_id' => CurrentUser::teacher()->id,
                 'title' => $data['title'],
                 'status' => $data['mode'] === 'manual' ? 'draft' : (! empty($data['training']) ? 'training' : (! empty($data['publish']) ? 'running' : 'draft')),
                 'mode' => $data['mode'],
@@ -193,6 +194,9 @@ class TestController extends Controller
     /** Удалить тест вместе с попытками студентов. */
     public function destroy(Test $test)
     {
+        if (! $test->isOwnedBy(CurrentUser::teacher())) {
+            abort(403, 'Удалить тест может только его автор: '.$test->author?->name);
+        }
         $test->delete();
 
         return response()->noContent();

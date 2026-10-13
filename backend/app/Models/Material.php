@@ -8,10 +8,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Material extends Model
 {
+    use Concerns\HasAuthor;
+
     public const KINDS = ['PDF', 'DOCX', 'PPTX', 'TXT', 'MP4', 'URL'];
 
     protected $fillable = [
-        'course_id', 'title', 'kind', 'meta', 'file_path', 'url', 'size_bytes',
+        'course_id', 'user_id', 'title', 'kind', 'meta', 'file_path', 'url', 'size_bytes',
         'has_text', 'extracted_text', 'status',
     ];
 

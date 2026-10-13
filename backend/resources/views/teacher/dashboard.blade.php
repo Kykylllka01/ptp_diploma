@@ -23,10 +23,11 @@
   <div class="split">
     <section class="card card--pad split__main" style="gap: 0">
       <div class="between">
-        <h2 class="card-title">Материалы курса</h2>
+        <h2 class="card-title" id="materials-title">Материалы курса</h2>
         <a href="upload" class="small" style="font-weight: 500">Добавить</a>
       </div>
       <div style="margin-top: 16px" id="materials"></div>
+      <a href="upload#library-card" class="small" style="font-weight: 500; margin-top: 12px" id="all-materials" hidden></a>
     </section>
 
     <dialog class="modal" id="material-modal" aria-labelledby="mm-title">

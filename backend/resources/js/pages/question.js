@@ -5,8 +5,12 @@
   var CHOICE = ['single', 'multiple', 'tf'];
 
   var all = A.questions();
+  // Очередь «на одобрение» — в том же охвате, что выбран в банке («Мои» или «Все преподаватели»):
+  // «Одобрить и далее» не должно уводить к чужим вопросам
+  var scope = (M.teacherCount || 1) > 1 ? A.recall('owner.bank', 'mine') : 'all';
+  function inQueue(x) { return x.status === 'pending' && (scope === 'all' || x.mine !== false); }
   var q = all.filter(function (x) { return x.id === A.param('id'); })[0] ||
-          all.filter(function (x) { return x.status === 'pending'; })[0] || all[0];
+          all.filter(inQueue)[0] || all[0];
   if (!q) {
     A.$('main').innerHTML = '<section class="card card--pad empty">Вопросов пока нет. <a href="upload">Загрузите материал</a> — агенты составят вопросы для банка.</section>';
     return;
@@ -17,7 +21,7 @@
   draft.options = draft.options || [];
   var history = (draft.history || [['—', 'Вопрос из банка']]).slice();
 
-  var pending = all.filter(function (x) { return x.status === 'pending'; });
+  var pending = all.filter(inQueue);
   var idx = pending.map(function (x) { return x.id; }).indexOf(q.id);
 
   function fillSelect(el, dict, val) {
@@ -29,7 +33,7 @@
   function renderHead() {
     A.$('#pos').textContent = q.id + (idx >= 0 ? ' · ' + (idx + 1) + ' из ' + pending.length : '');
     var st = { pending: ['Ждёт одобрения', 'amber'], approved: ['Одобрен', 'green'], rejected: ['Отклонён', 'red'] }[draft.status];
-    A.$('#status-chip').innerHTML = A.chip(st[0], st[1]);
+    A.$('#status-chip').innerHTML = A.chip(st[0], st[1]) + (q.mine === false && q.author ? ' ' + A.chip('Автор: ' + q.author) : '');
     // Одобренный вопрос правят и просто сохраняют; «далее» — только в очереди на проверку
     A.$('#approve').hidden = draft.status === 'approved';
     A.$('#approve').textContent = draft.status === 'pending' ? 'Одобрить и далее' : 'Одобрить';
@@ -168,7 +172,7 @@
   }
 
   function goNext() {
-    var next = A.questions().filter(function (x) { return x.status === 'pending' && x.id !== q.id; })[0];
+    var next = A.questions().filter(function (x) { return inQueue(x) && x.id !== q.id; })[0];
     location.href = next ? 'question?id=' + next.id : 'bank?status=approved';
   }
 
@@ -341,7 +345,8 @@
   A.$('#form').addEventListener('submit', function (e) { e.preventDefault(); });
 
   // Удалить можно вопрос, который ещё нигде не использован (например, добавленный вручную по ошибке)
-  A.$('#approve').insertAdjacentHTML('afterend', A.menu('Ещё действия с вопросом', [{ label: 'Удалить вопрос', attrs: 'data-delete-q', danger: true }]));
+  // Удаляет только автор вопроса; чужой вопрос можно отредактировать или отклонить
+  if (q.mine !== false) A.$('#approve').insertAdjacentHTML('afterend', A.menu('Ещё действия с вопросом', [{ label: 'Удалить вопрос', attrs: 'data-delete-q', danger: true }]));
   document.addEventListener('click', function (e) {
     if (!e.target.closest('[data-delete-q]')) return;
     A.confirm({ title: 'Удалить вопрос ' + q.id + '?', text: 'Вопрос исчезнет из банка. Если он уже есть в тесте или на него отвечали студенты, удалить не получится — тогда отклоните его.', ok: 'Удалить', danger: true })

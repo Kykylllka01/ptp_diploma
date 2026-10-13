@@ -355,6 +355,7 @@ class GenerationPipeline
         $q = new Question(array_merge($draft, [
             'code' => Question::nextCode(),
             'course_id' => $run->course_id,
+            'user_id' => $run->user_id,
             'material_id' => $m->id,
             'generation_run_id' => $run->id,
             'status' => 'pending',

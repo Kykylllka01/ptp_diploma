@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Question extends Model
 {
+    use Concerns\HasAuthor;
+
     public const TYPES = [
         'single' => 'Один верный',
         'multiple' => 'Несколько верных',
@@ -23,7 +25,7 @@ class Question extends Model
     public const CHOICE_TYPES = ['single', 'multiple', 'tf'];
 
     protected $fillable = [
-        'code', 'course_id', 'material_id', 'generation_run_id', 'type', 'difficulty', 'topic', 'source',
+        'code', 'course_id', 'user_id', 'material_id', 'generation_run_id', 'type', 'difficulty', 'topic', 'source',
         'points', 'status', 'flag_text', 'flag_level', 'text', 'context', 'options', 'explanation', 'reference',
         'criteria', 'sql_schema', 'tags', 'critic', 'fix_applied', 'quote', 'history',
     ];
