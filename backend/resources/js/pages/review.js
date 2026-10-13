@@ -5,8 +5,10 @@
   // Фильтры очереди: тест (?test=код), одна попытка (?attempt=id) и что показывать
   var f = { test: A.param('test') || '', attempt: A.param('attempt') ? +A.param('attempt') : 0, show: 'pending' };
 
+  // Несколько преподавателей: по умолчанию ответы на свои тесты; ссылка на конкретный тест или попытку — без этого фильтра
+  var own = A.owner('review', function () { renderQueue(); });
   function all() { return A.reviews(); }
-  function inScope(r) { return (!f.test || r.test === f.test) && (!f.attempt || r.attemptId === f.attempt); }
+  function inScope(r) { return (f.test || f.attempt || own.match(r)) && (!f.test || r.test === f.test) && (!f.attempt || r.attemptId === f.attempt); }
   function list() {
     return all().filter(function (r) {
       return inScope(r) && (f.show === 'all' || (f.show === 'appeal' ? !!r.appeal : r.status !== 'confirmed') || (current && r.id === current.id));
@@ -18,6 +20,7 @@
 
   function renderQueue() {
     var scope = all().filter(inScope);
+    A.$('#owner').innerHTML = f.test || f.attempt ? '' : own.html(all());
     var done = scope.filter(function (r) { return r.status === 'confirmed'; }).length;
     A.$('#progress').textContent = done + ' из ' + scope.length + ' подтверждено' + (f.attempt ? ' · одна попытка' : '');
     A.$('#queue-filters').innerHTML = A.filterTabs([

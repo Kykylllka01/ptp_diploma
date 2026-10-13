@@ -21,7 +21,7 @@ class MaterialController extends Controller
 
     public function index()
     {
-        return Material::where('course_id', CurrentUser::course()->id)->latest()->get()->map(fn ($m) => $this->data->material($m));
+        return Material::where('course_id', CurrentUser::course()->id)->with('author:id,name')->withCount('questions')->latest()->get()->map(fn ($m) => $this->data->material($m));
     }
 
     /**
@@ -81,7 +81,7 @@ class MaterialController extends Controller
         ]);
 
         $course = CurrentUser::course();
-        $material = new Material(['course_id' => $course->id, 'status' => 'uploaded']);
+        $material = new Material(['course_id' => $course->id, 'user_id' => CurrentUser::teacher()->id, 'status' => 'uploaded']);
 
         if ($file = $request->file('file')) {
             $material->title = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
@@ -116,6 +116,7 @@ class MaterialController extends Controller
 
     public function destroy(Material $material)
     {
+        abort_unless($material->isOwnedBy(CurrentUser::teacher()), 403, 'Удалить материал может только тот, кто его загрузил: '.$material->author?->name);
         if ($material->questions()->exists()) {
             return response()->json(['message' => 'По материалу уже есть вопросы в банке, удалить нельзя'], 422);
         }

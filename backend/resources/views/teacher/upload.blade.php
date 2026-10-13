@@ -90,6 +90,7 @@
     <div class="between"><h2 class="card-title">Загруженные материалы</h2><span class="muted small" id="library-count"></span></div>
     <div class="toolbar" id="lib-tools" style="margin-top: 16px" hidden>
       <label class="search"><span class="sr-only">Поиск по названию</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5A6070" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="lib-search" placeholder="Найти материал по названию" autocomplete="off"></label>
+      <div id="lib-owner"></div>
       <div id="lib-filters"></div>
       <div class="toolbar__end">
         <select class="select select--sm" id="lib-kind" aria-label="Тип файла" style="width: auto" hidden></select>

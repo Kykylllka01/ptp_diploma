@@ -24,7 +24,7 @@ class QuestionController extends Controller
     /** GET /api/questions?status=&type[]=&difficulty[]=&topic[]=&material=&q= */
     public function index(Request $request)
     {
-        $query = Question::where('course_id', CurrentUser::course()->id);
+        $query = Question::where('course_id', CurrentUser::course()->id)->with('author:id,name');
 
         if ($request->filled('status') && $request->status !== 'all') {
             $query->where('status', $request->status);
@@ -60,6 +60,7 @@ class QuestionController extends Controller
         $q = new Question([
             'code' => Question::nextCode(),
             'course_id' => $course->id,
+            'user_id' => CurrentUser::teacher()->id,
             'type' => $type,
             'difficulty' => 'medium',
             'topic' => ($course->topics ?? [])[0] ?? null,
@@ -83,6 +84,7 @@ class QuestionController extends Controller
     public function destroy(Question $question)
     {
         abort_unless($question->course_id === CurrentUser::course()->id, 404);
+        abort_unless($question->isOwnedBy(CurrentUser::teacher()), 403, 'Удалить вопрос может только его автор: '.$question->author?->name);
         if ($question->tests()->exists() || \App\Models\Answer::where('question_id', $question->id)->exists()) {
             return response()->json(['message' => 'Вопрос уже есть в тесте или на него отвечали студенты — удалить нельзя, отклоните его'], 409);
         }

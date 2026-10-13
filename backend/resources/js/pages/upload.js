@@ -25,6 +25,8 @@
     size: [function (m) { return m.sizeBytes; }, 'desc']
   };
   if (!SORTS[lf.sort]) lf.sort = 'new';
+  // Несколько преподавателей: по умолчанию свои материалы
+  var own = A.owner('materials', function () { lf.limit = PAGE; renderLibrary(); });
   if (['all', 'used', 'fresh', 'problem'].indexOf(lf.show) < 0) lf.show = 'all';
   function problem(m) { return m.status === 'error' || !m.hasText; }
   function kindsOf() { return library.map(function (m) { return m.kind; }).filter(function (k, i, a) { return k && a.indexOf(k) === i; }).sort(); }
@@ -46,12 +48,13 @@
   // Подходит под поиск и тип — от этого считаются числа на вкладках
   function searched() {
     var q = lf.q.trim().toLowerCase();
-    return library.filter(function (m) { return (!q || m.title.toLowerCase().indexOf(q) >= 0) && (!lf.kind || m.kind === lf.kind); });
+    return library.filter(function (m) { return own.match(m) && (!q || m.title.toLowerCase().indexOf(q) >= 0) && (!lf.kind || m.kind === lf.kind); });
   }
   function filtersOn() { return !!(lf.q.trim() || lf.kind || lf.show !== 'all'); }
 
   function renderTools() {
-    A.$('#lib-tools').hidden = library.length < 2;
+    A.$('#lib-tools').hidden = library.length < 2 && !own.multi;
+    A.$('#lib-owner').innerHTML = own.html(library);
     var base = searched(), count = function (t) { return base.filter(function (m) { return inTab(m, t); }).length; };
     var tabs = [['all', 'Все', base.length], ['used', 'С вопросами', count('used')], ['fresh', 'Без вопросов', count('fresh')]];
     if (library.some(problem)) tabs.push(['problem', 'Не прочитаны', count('problem')]);
@@ -67,19 +70,22 @@
   function renderLibrary() {
     // Прогресс загрузки перерисовывает набор часто; библиотеку — только когда изменился её состав или фильтры
     normalize();
-    var sig = library.map(function (m) { return m.id + ':' + m.questionCount; }).join() + '|' + files.map(function (f) { return f.id || ''; }).join() + '|' + JSON.stringify(lf);
+    var sig = library.map(function (m) { return m.id + ':' + m.questionCount; }).join() + '|' + files.map(function (f) { return f.id || ''; }).join() + '|' + JSON.stringify(lf) + own.value();
     if (sig === librarySig) return;
     librarySig = sig;
     A.$('#library-count').textContent = library.length ? library.length + ' ' + A.plural(library.length, 'материал', 'материала', 'материалов') : '';
     renderTools();
     var all = A.sortBy(searched().filter(function (m) { return inTab(m, lf.show); }), SORTS[lf.sort][0], SORTS[lf.sort][1]);
     var page = all.slice(0, lf.limit);
-    A.$('#lib-result').textContent = filtersOn() && library.length > 1 ? 'Найдено: ' + all.length + ' из ' + library.length : '';
+    var scope = library.filter(own.match);
+    A.$('#lib-result').textContent = filtersOn() && scope.length > 1 ? 'Найдено: ' + all.length + ' из ' + scope.length : '';
     A.$('#lib-more-row').hidden = page.length >= all.length;
     A.$('#lib-shown').textContent = 'Показано ' + page.length + ' из ' + all.length;
     A.$('#lib-more').textContent = 'Показать ещё ' + Math.min(PAGE, all.length - page.length);
     if (!all.length && library.length) {
-      A.$('#library').innerHTML = '<div class="empty">Под фильтры ничего не подходит. <button type="button" class="link-btn" data-reset>Сбросить фильтры</button></div>';
+      A.$('#library').innerHTML = !scope.length
+        ? '<div class="empty">Своих материалов у вас пока нет — загрузите лекцию в форме выше. <button type="button" class="link-btn" data-owner="all">Показать материалы всех преподавателей</button></div>'
+        : '<div class="empty">Под фильтры ничего не подходит. <button type="button" class="link-btn" data-reset>Сбросить фильтры</button></div>';
       return;
     }
     A.$('#library').innerHTML = page.map(function (m) {
@@ -89,15 +95,16 @@
       var items = [
         m.fileUrl ? { label: m.isLink ? 'Открыть страницу' : 'Открыть файл', href: m.fileUrl } : null,
         m.questionCount ? { label: 'Вопросы в банке', href: 'bank?status=all&source=' + m.id } : null,
-        '-',
-        { label: 'Удалить', attrs: 'data-delete-material="' + m.id + '"', danger: true }
+        // Удалить может только тот, кто загрузил
+        m.mine ? '-' : null,
+        m.mine ? { label: 'Удалить', attrs: 'data-delete-material="' + m.id + '"', danger: true } : null
       ];
       return '<div class="list-row" style="gap: 14px">' + A.fileIcon(m.kind, 40) +
         '<div class="list-row__main"><span class="strong">' + esc(m.title) + '</span><span class="list-row__meta">' +
-          esc([m.size, m.meta && !/^(документ|презентация|текст)$/i.test(m.meta) ? m.meta : '', 'загружен ' + m.date].filter(Boolean).join(' · ')) + '</span></div>' +
+          esc([own.by(m), m.size, m.meta && !/^(документ|презентация|текст)$/i.test(m.meta) ? m.meta : '', 'загружен ' + m.date].filter(Boolean).join(' · ')) + '</span></div>' +
         status +
         (m.hasText ? '<button type="button" class="btn btn--xs" data-use="' + m.id + '"' + (inSet ? ' disabled' : '') + '>' + (inSet ? 'В наборе' : 'В новый набор') + '</button>' : '') +
-        A.menu('Действия с материалом «' + m.title + '»', items, 'material-' + m.id) + '</div>';
+        (items.some(function (x) { return x && x !== '-'; }) ? A.menu('Действия с материалом «' + m.title + '»', items, 'material-' + m.id) : '') + '</div>';
     }).join('') || '<div class="empty">Материалов пока нет — загрузите первую лекцию в форме выше.</div>';
   }
   function useMaterial(m) {

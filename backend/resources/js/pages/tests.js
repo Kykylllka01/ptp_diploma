@@ -5,6 +5,8 @@
   var STATUS_ORDER = { running: 0, training: 1, draft: 2, closed: 3 };
   var FILTERS = [['all', 'Все'], ['running', 'Идут'], ['draft', 'Черновики'], ['closed', 'Приём закрыт'], ['training', 'Тренировки']];
 
+  // Несколько преподавателей: по умолчанию свои тесты
+  var own = A.owner('tests', function () { render(); });
   var state = A.recall('tests', { filter: 'all', group: '', sort: { key: 'created', dir: 'desc' } });
   var query = '';
 
@@ -29,8 +31,9 @@
       t.status === 'running' ? { label: 'Закрыть приём', attrs: 'data-status="closed" data-id="' + id + '"' } : null,
       t.status === 'closed' && main.indexOf('data-status') < 0 ? { label: 'Открыть приём снова', attrs: 'data-status="running" data-id="' + id + '"' } : null,
       { label: 'Переименовать', attrs: 'data-rename="' + id + '"' },
-      '-',
-      { label: 'Удалить', attrs: 'data-delete="' + id + '"', danger: true }
+      // Удаляет только автор теста: вместе с тестом пропадают попытки студентов
+      t.mine ? '-' : null,
+      t.mine ? { label: 'Удалить', attrs: 'data-delete="' + id + '"', danger: true } : null
     ];
     return A.menu('Действия с тестом «' + t.title + '»', items, 'test-' + t.id);
   }
@@ -44,7 +47,7 @@
   }
 
   function row(t) {
-    var meta = [t.status === 'training' ? 'тренировка без оценки' : (t.minutes ? t.minutes + ' мин' : 'без лимита времени'), t.group || 'все студенты курса',
+    var meta = [own.by(t), t.status === 'training' ? 'тренировка без оценки' : (t.minutes ? t.minutes + ' мин' : 'без лимита времени'), t.group || 'все студенты курса',
       t.individual ? 'свой вариант каждому' : '', t.proctoring ? 'жёсткий прокторинг' : '', t.weight != null ? weightLabel(t.weight) : ''].filter(Boolean).join(' · ');
     var title = t.status !== 'draft'
       ? '<a href="analytics?test=' + encodeURIComponent(t.id) + '" class="table__title">' + esc(t.title) + '</a>'
@@ -71,7 +74,7 @@
   function visible() {
     var q = query.toLowerCase();
     return M.tests.filter(function (t) {
-      return (state.filter === 'all' || t.status === state.filter) &&
+      return own.match(t) && (state.filter === 'all' || t.status === state.filter) &&
         (!state.group || (state.group === 'all' ? !t.groups.length : t.groups.indexOf(+state.group) >= 0 || !t.groups.length)) &&
         (!q || t.title.toLowerCase().indexOf(q) >= 0);
     });
@@ -79,20 +82,23 @@
 
   function render() {
     A.remember('tests', state);
-    var counts = {};
-    M.tests.forEach(function (t) { counts[t.status] = (counts[t.status] || 0) + 1; });
+    var counts = {}, scope = M.tests.filter(own.match);
+    A.$('#owner').innerHTML = own.html(M.tests);
+    scope.forEach(function (t) { counts[t.status] = (counts[t.status] || 0) + 1; });
     A.$('#filters').innerHTML = A.filterTabs(FILTERS.filter(function (f) { return f[0] === 'all' || counts[f[0]] || state.filter === f[0]; })
-      .map(function (f) { return [f[0], f[1], f[0] === 'all' ? M.tests.length : (counts[f[0]] || 0)]; }), state.filter, 'Статус теста');
+      .map(function (f) { return [f[0], f[1], f[0] === 'all' ? scope.length : (counts[f[0]] || 0)]; }), state.filter, 'Статус теста');
 
     var s = state.sort;
     A.$('#head').innerHTML = '<tr>' + A.sortTh('title', 'Название', s) + A.sortTh('count', 'Вопросов', s, 'num-col') + A.sortTh('status', 'Статус', s) +
       A.sortTh('deadline', 'Срок', s) + A.sortTh('passed', 'Сдали', s) + A.sortTh('avg', 'Средний', s, 'num-col') + '<th class="right"><span class="sr-only">Действия</span></th></tr>';
 
     var list = A.sortBy(visible(), GET[s.key] || GET.created, s.dir);
-    A.$('#tests').innerHTML = list.map(row).join('') || '<tr><td colspan="7" class="empty">' + (M.tests.length
+    A.$('#tests').innerHTML = list.map(row).join('') || '<tr><td colspan="7" class="empty">' + (M.tests.length && !scope.length
+      ? 'Своих тестов у вас пока нет. <a href="test-builder">Собрать тест</a> или <button type="button" class="link-btn" data-owner="all">показать тесты всех преподавателей</button>.'
+      : M.tests.length
       ? 'Ничего не нашлось. <button type="button" class="link-btn" id="reset">Сбросить фильтры</button>'
       : 'Тестов пока нет. <a href="test-builder">Соберите первый</a> из одобренных вопросов банка.') + '</td></tr>';
-    A.$('#result-line').textContent = list.length !== M.tests.length ? 'Показано ' + list.length + ' из ' + M.tests.length : '';
+    A.$('#result-line').textContent = list.length !== scope.length && scope.length ? 'Показано ' + list.length + ' из ' + scope.length : '';
   }
 
   // Фильтр по группе — только если групп больше одной

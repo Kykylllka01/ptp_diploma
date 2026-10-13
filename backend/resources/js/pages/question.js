@@ -29,7 +29,7 @@
   function renderHead() {
     A.$('#pos').textContent = q.id + (idx >= 0 ? ' · ' + (idx + 1) + ' из ' + pending.length : '');
     var st = { pending: ['Ждёт одобрения', 'amber'], approved: ['Одобрен', 'green'], rejected: ['Отклонён', 'red'] }[draft.status];
-    A.$('#status-chip').innerHTML = A.chip(st[0], st[1]);
+    A.$('#status-chip').innerHTML = A.chip(st[0], st[1]) + (q.mine === false && q.author ? ' ' + A.chip('Автор: ' + q.author) : '');
     // Одобренный вопрос правят и просто сохраняют; «далее» — только в очереди на проверку
     A.$('#approve').hidden = draft.status === 'approved';
     A.$('#approve').textContent = draft.status === 'pending' ? 'Одобрить и далее' : 'Одобрить';
@@ -341,7 +341,8 @@
   A.$('#form').addEventListener('submit', function (e) { e.preventDefault(); });
 
   // Удалить можно вопрос, который ещё нигде не использован (например, добавленный вручную по ошибке)
-  A.$('#approve').insertAdjacentHTML('afterend', A.menu('Ещё действия с вопросом', [{ label: 'Удалить вопрос', attrs: 'data-delete-q', danger: true }]));
+  // Удаляет только автор вопроса; чужой вопрос можно отредактировать или отклонить
+  if (q.mine !== false) A.$('#approve').insertAdjacentHTML('afterend', A.menu('Ещё действия с вопросом', [{ label: 'Удалить вопрос', attrs: 'data-delete-q', danger: true }]));
   document.addEventListener('click', function (e) {
     if (!e.target.closest('[data-delete-q]')) return;
     A.confirm({ title: 'Удалить вопрос ' + q.id + '?', text: 'Вопрос исчезнет из банка. Если он уже есть в тесте или на него отвечали студенты, удалить не получится — тогда отклоните его.', ok: 'Удалить', danger: true })

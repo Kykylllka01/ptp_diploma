@@ -35,17 +35,21 @@ class FrontendData
     {
         $course = CurrentUser::course();
         $want = fn (string $part) => $only === null || in_array($part, $only, true);
-        $data = $this->base() + ['teacher' => $this->user(CurrentUser::teacher())];
+        $data = $this->base() + [
+            'teacher' => $this->user(CurrentUser::teacher()),
+            // Преподавателей несколько — на страницах появляется фильтр «Мои / Все»
+            'teacherCount' => User::where('role', User::ROLE_TEACHER)->count(),
+        ];
 
         if ($want('materials')) {
-            $data['materials'] = Material::where('course_id', $course->id)->withCount('questions')->orderByDesc('created_at')->orderByDesc('id')->get()->map(fn ($m) => $this->material($m))->all();
+            $data['materials'] = Material::where('course_id', $course->id)->with('author:id,name')->withCount('questions')->orderByDesc('created_at')->orderByDesc('id')->get()->map(fn ($m) => $this->material($m))->all();
         }
         if ($want('agents')) {
             $data['agents'] = Agent::orderBy('id')->whereIn('code', ['analyst', 'writer', 'critic', 'grader'])->get()
                 ->map(fn ($a) => ['id' => $a->code, 'name' => $a->name, 'role' => $a->role, 'state' => $a->state, 'summary' => $a->summary])->all();
         }
         if ($want('questions')) {
-            $data['questions'] = Question::where('course_id', $course->id)->orderBy('code')->get()->map(fn ($q) => $this->question($q))->all();
+            $data['questions'] = Question::where('course_id', $course->id)->with('author:id,name')->orderBy('code')->get()->map(fn ($q) => $this->question($q))->all();
         }
         if ($want('groups')) {
             $data['groups'] = Group::where('course_id', $course->id)->withCount('students')->orderBy('name')->get()
@@ -66,7 +70,7 @@ class FrontendData
         if ($want('reviews')) {
             // Очередь проверки: ответы этого курса, которые ждут подтверждения, с апелляцией
             // или подтверждены за последний месяц (для контекста), — а не все проверки за всё время
-            $reviews = Review::with(['student', 'question', 'answer.attempt.test'])
+            $reviews = Review::with(['student', 'question', 'answer.attempt.test.author:id,name'])
                 ->whereHas('question', fn ($q) => $q->where('course_id', $course->id))
                 ->where(fn ($q) => $q->where('status', 'pending')->orWhereNotNull('appealed_at')->orWhere('confirmed_at', '>=', now()->subDays(30)))
                 ->orderBy('id')->get();
@@ -277,12 +281,20 @@ class FrontendData
             'fileUrl' => $m->file_path || $m->url ? route('teacher.material.file', $m) : null,
             'isLink' => (bool) $m->url,
             'questionCount' => $m->questions_count ?? $m->questions()->count(),
-        ];
+        ] + $this->authorship($m);
+    }
+
+    /** Кто создал запись и своя ли она текущему преподавателю (для фильтра «Мои / Все» и права удалять). */
+    private function authorship(\Illuminate\Database\Eloquent\Model $m): array
+    {
+        $me = auth()->id();
+
+        return ['author' => $m->user_id ? $m->author?->name : null, 'mine' => $m->user_id === null || $m->user_id === $me];
     }
 
     public function question(Question $q): array
     {
-        return [
+        return $this->authorship($q) + [
             'id' => $q->code,
             'type' => $q->type,
             'difficulty' => $q->difficulty,
@@ -350,7 +362,7 @@ class FrontendData
      */
     private function testsForList(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Support\Collection
     {
-        $tests = $query->with('groups')->withCount(['questions', 'questions as open_count' => fn ($q) => $q->where('type', 'open')])->get();
+        $tests = $query->with(['groups', 'author:id,name'])->withCount(['questions', 'questions as open_count' => fn ($q) => $q->where('type', 'open')])->get();
         if ($tests->isEmpty()) {
             return $tests;
         }
@@ -433,7 +445,7 @@ class FrontendData
                 'autoGrade' => $t->setting('auto_grade'),
             ],
             'about' => $t->about,
-        ];
+        ] + $this->authorship($t);
     }
 
     public function review(Review $r): array
@@ -445,6 +457,9 @@ class FrontendData
             // Из какого теста ответ — для фильтра очереди и ссылок «проверить ответы теста/попытки»
             'test' => $r->answer?->attempt?->test?->code,
             'testTitle' => $r->answer?->attempt?->test?->title,
+            // Ответ на свой тест — для фильтра «Мои / Все» в очереди проверки
+            'mine' => ($r->answer?->attempt?->test?->user_id ?? auth()->id()) === auth()->id(),
+            'author' => $r->answer?->attempt?->test?->author?->name,
             'attemptId' => $r->answer?->attempt_id,
             'confidence' => $r->confidence,
             'minutes' => $r->minutes,

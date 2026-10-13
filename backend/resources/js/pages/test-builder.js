@@ -104,8 +104,11 @@
   // Участники: «все студенты курса» или одна/несколько групп (группы и ссылки к ним — на экране «Группы»)
   var groups = M.groups || [];
   var chosen = [];
+  // Групп несколько (их ведут разные преподаватели) — «всем студентам курса» только явным выбором,
+  // иначе тест по ошибке увидят чужие группы
+  var allPicked = groups.length < 2;
   function renderGroups() {
-    A.$('#groups').innerHTML = '<button type="button" data-all aria-pressed="' + !chosen.length + '">Все студенты курса</button>' +
+    A.$('#groups').innerHTML = '<button type="button" data-all aria-pressed="' + (allPicked && !chosen.length) + '">Все студенты курса</button>' +
       groups.map(function (g) {
         return '<button type="button" data-g="' + g.id + '" aria-pressed="' + (chosen.indexOf(g.id) >= 0) + '">' + esc(g.name) +
           ' <small>' + g.students + '</small></button>';
@@ -113,13 +116,15 @@
     var n = chosen.length ? groups.filter(function (g) { return chosen.indexOf(g.id) >= 0; }).reduce(function (s, g) { return s + g.students; }, 0) : null;
     A.$('#groups-hint').innerHTML = !groups.length
       ? 'Групп пока нет — тест увидят все студенты. <a href="groups">Создать группу</a>'
+      : !chosen.length && !allPicked ? '<span class="t-amber">Отметьте группы, для которых этот тест.</span> <a href="groups">Группы</a>'
       : (chosen.length ? 'Тест увидят ' + n + ' ' + A.plural(n, 'студент', 'студента', 'студентов') + ' выбранных групп.' : 'Тест увидят все студенты курса.') + ' <a href="groups">Группы</a>';
   }
   A.$('#groups').addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
-    if (b.hasAttribute('data-all')) chosen = [];
+    if (b.hasAttribute('data-all')) { chosen = []; allPicked = true; }
     else {
+      allPicked = false;
       var id = +b.getAttribute('data-g'), i = chosen.indexOf(id);
       if (i >= 0) chosen.splice(i, 1); else chosen.push(id);
     }
@@ -154,6 +159,11 @@
     if (mode !== 'manual' && !+A.$('#s-count').textContent) { A.toast('Добавьте в тест хотя бы один вопрос'); return; }
     var title = A.$('#test-title').value.trim();
     if (!title) { A.$('#test-title').focus(); A.toast('Введите название теста', true); return; }
+    if (!chosen.length && !allPicked) {
+      A.$('#groups button').focus();
+      A.toast('Отметьте группы, для которых тест, или выберите «Все студенты курса»', true);
+      return;
+    }
     var training = A.$('#training').getAttribute('aria-pressed') === 'true';
     // Двойной клик создавал два теста — кнопка недоступна до ответа сервера
     var submitBtn = e.submitter || A.$('#builder [type=submit]');

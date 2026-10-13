@@ -18,7 +18,10 @@
     </div>
   </div>
 
-  <div class="tabs" role="group" aria-label="Статус вопросов" id="tabs"></div>
+  <div class="row-wrap" style="justify-content: space-between; gap: 12px">
+    <div class="tabs" role="group" aria-label="Статус вопросов" id="tabs"></div>
+    <div id="owner"></div>
+  </div>
 
   <div class="split">
     <aside class="card split__nav" style="max-width: 100%; padding: 20px; display: flex; flex-direction: column; gap: 22px">
