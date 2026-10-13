@@ -19,10 +19,10 @@
     A.$('#library').innerHTML = library.map(function (m) {
       var inSet = files.some(function (f) { return f.id === m.id; });
       var status = m.status === 'error' || !m.hasText ? A.chip('Текст не извлечён', 'red') : m.status === 'processing' ? A.chip('В обработке', 'blue')
-        : m.questions ? A.chip(m.questions + ' ' + A.plural(m.questions, 'вопрос', 'вопроса', 'вопросов'), 'green') : A.chip('Вопросов нет');
+        : m.questionCount ? A.chip(m.questionCount + ' ' + A.plural(m.questionCount, 'вопрос', 'вопроса', 'вопросов'), 'green') : A.chip('Вопросов нет');
       var items = [
         m.fileUrl ? { label: m.isLink ? 'Открыть страницу' : 'Открыть файл', href: m.fileUrl } : null,
-        m.questions ? { label: 'Вопросы в банке', href: 'bank?status=all&source=' + m.id } : null,
+        m.questionCount ? { label: 'Вопросы в банке', href: 'bank?status=all&source=' + m.id } : null,
         '-',
         { label: 'Удалить', attrs: 'data-delete-material="' + m.id + '"', danger: true }
       ];
@@ -174,7 +174,7 @@
     var d = e.target.closest('[data-delete-material]');
     if (!d) return;
     var m = library.filter(function (x) { return x.id === +d.getAttribute('data-delete-material'); })[0];
-    if (m.questions) { A.toast('По материалу уже есть вопросы в банке — удалить его нельзя', true); return; }
+    if (m.questionCount) { A.toast('По материалу уже есть вопросы в банке — удалить его нельзя', true); return; }
     A.confirm({ title: 'Удалить материал?', text: '«' + m.title + '» будет удалён вместе с файлом.', ok: 'Удалить', danger: true }).then(function (yes) {
       if (!yes) return;
       A.api('DELETE', 'materials/' + m.id).then(function () {
