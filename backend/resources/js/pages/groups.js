@@ -5,6 +5,9 @@
   var ungrouped = M.ungrouped || [];
   // Какие списки студентов раскрыты: после перевода студента карточки перерисовываются, а список не должен сворачиваться
   var openLists = {};
+  // Поиск студента по всем группам: при 200 студентах не нужно раскрывать группы по очереди
+  var query = '';
+  function hit(s) { return !query || (s.name + ' ' + s.email).toLowerCase().indexOf(query) >= 0; }
 
   function find(id) { return groups.filter(function (g) { return g.id === id; })[0]; }
 
@@ -25,7 +28,7 @@
   }
 
   function card(g) {
-    var n = g.students.length;
+    var n = g.students.length, shown = g.students.filter(hit);
     var canDelete = !n && !g.tests;
     var why = n ? 'В группе есть студенты' : (g.tests ? 'Группе назначены тесты' : '');
     return '<section class="card card--pad group-card" data-group="' + g.id + '">' +
@@ -47,18 +50,27 @@
         '<button type="button" class="btn btn--xs" data-rename="' + g.id + '">Переименовать</button>' +
         '<button type="button" class="btn btn--xs" data-del="' + g.id + '" data-why="' + esc(canDelete ? '' : why) + '"' + (canDelete ? '' : ' aria-disabled="true"') + '>Удалить</button>' +
       '</div>' +
-      (n ? '<details class="group-card__list" data-list="' + g.id + '"' + ((openLists[g.id] != null ? openLists[g.id] : n <= 8) ? ' open' : '') + '><summary>Студенты группы</summary>' +
-        g.students.map(function (s) { return studentRow(s, g.id); }).join('') + '</details>'
+      (n ? '<details class="group-card__list" data-list="' + g.id + '"' + (query || (openLists[g.id] != null ? openLists[g.id] : n <= 8) ? ' open' : '') + '><summary>' +
+          (query ? 'Найдено в группе: ' + shown.length : 'Студенты группы') + '</summary>' +
+        shown.map(function (s) { return studentRow(s, g.id); }).join('') + '</details>'
         : '<div class="muted small">Пока никто не зарегистрировался.</div>') +
       '</section>';
   }
 
   function render() {
-    A.$('#groups').innerHTML = groups.map(card).join('') ||
-      '<div class="card card--pad empty">Групп пока нет. Создайте первую — и отправьте студентам ссылку.</div>';
-    A.$('#ungrouped-card').hidden = !ungrouped.length;
-    A.$('#ungrouped').innerHTML = ungrouped.map(function (s) { return studentRow(s, null); }).join('');
+    var total = groups.reduce(function (s, g) { return s + g.students.length; }, 0) + ungrouped.length;
+    A.$('#student-tools').hidden = total < 10;
+    // При поиске — только группы, где нашёлся студент
+    var list = query ? groups.filter(function (g) { return g.students.some(hit); }) : groups;
+    var found = groups.reduce(function (s, g) { return s + g.students.filter(hit).length; }, 0) + ungrouped.filter(hit).length;
+    A.$('#student-result').textContent = query ? (found ? 'Найдено студентов: ' + found : 'Никого не нашлось') : '';
+    A.$('#groups').innerHTML = list.map(card).join('') ||
+      (query ? '' : '<div class="card card--pad empty">Групп пока нет. Создайте первую — и отправьте студентам ссылку.</div>');
+    var loose = ungrouped.filter(hit);
+    A.$('#ungrouped-card').hidden = !loose.length;
+    A.$('#ungrouped').innerHTML = loose.map(function (s) { return studentRow(s, null); }).join('');
   }
+  A.$('#student-search').addEventListener('input', function (e) { query = e.target.value.trim().toLowerCase(); render(); });
 
   function replace(fresh) {
     groups = groups.map(function (g) { return g.id === fresh.id ? fresh : g; });

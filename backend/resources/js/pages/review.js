@@ -8,6 +8,7 @@
   // Несколько преподавателей: по умолчанию ответы на свои тесты; ссылка на конкретный тест или попытку — без этого фильтра
   var own = A.owner('review', function () {
     // Открытый ответ выпал из охвата (или ещё ничего не открыто) — открываем первый из нового списка
+    qLimit = QPAGE;
     if (current && inScope(current)) { renderQueue(); return; }
     var first = firstOpen();
     if (first) open(first.id); else { renderQueue(); showNothing(); }
@@ -34,6 +35,8 @@
   function maxOf(r) { return crit(r).reduce(function (s, c) { return s + c[1]; }, 0); }
   function agentTotal(r) { return r.agent.reduce(function (s, a) { return s + a[0]; }, 0); }
 
+  // После массовой сдачи в очереди сотни ответов: показываем порциями, текущий ответ — всегда
+  var QPAGE = 40, qLimit = QPAGE;
   function renderQueue() {
     var scope = all().filter(inScope);
     A.$('#owner').innerHTML = f.test || f.attempt ? '' : own.html(all());
@@ -44,7 +47,9 @@
       ['appeal', 'Апелляции', scope.filter(function (r) { return r.appeal; }).length],
       ['all', 'Все', scope.length]
     ], f.show, 'Какие ответы показать');
-    A.$('#queue').innerHTML = list().map(function (r) {
+    var all_ = list(), shown = all_.slice(0, qLimit);
+    if (current && shown.indexOf(current) < 0 && all_.indexOf(current) >= 0) shown.push(current);
+    A.$('#queue').innerHTML = shown.map(function (r) {
       var isDone = r.status === 'confirmed';
       var line = isDone ? r.questionId + ' · подтверждено ' + r.final + ' / ' + maxOf(r)
         : r.questionId + ' · агент: ' + agentTotal(r) + ' / ' + maxOf(r) + ' · уверенность ' + r.confidence + '%';
@@ -56,6 +61,10 @@
     }).join('') || '<div class="empty small">' + (!scope.length && all().length && !f.test && !f.attempt
       ? 'На ваши тесты ответов нет. <button type="button" class="link-btn" data-owner="all">Показать все</button>'
       : f.show === 'appeal' ? 'Апелляций нет' : 'Все ответы проверены') + '</div>';
+    if (all_.length > shown.length) {
+      A.$('#queue').insertAdjacentHTML('beforeend', '<div style="padding: 10px 12px"><button type="button" class="btn btn--sm" id="queue-more" style="width: 100%">Показать ещё ' +
+        Math.min(QPAGE, all_.length - shown.length) + ' из ' + (all_.length - shown.length) + '</button></div>');
+    }
   }
 
   function renderTotal() {
@@ -120,13 +129,20 @@
   }
 
   A.$('#queue').addEventListener('click', function (e) {
+    if (e.target.closest('#queue-more')) {
+      qLimit += QPAGE;
+      renderQueue();
+      var items = A.$$('#queue [data-id]'), first = items[qLimit - QPAGE];
+      if (first) first.focus();
+      return;
+    }
     var b = e.target.closest('[data-id]');
     if (saving) { A.toast('Сохраняю оценку — секунду'); return; }
     if (b && +b.getAttribute('data-id') !== current.id) guard().then(function (ok) { if (ok) open(+b.getAttribute('data-id'), true); });
   });
   A.$('#queue-filters').addEventListener('click', function (e) {
     var b = e.target.closest('[data-filter]');
-    if (b) { f.show = b.getAttribute('data-filter'); A.keepFocus(renderQueue); }
+    if (b) { f.show = b.getAttribute('data-filter'); qLimit = QPAGE; A.keepFocus(renderQueue); }
   });
   A.$('#criteria').addEventListener('click', function (e) {
     var b = e.target.closest('[data-c]');

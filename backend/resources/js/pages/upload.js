@@ -245,8 +245,17 @@
         var have = files.map(function (f) { return f.id; });
         var rest = library.filter(function (m) { return have.indexOf(m.id) < 0 && m.hasText; });
         if (!rest.length) { A.toast('Все материалы курса уже в наборе'); return; }
+        // Материалов много (несколько преподавателей) — длинный список в окне неудобен: ведём к библиотеке с поиском
+        if (rest.length > 12) {
+          A.$('#library-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          A.$('#lib-search').focus({ preventScroll: true });
+          A.toast('Найдите материал в списке ниже и нажмите «В новый набор»');
+          return;
+        }
+        // Свои — первыми, чужие — с фамилией автора
+        rest = rest.filter(function (m) { return m.mine !== false; }).concat(rest.filter(function (m) { return m.mine === false; }));
         A.choose({ title: 'Материал из загруженных', ok: 'Добавить в набор',
-          options: rest.map(function (m) { return { value: m.id, label: m.title, hint: [m.kind, m.size, 'загружен ' + m.date].filter(Boolean).join(' · ') }; }) })
+          options: rest.map(function (m) { return { value: m.id, label: m.title, hint: [own.by(m), m.kind, m.size, 'загружен ' + m.date].filter(Boolean).join(' · ') }; }) })
           .then(function (id) {
             var m = rest.filter(function (x) { return String(x.id) === String(id); })[0];
             if (m) { var f = { name: m.title, size: '' }; fromServer(f, m); files.push(f); render(); }
