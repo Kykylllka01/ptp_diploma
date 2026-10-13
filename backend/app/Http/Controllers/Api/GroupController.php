@@ -86,6 +86,24 @@ class GroupController extends Controller
         return ['id' => $user->id, 'group' => $data['group_id']];
     }
 
+    /**
+     * Студент забыл пароль: почты для восстановления нет, поэтому преподаватель выдаёт временный.
+     * Пароль показывается один раз; «запомнить меня» на чужих устройствах перестаёт работать.
+     */
+    public function resetPassword(User $user)
+    {
+        abort_unless($user->role === User::ROLE_STUDENT, 404);
+        // Без похожих символов (0/o, 1/l/i): пароль диктуют или переписывают с экрана
+        $alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+        $password = '';
+        for ($i = 0; $i < 10; $i++) {
+            $password .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        }
+        $user->forceFill(['password' => $password, 'remember_token' => null])->save();
+
+        return ['id' => $user->id, 'password' => $password];
+    }
+
     private function ownGroup(Group $group): void
     {
         abort_unless($group->course_id === CurrentUser::course()->id, 404);

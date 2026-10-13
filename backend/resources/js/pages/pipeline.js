@@ -86,8 +86,9 @@
   }
 
   A.$('#stop').addEventListener('click', function () {
-    if (!confirm('Остановить агентов? Уже готовые вопросы останутся в банке.')) return;
-    A.api('POST', 'generation-runs/' + run.id + '/cancel').then(function (fresh) { run = fresh; render(); });
+    A.confirm({ title: 'Остановить агентов?', text: 'Уже составленные вопросы останутся в банке. Остальные агенты делать не будут.', ok: 'Остановить', danger: true }).then(function (yes) {
+      if (yes) A.api('POST', 'generation-runs/' + run.id + '/cancel').then(function (fresh) { run = fresh; render(); });
+    });
   });
 
   render();

@@ -51,6 +51,7 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::post('groups/{group}/invite', [GroupController::class, 'invite']);
         Route::delete('groups/{group}', [GroupController::class, 'destroy']);
         Route::patch('students/{user}/group', [GroupController::class, 'moveStudent']);
+        Route::post('students/{user}/password', [GroupController::class, 'resetPassword'])->middleware('throttle:20,1');
     });
 
     // Студент

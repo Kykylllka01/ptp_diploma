@@ -3,6 +3,8 @@
   var A = window.App, M = A.M, esc = A.esc;
   var groups = M.groups || [];
   var ungrouped = M.ungrouped || [];
+  // Какие списки студентов раскрыты: после перевода студента карточки перерисовываются, а список не должен сворачиваться
+  var openLists = {};
 
   function find(id) { return groups.filter(function (g) { return g.id === id; })[0]; }
 
@@ -18,7 +20,8 @@
     var ava = s.avatar ? '<img class="avatar avatar--sm avatar--img" src="' + esc(s.avatar) + '" alt="">' : '<span class="avatar avatar--sm avatar--gray">' + esc(s.initials || '') + '</span>';
     return '<div class="list-row" style="padding: 10px 0; gap: 12px">' + ava + '<div class="list-row__main"><div class="strong small">' + esc(s.name) + '</div>' +
       '<div class="list-row__meta xsmall">' + esc(s.email) + (s.since ? ' · с ' + esc(s.since) : '') + '</div></div>' +
-      '<div style="width: 190px">' + moveSelect(s, groupId) + '</div></div>';
+      '<div style="width: 190px">' + moveSelect(s, groupId) + '</div>' +
+      A.menu('Действия со студентом ' + s.name, [{ label: 'Выдать новый пароль', attrs: 'data-password="' + s.id + '"' }]) + '</div>';
   }
 
   function card(g) {
@@ -42,9 +45,9 @@
         '<button type="button" class="btn btn--xs" data-toggle="' + g.id + '">' + (g.open ? 'Закрыть приём' : 'Открыть приём') + '</button>' +
         '<button type="button" class="btn btn--xs" data-regen="' + g.id + '">Новая ссылка</button>' +
         '<button type="button" class="btn btn--xs" data-rename="' + g.id + '">Переименовать</button>' +
-        '<button type="button" class="btn btn--xs" data-del="' + g.id + '"' + (canDelete ? '' : ' disabled title="' + why + '"') + '>Удалить</button>' +
+        '<button type="button" class="btn btn--xs" data-del="' + g.id + '" data-why="' + esc(canDelete ? '' : why) + '"' + (canDelete ? '' : ' aria-disabled="true"') + '>Удалить</button>' +
       '</div>' +
-      (n ? '<details class="group-card__list"' + (n <= 8 ? ' open' : '') + '><summary>Студенты группы</summary>' +
+      (n ? '<details class="group-card__list" data-list="' + g.id + '"' + ((openLists[g.id] != null ? openLists[g.id] : n <= 8) ? ' open' : '') + '><summary>Студенты группы</summary>' +
         g.students.map(function (s) { return studentRow(s, g.id); }).join('') + '</details>'
         : '<div class="muted small">Пока никто не зарегистрировался.</div>') +
       '</section>';
@@ -59,13 +62,17 @@
 
   function replace(fresh) {
     groups = groups.map(function (g) { return g.id === fresh.id ? fresh : g; });
-    render();
+    A.keepFocus(render);
   }
+  A.$('#groups').addEventListener('toggle', function (e) {
+    var d = e.target.closest && e.target.closest('[data-list]');
+    if (d) openLists[d.getAttribute('data-list')] = d.open;
+  }, true);
 
   A.$('#new-group').addEventListener('submit', function (e) {
     e.preventDefault();
     var input = A.$('#new-group-name'), name = input.value.trim();
-    if (!name) { input.focus(); A.toast('Введите название группы'); return; }
+    if (!name) { input.focus(); A.toast('Введите название группы', true); return; }
     A.api('POST', 'groups', { name: name }).then(function (g) {
       groups.push(g);
       groups.sort(function (a, b) { return a.name.localeCompare(b.name, 'ru'); });
@@ -87,7 +94,7 @@
 
   A.$('#groups').addEventListener('click', function (e) {
     var b = e.target.closest('button');
-    if (!b || b.disabled) return;
+    if (!b || b.disabled || b.hasAttribute('data-menu') || b.hasAttribute('data-password')) return;
     var id = +(b.getAttribute('data-copy') || b.getAttribute('data-toggle') || b.getAttribute('data-regen') || b.getAttribute('data-rename') || b.getAttribute('data-del'));
     var g = find(id);
     if (!g) return;
@@ -99,18 +106,23 @@
         A.toast(fresh.open ? 'Приём по ссылке открыт' : 'Приём закрыт: по ссылке больше не зарегистрироваться');
       });
     } else if (b.hasAttribute('data-regen')) {
-      if (!confirm('Выпустить новую ссылку для группы «' + g.name + '»? Старая перестанет работать.')) return;
-      A.api('POST', 'groups/' + id + '/invite').then(function (fresh) { replace(fresh); A.toast('Новая ссылка готова'); });
+      A.confirm({ title: 'Выпустить новую ссылку?', text: 'Старая ссылка группы «' + g.name + '» перестанет работать. Уже зарегистрированные студенты останутся в группе.', ok: 'Выпустить' }).then(function (yes) {
+        if (yes) A.api('POST', 'groups/' + id + '/invite').then(function (fresh) { replace(fresh); A.toast('Новая ссылка готова — отправьте её студентам'); });
+      });
     } else if (b.hasAttribute('data-rename')) {
-      var name = prompt('Новое название группы', g.name);
-      if (!name || !name.trim() || name.trim() === g.name) return;
-      A.api('PATCH', 'groups/' + id, { name: name.trim() }).then(function (fresh) { replace(fresh); A.toast('Группа переименована'); });
+      A.ask({ title: 'Переименовать группу', label: 'Название группы', value: g.name, maxlength: 100 }).then(function (name) {
+        if (name && name !== g.name) A.api('PATCH', 'groups/' + id, { name: name }).then(function (fresh) { replace(fresh); A.toast('Группа переименована'); });
+      });
     } else if (b.hasAttribute('data-del')) {
-      if (!confirm('Удалить группу «' + g.name + '»?')) return;
-      A.api('DELETE', 'groups/' + id).then(function () {
-        groups = groups.filter(function (x) { return x.id !== id; });
-        render();
-        A.toast('Группа удалена');
+      // Удалить нельзя — объясняем почему, а не прячем причину в подсказку недоступной кнопки
+      if (b.getAttribute('data-why')) { A.toast(b.getAttribute('data-why') + ' — такую группу удалить нельзя', true); return; }
+      A.confirm({ title: 'Удалить группу?', text: 'Группа «' + g.name + '» будет удалена, её ссылка перестанет работать.', ok: 'Удалить', danger: true }).then(function (yes) {
+        if (!yes) return;
+        A.api('DELETE', 'groups/' + id).then(function () {
+          groups = groups.filter(function (x) { return x.id !== id; });
+          render();
+          A.toast('Группа удалена');
+        });
       });
     }
   });
@@ -131,9 +143,25 @@
         (target ? target.students : ungrouped).push(student);
         (target ? target.students : ungrouped).sort(function (a, b) { return a.name.localeCompare(b.name, 'ru'); });
       }
-      render();
+      A.keepFocus(render);
       A.toast(student ? student.name + (to == null ? ' — без группы' : ' → ' + find(to).name) : 'Готово');
     }, function () { render(); });
+  });
+
+  // Забытый пароль: преподаватель выдаёт временный и передаёт студенту лично
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-password]');
+    if (!b) return;
+    var sid = +b.getAttribute('data-password'), st = null;
+    groups.concat([{ students: ungrouped }]).forEach(function (g) { g.students.forEach(function (x) { if (x.id === sid) st = x; }); });
+    A.confirm({ title: 'Выдать новый пароль?', text: 'Старый пароль ' + st.name + ' перестанет работать. Новый временный пароль покажем один раз — передайте его студенту лично.', ok: 'Выдать пароль' })
+      .then(function (yes) {
+        if (!yes) return;
+        A.api('POST', 'students/' + sid + '/password').then(function (r) {
+          A.confirm({ title: 'Новый пароль', text: st.name + ' (' + st.email + ')\nВременный пароль: ' + r.password + '\n\nСтудент сможет сменить его в личном кабинете.', ok: 'Скопировать и закрыть', cancel: 'Закрыть' })
+            .then(function (copyIt) { if (copyIt) copy(r.password).then(function () { A.toast('Пароль скопирован'); }); });
+        });
+      });
   });
 
   render();

@@ -108,20 +108,24 @@
     b.addEventListener('click', function () {
       var t = b.getAttribute('data-add');
       if (t === 'URL') {
-        var link = prompt('Ссылка на страницу с материалом (https://…)');
-        if (link) addMaterial({ url: link }, link, 'URL');
+        A.ask({ title: 'Материал по ссылке', label: 'Адрес страницы', placeholder: 'https://…', inputmode: 'url', maxlength: 1000, ok: 'Добавить',
+          validate: function (v) { return !/^https?:\/\/\S+\.\S+/.test(v) ? 'Нужна ссылка, которая начинается с http:// или https://' : ''; } })
+          .then(function (link) { if (link) addMaterial({ url: link }, link, 'URL'); });
       } else if (t === 'TXT') {
-        var text = prompt('Вставьте текст материала');
-        if (text && text.trim()) addMaterial({ text: text, title: 'Текст из буфера обмена' }, 'Текст из буфера обмена', 'TXT');
+        A.ask({ title: 'Текст материала', label: 'Вставьте текст лекции или конспекта', multiline: true, maxlength: 500000, ok: 'Добавить',
+          validate: function (v) { return v.length < 100 ? 'Слишком мало текста: агентам нужен хотя бы абзац-другой' : ''; } })
+          .then(function (text) { if (text) addMaterial({ text: text, title: 'Текст из буфера обмена' }, 'Текст из буфера обмена', 'TXT'); });
       } else {
         // Из уже загруженных: берём материалы курса, которых ещё нет в наборе
         var have = files.map(function (f) { return f.id; });
         var rest = (M.materials || []).filter(function (m) { return have.indexOf(m.id) < 0 && m.hasText; });
         if (!rest.length) { A.toast('Все материалы курса уже в наборе'); return; }
-        var list = rest.map(function (m, i) { return (i + 1) + '. ' + m.title; }).join('\n');
-        var n = parseInt(prompt('Номер материала:\n' + list, '1'), 10);
-        var m = rest[n - 1];
-        if (m) { var f = { name: m.title, size: '' }; fromServer(f, m); files.push(f); render(); }
+        A.choose({ title: 'Материал из загруженных', ok: 'Добавить в набор',
+          options: rest.map(function (m) { return { value: m.id, label: m.title, hint: [m.kind, m.size, 'загружен ' + m.date].filter(Boolean).join(' · ') }; }) })
+          .then(function (id) {
+            var m = rest.filter(function (x) { return String(x.id) === String(id); })[0];
+            if (m) { var f = { name: m.title, size: '' }; fromServer(f, m); files.push(f); render(); }
+          });
       }
     });
   });

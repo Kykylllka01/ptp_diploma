@@ -146,13 +146,16 @@
     var ap = e.target.closest('[data-appeal]');
     if (ap) {
       var res = att.results[ap.getAttribute('data-appeal')];
-      var text = prompt('Почему вы не согласны с оценкой? Преподаватель перепроверит ответ.');
-      if (!text || text.trim().length < 5) return;
-      A.api('POST', 'answers/' + res.answerId + '/appeal', { text: text.trim() }).then(function () {
-        res.appeal = text.trim();
-        A.toast('Апелляция отправлена преподавателю');
-        renderReview();
-      });
+      A.ask({ title: 'Апелляция', label: 'Почему вы не согласны с оценкой?', hint: 'Преподаватель перепроверит ответ и увидит ваш комментарий.', multiline: true, maxlength: 2000, ok: 'Отправить',
+        validate: function (v) { return v.length < 5 ? 'Опишите хотя бы в паре слов, с чем вы не согласны' : ''; } })
+        .then(function (text) {
+          if (!text) return;
+          A.api('POST', 'answers/' + res.answerId + '/appeal', { text: text }).then(function () {
+            res.appeal = text;
+            A.toast('Апелляция отправлена преподавателю');
+            renderReview();
+          });
+        });
     }
   });
 
