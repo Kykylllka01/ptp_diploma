@@ -14,6 +14,12 @@ class Kernel extends ConsoleKernel
     {
         // Брошенные попытки досдаются и без захода студента или преподавателя на страницы
         $schedule->command('attempts:finalize')->everyMinute()->withoutOverlapping();
+        // Обработчик очереди упал посреди потока сдач, а новых сдач нет — задачи не должны ждать вечно
+        // Заодно отметка «планировщик жив» для php artisan pilot:check
+        $schedule->call(function () {
+            \Illuminate\Support\Facades\Cache::put('scheduler-heartbeat', now()->getTimestamp(), 600);
+            \App\Support\QueueWorker::ensureRunning();
+        })->name('queue:kick')->everyMinute();
     }
 
     /**

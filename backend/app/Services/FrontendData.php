@@ -61,7 +61,7 @@ class FrontendData
                     DB::table('group_test')->whereIn('test_id', (clone $live)->select('id'))->select('group_id'))->count();
         }
         if ($want('tests')) {
-            $data['tests'] = Test::where('course_id', $course->id)->with('groups')->withCount('questions')->orderBy('id')->get()->map(fn ($t) => $this->test($t))->all();
+            $data['tests'] = $this->testsForList(Test::where('course_id', $course->id)->orderBy('id'))->map(fn ($t) => $this->test($t))->all();
         }
         if ($want('reviews')) {
             // Очередь проверки: ответы этого курса, которые ждут подтверждения, с апелляцией
@@ -102,8 +102,7 @@ class FrontendData
     {
         $student = CurrentUser::student();
         // Тесты своей группы и открытые всем по ссылке; черновики студент не видит
-        $tests = Test::where('course_id', CurrentUser::course()->id)->visibleTo($student)
-            ->withCount('questions')->orderBy('id')->get();
+        $tests = $this->testsForList(Test::where('course_id', CurrentUser::course()->id)->visibleTo($student)->orderBy('id'));
 
         $done = Attempt::with('test')->where('user_id', $student->id)->where('status', '!=', 'in_progress')
             ->orderByDesc('submitted_at')->get()
@@ -118,11 +117,15 @@ class FrontendData
                 'graded' => $a->test->status !== 'training',
             ])->all();
 
+        // Свои попытки по всем тестам — одним запросом
+        $mineByTest = Attempt::where('user_id', $student->id)->whereIn('test_id', $tests->pluck('id'))
+            ->orderByDesc('id')->get(['id', 'test_id', 'status', 'percent'])->groupBy('test_id');
+
         return $this->base() + [
             'student' => $this->user($student),
-            'tests' => $tests->map(function (Test $t) use ($student) {
+            'tests' => $tests->map(function (Test $t) use ($mineByTest) {
                 $row = $this->test($t);
-                $mine = $t->attempts()->where('user_id', $student->id)->orderByDesc('id')->get(['id', 'status', 'percent']);
+                $mine = $mineByTest->get($t->id) ?? collect();
                 $my = $mine->first();
                 $used = $mine->where('status', '!=', 'in_progress')->count();
                 $row['my'] = $my ? ['status' => $my->status, 'percent' => $my->percent, 'attemptId' => $my->id,
@@ -338,17 +341,46 @@ class FrontendData
         return $row;
     }
 
+    /** @var array<int, array{best: \Illuminate\Support\Collection, students: int}> */
+    private array $testStats = [];
+
+    /**
+     * Тесты для списков (страница «Тесты», «Мои тесты» студента): вопросы, открытые вопросы, группы,
+     * лучшие попытки и число участников — несколькими запросами на весь список, а не по 5 на тест.
+     */
+    private function testsForList(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Support\Collection
+    {
+        $tests = $query->with('groups')->withCount(['questions', 'questions as open_count' => fn ($q) => $q->where('type', 'open')])->get();
+        if ($tests->isEmpty()) {
+            return $tests;
+        }
+        $best = Attempt::whereIn('test_id', $tests->pluck('id'))->where('status', '!=', 'in_progress')
+            ->selectRaw('test_id, user_id, max(percent) as best')->groupBy('test_id', 'user_id')->get()->groupBy('test_id');
+        $perGroup = User::where('role', User::ROLE_STUDENT)->selectRaw('group_id, count(*) as n')->groupBy('group_id')->pluck('n', 'group_id');
+        $all = (int) $perGroup->sum();
+        foreach ($tests as $t) {
+            $this->testStats[$t->id] = [
+                'best' => ($best->get($t->id) ?? collect())->pluck('best'),
+                'students' => $t->forAll() ? $all : (int) $t->groups->sum(fn ($g) => $perGroup->get($g->id, 0)),
+            ];
+        }
+
+        return $tests;
+    }
+
     public function test(Test $t): array
     {
         $pool = $t->questions_count ?? $t->questions()->count();
         // У индивидуального теста к нему прикреплён пул, а студенту достаётся вариант по матрице
         $count = $t->isIndividual() ? min($pool, max(1, $t->variantSize())) : $pool;
+        // Список тестов считается пачкой (testStats); одиночный тест — своими запросами
+        $stats = $this->testStats[$t->id] ?? null;
         // По студенту — лучшая попытка: пересдачи не считаются новыми студентами и не тянут средний вниз
-        $best = $t->attempts()->where('status', '!=', 'in_progress')->selectRaw('user_id, max(percent) as best')->groupBy('user_id')->pluck('best');
+        $best = $stats['best'] ?? $t->attempts()->where('status', '!=', 'in_progress')->selectRaw('user_id, max(percent) as best')->groupBy('user_id')->pluck('best');
         $submitted = $best->count();
-        $students = $t->participants()->count();
+        $students = $stats['students'] ?? $t->participants()->count();
         $avg = $best->count() ? $best->avg() : null;
-        $openCount = $t->questions()->where('type', 'open')->count();
+        $openCount = $t->open_count ?? $t->questions()->where('type', 'open')->count();
 
         $statusLabel = match ($t->status) {
             'running' => 'Идёт'.($t->deadline_at ? ' · до '.$t->deadline_at->translatedFormat('j M') : ''),

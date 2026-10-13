@@ -57,7 +57,8 @@
   function flush() {
     clearTimeout(saveTimer);
     if (submitted) return saving;
-    saving = A.api('PUT', 'attempts/' + M.attempt.attemptId, { answers: st.answers, flags: st.flags, current: st.current })
+    // Без всплывающих сообщений: состояние сохранения видно в боковой панели, повтор — сам через 5 с
+    saving = A.api('PUT', 'attempts/' + M.attempt.attemptId, { answers: st.answers, flags: st.flags, current: st.current }, true)
       .then(function () { markSaved(); })
       .catch(function (err) {
         if (err && err.status === 409) { finish(true); return; }
