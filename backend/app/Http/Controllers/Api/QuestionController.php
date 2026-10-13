@@ -76,6 +76,21 @@ class QuestionController extends Controller
         return $this->data->question($q);
     }
 
+    /**
+     * Удалить вопрос можно, пока он нигде не использован: ни в одном тесте и без ответов студентов.
+     * Иначе пропали бы результаты — такой вопрос отклоняют, а не удаляют.
+     */
+    public function destroy(Question $question)
+    {
+        abort_unless($question->course_id === CurrentUser::course()->id, 404);
+        if ($question->tests()->exists() || \App\Models\Answer::where('question_id', $question->id)->exists()) {
+            return response()->json(['message' => 'Вопрос уже есть в тесте или на него отвечали студенты — удалить нельзя, отклоните его'], 409);
+        }
+        $question->delete();
+
+        return response()->noContent();
+    }
+
     /** Экспорт вопросов в Moodle XML (по умолчанию — все одобренные). */
     public function export(Request $request)
     {

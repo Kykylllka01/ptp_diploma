@@ -330,4 +330,19 @@
     });
   }
   A.$('#form').addEventListener('submit', function (e) { e.preventDefault(); });
+
+  // Удалить можно вопрос, который ещё нигде не использован (например, добавленный вручную по ошибке)
+  A.$('#approve').insertAdjacentHTML('afterend', A.menu('Ещё действия с вопросом', [{ label: 'Удалить вопрос', attrs: 'data-delete-q', danger: true }]));
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-delete-q]')) return;
+    A.confirm({ title: 'Удалить вопрос ' + q.id + '?', text: 'Вопрос исчезнет из банка. Если он уже есть в тесте или на него отвечали студенты, удалить не получится — тогда отклоните его.', ok: 'Удалить', danger: true })
+      .then(function (yes) {
+        if (!yes) return;
+        A.api('DELETE', 'questions/' + encodeURIComponent(q.id)).then(function () {
+          setDirty(false);
+          A.toast('Вопрос удалён');
+          setTimeout(function () { location.href = 'bank?status=' + (q.status || 'all'); }, 400);
+        });
+      });
+  });
 })();

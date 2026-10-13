@@ -85,6 +85,18 @@ class UxPolishTest extends TestCase
         $this->assertSame('all', $test->fresh()->audience);
     }
 
+    public function test_only_unused_question_can_be_deleted(): void
+    {
+        $this->actingAs($this->teacher());
+        $code = $this->postJson('/api/questions', ['type' => 'single'])->assertOk()->json('id');   // «Добавить вручную»
+        $this->deleteJson('/api/questions/'.$code)->assertNoContent();
+        $this->getJson('/api/questions/'.$code)->assertNotFound();
+
+        $this->makeTest('m1', [$this->singleQuestion('Q-9')]);
+        $this->deleteJson('/api/questions/Q-9')->assertStatus(409);           // уже в тесте
+        $this->actingAs($this->student())->deleteJson('/api/questions/Q-9')->assertForbidden();
+    }
+
     public function test_error_pages_are_in_russian(): void
     {
         $this->get('/no-such-page')->assertNotFound()->assertSee('Страница не найдена')->assertSee('На главную');

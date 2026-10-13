@@ -22,6 +22,7 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::post('questions/bulk', [QuestionController::class, 'bulk']);
         Route::get('questions/{question}', [QuestionController::class, 'show']);
         Route::patch('questions/{question}', [QuestionController::class, 'update']);
+        Route::delete('questions/{question}', [QuestionController::class, 'destroy']);
         Route::post('questions/{question}/regenerate', [QuestionController::class, 'regenerate']);
 
         Route::get('materials', [MaterialController::class, 'index']);
