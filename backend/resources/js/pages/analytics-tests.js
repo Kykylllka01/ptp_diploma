@@ -69,9 +69,9 @@
   A.$('#problems').innerHTML = O.problems.map(function (p) {
     var low = p.correct < 50;
     return '<tr><td style="min-width: 320px"><div class="clamp-2">' + esc(p.text) + '</div><div class="muted xsmall mono" style="margin-top: 2px">' + esc(p.id) + ' · ' + esc((M.types || {})[p.type] || p.type) + '</div></td>' +
-      '<td class="small">' + esc(p.topic || '—') + '</td>' +
-      '<td><div class="pc"><div class="progress progress--md"><div class="' + (low ? 'is-weak' : '') + '" style="width:' + p.correct + '%"></div></div><span class="strong' + (low ? ' t-orange' : '') + '">' + p.correct + '%</span></div></td>' +
-      '<td class="num-col">' + p.answers + '</td>' +
-      '<td class="right"><a href="question?id=' + encodeURIComponent(p.id) + '" class="btn btn--xs">Открыть</a></td></tr>';
+      '<td class="small" data-label="Тема">' + esc(p.topic || '—') + '</td>' +
+      '<td data-label="Верно ответили"><div class="pc"><div class="progress progress--md"><div class="' + (low ? 'is-weak' : '') + '" style="width:' + p.correct + '%"></div></div><span class="strong' + (low ? ' t-orange' : '') + '">' + p.correct + '%</span></div></td>' +
+      '<td class="num-col" data-label="Ответов">' + p.answers + '</td>' +
+      '<td class="right td-actions"><a href="question?id=' + encodeURIComponent(p.id) + '" class="btn btn--xs">Открыть</a></td></tr>';
   }).join('');
 })();

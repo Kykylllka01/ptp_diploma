@@ -134,8 +134,8 @@
     var link = t.submitted
       ? '<a href="analytics?test=' + encodeURIComponent(t.id) + '" class="btn btn--xs">Результаты</a>'
       : t.count ? '<a href="preview?test=' + encodeURIComponent(t.id) + '" class="btn btn--xs">Пройти самому</a>' : '<a href="tests" class="btn btn--xs">Открыть</a>';
-    return '<tr><td><span class="table__title">' + esc(t.title) + '</span></td><td class="num-col">' + t.count + '</td><td>' + A.chip(t.statusLabel, tone[t.status]) +
-      '</td><td>' + t.passed + '</td><td class="num-col">' + t.avg + '</td><td class="right">' + link + '</td></tr>';
+    return '<tr><td><span class="table__title">' + esc(t.title) + '</span></td><td class="num-col" data-label="Вопросов">' + t.count + '</td><td data-label="Статус">' + A.chip(t.statusLabel, tone[t.status]) +
+      '</td><td data-label="Сдали">' + t.passed + '</td><td class="num-col" data-label="Средний балл">' + t.avg + '</td><td class="right td-actions">' + link + '</td></tr>';
   }).join('') || '<tr><td colspan="6" class="empty">Тестов пока нет. <a href="test-builder">Соберите первый</a>, когда в банке появятся одобренные вопросы.</td></tr>';
   if (M.tests.length > recent.length) A.$('#all-tests').textContent = 'Все тесты (' + M.tests.length + ')';
 })();

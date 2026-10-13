@@ -34,7 +34,7 @@
       <div id="st-filters"></div>
     </div>
     <div class="table-wrap">
-      <table class="table" style="min-width: 900px">
+      <table class="table table--stack" style="min-width: 900px">
         <thead id="st-head"></thead>
         <tbody id="students"></tbody>
       </table>

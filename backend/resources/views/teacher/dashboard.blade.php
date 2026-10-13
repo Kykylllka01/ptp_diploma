@@ -52,7 +52,7 @@
       <a href="tests" class="small" style="font-weight: 500" id="all-tests">Все тесты</a>
     </div>
     <div class="table-wrap">
-      <table class="table" style="min-width: 720px">
+      <table class="table table--stack" style="min-width: 720px">
         <thead><tr><th>Название</th><th class="num-col">Вопросов</th><th>Статус</th><th>Сдали</th><th class="num-col">Средний балл</th><th></th></tr></thead>
         <tbody id="tests"></tbody>
       </table>

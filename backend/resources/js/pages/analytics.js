@@ -73,13 +73,13 @@
       var label = ST[x.status];
       return '<tr' + (x.attemptId ? ' class="is-clickable" data-attempt="' + x.attemptId + '"' : '') + '>' +
         '<td><div class="strong">' + esc(x.name) + '</div><div class="muted xsmall">' + esc(x.email) + '</div></td>' +
-        '<td class="small">' + esc(x.group || '—') + '</td>' +
-        '<td class="num-col">' + (x.attempts || '—') + '</td>' +
-        '<td>' + (x.percent == null ? '<span class="muted">—</span>' : '<div class="pc"><div class="progress progress--md" style="max-width: 120px"><div class="' + (x.percent < 50 ? 'is-weak' : '') + '" style="width:' + x.percent + '%"></div></div><span class="strong">' + x.percent + '%</span></div><div class="muted xsmall">' + num(x.score) + ' из ' + num(x.max) + '</div>') + '</td>' +
-        '<td class="num-col strong">' + (x.points != null ? num(x.points) + (R.weight != null ? ' <span class="muted xsmall" style="font-weight: 400">/ ' + num(R.weight) + '</span>' : '') : (x.percent != null && R.weight == null ? x.percent + '%' : '<span class="muted" style="font-weight: 400">—</span>')) + '</td>' +
-        '<td>' + A.chip(label[0], label[1]) + '</td>' +
-        '<td class="small">' + esc(x.submitted || '') + '</td>' +
-        '<td class="right">' + (x.attemptId ? '<a href="attempt?id=' + x.attemptId + '" class="btn btn--xs">Ответы</a>' : '') + '</td></tr>';
+        '<td class="small" data-label="Группа">' + esc(x.group || '—') + '</td>' +
+        '<td class="num-col" data-label="Попыток">' + (x.attempts || '—') + '</td>' +
+        '<td data-label="Лучший результат">' + (x.percent == null ? '<span class="muted">—</span>' : '<div class="pc"><div class="progress progress--md" style="max-width: 120px"><div class="' + (x.percent < 50 ? 'is-weak' : '') + '" style="width:' + x.percent + '%"></div></div><span class="strong">' + x.percent + '%</span></div><div class="muted xsmall">' + num(x.score) + ' из ' + num(x.max) + '</div>') + '</td>' +
+        '<td class="num-col strong" data-label="Баллы">' + (x.points != null ? num(x.points) + (R.weight != null ? ' <span class="muted xsmall" style="font-weight: 400">/ ' + num(R.weight) + '</span>' : '') : (x.percent != null && R.weight == null ? x.percent + '%' : '<span class="muted" style="font-weight: 400">—</span>')) + '</td>' +
+        '<td data-label="Статус">' + A.chip(label[0], label[1]) + '</td>' +
+        '<td class="small" data-label="Сдан">' + esc(x.submitted || '—') + '</td>' +
+        '<td class="right td-actions">' + (x.attemptId ? '<a href="attempt?id=' + x.attemptId + '" class="btn btn--xs">Ответы</a>' : '') + '</td></tr>';
     }).join('') || '<tr><td colspan="8" class="empty">Никого в этом списке.</td></tr>';
   }
   A.$('#st-filters').addEventListener('click', function (e) {

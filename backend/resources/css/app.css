@@ -735,10 +735,27 @@ mark.good { background: #DDF1E5; }
   .chip { white-space: normal; height: auto; min-height: 26px; padding: 3px 10px; }
 }
 
+/* ---------- Таблицы на телефоне: строка превращается в карточку с подписями полей ---------- */
+@media (max-width: 640px) {
+  .table-wrap .table.table--stack { min-width: 0 !important; }
+  .table-wrap .table.table--stack thead { display: none; }
+  .table-wrap .table.table--stack tbody tr { display: block; padding: 14px 24px; border-top: 1px solid var(--divider); }
+  .table-wrap .table.table--stack tbody tr:first-child { border-top: none; }
+  .table-wrap .table.table--stack tbody tr > td:nth-child(n) { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-width: 0 !important; padding: 4px 0; border: none; text-align: right; }
+  .table-wrap .table.table--stack tbody td::before { content: attr(data-label); color: var(--muted); font-size: 13px; font-weight: 400; text-align: left; flex: none; }
+  .table-wrap .table.table--stack tbody tr > td:first-child { display: block; padding-bottom: 8px; text-align: left; }
+  .table-wrap .table.table--stack tbody tr > td:first-child::before, .table-wrap .table.table--stack tbody td.td-actions::before, .table-wrap .table.table--stack tbody td.empty::before { content: none; }
+  .table-wrap .table.table--stack tbody tr > td.td-actions { justify-content: flex-end; padding-top: 10px; }
+  .table-wrap .table.table--stack tbody tr > td.empty { display: block; text-align: center; padding: 32px 0; }
+}
+
 /* ---------- Журнал на узком экране и при сильном увеличении ---------- */
 @media (max-width: 900px) {
-  .journal__n, .journal__total { position: static; box-shadow: none; }
-  .journal__name { left: 0; width: 160px; min-width: 160px; }
+  /* Закреплена только фамилия: № и «Итого» прокручиваются вместе с тестами (шапка по-прежнему липнет сверху) */
+  .journal tbody .journal__n, .journal tbody .journal__total, .journal tfoot .journal__n, .journal tfoot .journal__total { position: static; }
+  .journal .journal__n { left: auto; }
+  .journal .journal__total { right: auto; box-shadow: none; }
+  .journal .journal__name { left: 0; width: 160px; min-width: 160px; }
   .journal tr > :first-child { padding-left: 12px; }
 }
 .journal-wrap { scroll-padding: 150px 120px 60px 340px; }

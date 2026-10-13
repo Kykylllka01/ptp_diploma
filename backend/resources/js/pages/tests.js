@@ -50,12 +50,12 @@
       ? '<a href="analytics?test=' + encodeURIComponent(t.id) + '" class="table__title">' + esc(t.title) + '</a>'
       : '<span class="table__title">' + esc(t.title) + '</span>';
     return '<tr><td style="min-width: 260px">' + title + '<div class="muted xsmall" style="margin-top: 2px">' + esc(meta) + '</div></td>' +
-      '<td class="num-col">' + t.count + '</td>' +
-      '<td>' + A.chip(t.statusLabel, tone[t.status]) + '</td>' +
-      '<td class="small" style="min-width: 150px">' + esc(t.deadline || '—') + '</td>' +
-      '<td>' + passed(t) + '</td>' +
-      '<td class="num-col strong">' + (t.avgPercent == null ? '<span class="muted" style="font-weight: 400">—</span>' : t.avgPercent + '%') + '</td>' +
-      '<td><div class="row-actions">' + primary(t) + menuFor(t) + '</div></td></tr>';
+      '<td class="num-col" data-label="Вопросов">' + t.count + '</td>' +
+      '<td data-label="Статус">' + A.chip(t.statusLabel, tone[t.status]) + '</td>' +
+      '<td class="small" style="min-width: 150px" data-label="Срок">' + esc(t.deadline || '—') + '</td>' +
+      '<td data-label="Сдали">' + passed(t) + '</td>' +
+      '<td class="num-col strong" data-label="Средний">' + (t.avgPercent == null ? '<span class="muted" style="font-weight: 400">—</span>' : t.avgPercent + '%') + '</td>' +
+      '<td class="td-actions"><div class="row-actions">' + primary(t) + menuFor(t) + '</div></td></tr>';
   }
 
   var GET = {
