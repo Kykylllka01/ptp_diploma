@@ -2,7 +2,16 @@
 (function () {
   var A = window.App, M = A.M, esc = A.esc;
 
-  var todo = M.tests.filter(function (t) { return t.status === 'running' || t.status === 'draft'; });
+  var todo = M.tests.filter(function (t) {
+    var done = t.my && t.my.status !== 'in_progress' && t.my.left <= 0;
+    return (t.status === 'running' || t.status === 'draft') && !done;
+  });
+  // Срок: красный — меньше двух суток, жёлтый — меньше пяти, дальше — спокойный
+  function deadlineChip(t) {
+    if (!t.deadline) return A.chip('Без срока');
+    var days = t.deadlineTs ? (t.deadlineTs * 1000 - Date.now()) / 864e5 : 99;
+    return A.chip(t.deadline, days < 2 ? 'red' : days < 5 ? 'amber' : 'blue');
+  }
   A.$('#todo').innerHTML = todo.map(function (t) {
     var open = t.isOpen;
     var my = t.my;
@@ -13,7 +22,7 @@
       t.minutes > 0 ? t.minutes + ' ' + A.plural(t.minutes, 'минута', 'минуты', 'минут') : 'без ограничения времени',
       t.attempts >= 99 ? 'попыток без ограничения' : t.attempts + ' ' + A.plural(t.attempts, 'попытка', 'попытки', 'попыток')
     ];
-    if (t.open) meta.push(t.open + ' ' + A.plural(t.open, 'открытый', 'открытых', 'открытых'));
+    if (t.open) meta.push(t.open + ' ' + A.plural(t.open, 'вопрос', 'вопроса', 'вопросов') + ' с развёрнутым ответом');
     var action;
     if (!t.count) action = '<button class="btn" disabled style="align-self: flex-start">Вопросы ещё не добавлены</button>';
     else if (!open) action = '<button class="btn" disabled style="align-self: flex-start">Пока недоступен</button>';
@@ -24,13 +33,13 @@
     else action = '<a href="test?test=' + encodeURIComponent(t.id) + '" class="btn btn--primary" style="align-self: flex-start">' + (my ? 'Продолжить тест' : 'Начать тест') + '</a>';
     return '<article class="card test-card' + (open && !submitted ? ' is-main' : '') + '">' +
       // Срока может не быть — тогда без пустой красной плашки
-      '<div class="between">' + (open ? (submitted ? A.chip('Сдан', 'green') : (t.deadline ? A.chip(t.deadline, 'red') : A.chip('Без срока'))) +
+      '<div class="between">' + (open ? (submitted ? A.chip('Сдан · можно пересдать', 'green') : deadlineChip(t)) +
         A.chip(t.graded ? 'Оценивается' : 'Без оценки') : A.chip(t.deadline || 'Ещё не открыт')) + '</div>' +
       '<h3>' + esc(t.title) + '</h3>' +
       '<div class="meta">' + meta.map(function (m) { return '<span>' + m + '</span>'; }).join('') + '</div>' +
-      '<p style="margin: 0; font-size: 14px; color: var(--text-2); line-height: 1.5">' + esc(t.about || '') + '</p>' +
+      (t.about ? '<p style="margin: 0; font-size: 14px; color: var(--text-2); line-height: 1.5">' + esc(t.about) + '</p>' : '') +
       action + '</article>';
-  }).join('') || '<div class="muted">Назначенных тестов нет</div>';
+  }).join('') || '<div class="card card--pad empty" style="grid-column: 1 / -1">Сейчас проходить нечего: новых тестов нет. Когда преподаватель откроет тест, он появится здесь.</div>';
 
   A.$('#done').innerHTML = M.studentDone.map(function (d) {
     return '<a href="result?attempt=' + d.attemptId + '" class="done-row"><div style="flex: 1; min-width: 220px"><div class="strong">' + esc(d.title) + '</div>' +

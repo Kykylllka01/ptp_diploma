@@ -15,6 +15,8 @@
   var YOUR = T ? 'Ответ студента' : 'Ваш ответ';
 
   A.$('#test-title').textContent = att.testTitle;
+  // «Может измениться» — только если развёрнутые ответы ещё ждут преподавателя
+  if (A.$('#result-note')) A.$('#result-note').hidden = !pendingOpen || T;
   A.$('#percent').textContent = att.percent + '%';
   A.$('#score').textContent = att.score + ' / ' + att.max;
   A.$('#donut').style.background = 'conic-gradient(#0072BC 0 ' + att.percent + '%, #EEF0F3 ' + att.percent + '% 100%)';
@@ -54,11 +56,13 @@
   var weakest = tlist.slice().sort(function (a, b) { return a[1] - b[1]; })[0];
   var wrong = Q.filter(function (q) { var r = att.results[q.id]; return r.final && r.score < r.max; });
   var weakQ = weakest && wrong.filter(function (q) { return q.topic === weakest[0]; })[0];
+  var canPractice = !T && att.showReview && wrong.some(function (q) { return q.type !== 'open'; });
   A.$('#advice').textContent = !weakest ? 'Подробного разбора по этому тесту нет.' : T
     ? (weakest[1] < 100 ? 'Больше всего ошибок в теме «' + weakest[0] + '» (' + weakest[1] + '%). Ошибок всего: ' + wrong.length + '.' : 'Ошибок нет.')
     : weakest[1] < 100
-    ? 'Больше всего ошибок в теме «' + weakest[0] + '» (' + weakest[1] + '%). Перечитайте ' + (weakQ && weakQ.ref ? (/^(Лекция|Лаб\. работа|Семинар)/.test(weakQ.ref) ? weakQ.ref.replace(/^Лекция/, 'лекцию').replace(/^Лаб\. работа/, 'лабораторную работу').replace(/^Семинар/, 'семинар') : 'материал «' + weakQ.ref + '»') : 'материалы по теме') + ' и пройдите короткую тренировку.'
-    : 'Ошибок нет — отличный результат. Можно пройти тренировку по следующей теме.';
+    ? 'Больше всего ошибок в теме «' + weakest[0] + '» (' + weakest[1] + '%). Перечитайте ' + (weakQ && weakQ.ref ? (/^(Лекция|Лаб\. работа|Семинар)/.test(weakQ.ref) ? weakQ.ref.replace(/^Лекция/, 'лекцию').replace(/^Лаб\. работа/, 'лабораторную работу').replace(/^Семинар/, 'семинар') : 'материал «' + weakQ.ref + '»') : 'материалы по теме') +
+      (canPractice ? ' и пройдите работу над ошибками.' : '.')
+    : 'Ошибок нет — отличный результат.';
   // Работа над ошибками: вопросы с выбором ответа, сопоставление и SQL (развёрнутые проверяет преподаватель)
   var practice = wrong.filter(function (q) { return q.type !== 'open'; });
   A.$('#train-btn').hidden = T || !practice.length || !att.showReview;
@@ -69,7 +73,7 @@
   var filter = 'all';
   function renderFilters() {
     var open = Q.filter(function (q) { return q.type === 'open' || q.type === 'sql'; }).length;
-    var opts = [['all', 'Все'], ['wrong', 'Ошибки · ' + wrong.length], ['open', 'Открытые · ' + open]];
+    var opts = [['all', 'Все'], ['wrong', 'Ошибки · ' + wrong.length], ['open', 'Развёрнутые и SQL · ' + open]];
     A.$('#filters').innerHTML = opts.map(function (o) {
       return '<button type="button" class="btn btn--xs' + (filter === o[0] ? ' is-on' : '') + '" aria-pressed="' + (filter === o[0]) + '" data-f="' + o[0] + '">' + o[1] + '</button>';
     }).join('');
@@ -84,7 +88,7 @@
   function renderReview() {
     var items = Q.map(function (q, i) { return [q, i]; }).filter(function (x) {
       var q = x[0], r = att.results[q.id];
-      if (filter === 'wrong') return r.score < r.max;
+      if (filter === 'wrong') return r.final && r.score < r.max;
       if (filter === 'open') return q.type === 'open' || q.type === 'sql';
       return true;
     });
