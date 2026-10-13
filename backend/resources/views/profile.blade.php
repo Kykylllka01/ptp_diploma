@@ -49,8 +49,8 @@
         <form method="POST" action="{{ route('profile.update') }}" class="stack" style="margin-top: 18px; gap: 16px">
           @csrf
           <div class="grid-fields">
-            <label class="field">Как подписывать<input class="input" name="name" value="{{ old('name', $user->name) }}" required maxlength="100"></label>
-            <label class="field"><span>Обращение <span class="field__hint">в приветствии</span></span><input class="input" name="full_name" value="{{ old('full_name', $user->full_name) }}" maxlength="150"></label>
+            <label class="field"><span>Имя на сайте <span class="field__hint">в шапке и списках, например «Иванов И. И.»</span></span><input class="input" name="name" value="{{ old('name', $user->name) }}" required maxlength="100"></label>
+            <label class="field"><span>Как к вам обращаться <span class="field__hint">в приветствии на «Обзоре»</span></span><input class="input" name="full_name" value="{{ old('full_name', $user->full_name) }}" maxlength="150"></label>
           </div>
           <div class="grid-fields">
             <label class="field">Почта для входа<input class="input" value="{{ $user->email }}" disabled></label>
@@ -92,12 +92,12 @@
         </section>
         <section class="card card--pad">
           <h2 class="card-title">Нейросеть</h2>
-          <p class="muted small" style="margin: 8px 0 0">Обращения агентов к модели и расход токенов — для экспериментальной главы.</p>
+          <p class="muted small" style="margin: 8px 0 0">Сколько раз агенты обращались к нейросети и сколько текста (токенов) это заняло.</p>
           <div class="stack-sm" style="margin-top: 14px">
             <div class="between"><span class="muted">Обращений</span><b class="strong">{{ $llm['calls'] }}</b></div>
             <div class="between"><span class="muted">Токенов</span><b class="strong">{{ number_format($llm['tokens'], 0, ',', ' ') }}</b></div>
             @foreach ($llm['byAgent'] as $row)
-              <div class="between small"><span class="muted">{{ \Illuminate\Support\Str::ucfirst(\App\Models\AgentLog::LABELS[$row->agent] ?? $row->agent) }}</span><span>{{ $row->n }} · {{ number_format((int) $row->t, 0, ',', ' ') }} ток.</span></div>
+              <div class="between small"><span class="muted">{{ \Illuminate\Support\Str::ucfirst(\App\Models\AgentLog::LABELS[$row->agent] ?? $row->agent) }}</span><span>{{ $row->n }} · {{ number_format((int) $row->t, 0, ',', ' ') }} токенов</span></div>
             @endforeach
           </div>
         </section>

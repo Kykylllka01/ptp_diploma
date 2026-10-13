@@ -19,7 +19,7 @@
   function studentRow(s, groupId) {
     var ava = s.avatar ? '<img class="avatar avatar--sm avatar--img" src="' + esc(s.avatar) + '" alt="">' : '<span class="avatar avatar--sm avatar--gray">' + esc(s.initials || '') + '</span>';
     return '<div class="list-row" style="padding: 10px 0; gap: 12px">' + ava + '<div class="list-row__main"><div class="strong small">' + esc(s.name) + '</div>' +
-      '<div class="list-row__meta xsmall">' + esc(s.email) + (s.since ? ' · с ' + esc(s.since) : '') + '</div></div>' +
+      '<div class="list-row__meta xsmall">' + esc(s.email) + (s.since ? ' · зарегистрирован ' + esc(s.since) : '') + '</div></div>' +
       '<div style="width: 190px">' + moveSelect(s, groupId) + '</div>' +
       A.menu('Действия со студентом ' + s.name, [{ label: 'Выдать новый пароль', attrs: 'data-password="' + s.id + '"' }]) + '</div>';
   }

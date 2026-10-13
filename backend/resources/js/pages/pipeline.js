@@ -42,7 +42,7 @@
       var warn = !!q.flag;
       return '<div class="gen-q' + (warn ? ' gen-q--warn' : '') + '">' +
         '<div class="row-wrap">' + A.chip(M.types[q.type]) + A.chip(M.difficulties[q.difficulty]) +
-          (warn ? A.chip('Нужна проверка', 'amber') : A.chip('Одобрен критиком', 'green')) + '</div>' +
+          (warn ? A.chip('Нужна проверка', 'amber') : A.chip('Без замечаний Критика', 'green')) + '</div>' +
         '<a class="gen-q__text" href="question?id=' + encodeURIComponent(q.id) + '">' + esc(q.text) + '</a>' +
         '<div class="xsmall ' + (warn ? 't-amber' : 'muted') + '" style="margin-top: 6px">' +
           (warn ? 'Критик: ' + esc(q.flag.text) : 'Источник: ' + esc(q.source)) + '</div></div>';
@@ -70,12 +70,12 @@
         : 'Готово. Новые вопросы ждут проверки в банке.';
     } else if (run.status === 'failed') {
       A.$('#title').textContent = 'Конвейер остановился с ошибкой';
-      A.$('#eta').textContent = run.error || 'Подробности в журнале Laravel (storage/logs).';
+      A.$('#eta').textContent = run.error || 'Агенты остановились с ошибкой. Попробуйте запустить ещё раз; если повторится — сообщите администратору сайта.';
     } else {
       A.$('#title').textContent = 'Агенты работают над вопросами';
       A.$('#eta').textContent = 'Готовые вопросы появляются ниже сразу.';
     }
-    A.$('#live').textContent = finished ? 'готово' : 'live';
+    A.$('#live').textContent = finished ? 'готово' : 'обновляется';
     A.$('#stop').hidden = finished;
     A.$('#stop').disabled = run.status === 'cancelling';
     if (finished) clearInterval(timer);

@@ -31,7 +31,7 @@
       <div class="stack-sm" style="margin-top: 14px; gap: 12px" id="fresh"></div>
     </section>
     <aside class="card log split__side" style="flex-basis: 340px">
-      <div class="log__head"><span>Журнал агентов</span><span class="mono xsmall" style="color: #9AA1B0" id="live">live</span></div>
+      <div class="log__head"><span>Журнал агентов</span><span class="mono xsmall" style="color: #9AA1B0" id="live">обновляется</span></div>
       <div class="log__body" id="log" aria-live="polite"></div>
     </aside>
   </div>

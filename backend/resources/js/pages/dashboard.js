@@ -19,9 +19,9 @@
 
   A.$('#stats').innerHTML =
     '<div class="card stat"><div class="lbl">Вопросов в банке</div><div class="stat__value">' + qs.length + '</div><div class="stat__hint">' + (M.materials.length ? 'по ' + M.materials.length + ' ' + A.plural(M.materials.length, 'материалу', 'материалам', 'материалам') : 'материалов пока нет') + '</div></div>' +
-    '<a href="bank" class="card stat' + (pending.length ? ' card--warn' : '') + '"><div class="lbl">Ждут проверки</div><div class="stat__value">' + pending.length + '</div><div class="stat__hint">Открыть очередь →</div></a>' +
+    '<a href="bank" class="card stat' + (pending.length ? ' card--warn' : '') + '"><div class="lbl">Ждут одобрения</div><div class="stat__value">' + pending.length + '</div><div class="stat__hint">Открыть очередь →</div></a>' +
     '<div class="card stat"><div class="lbl">Активных тестов</div><div class="stat__value">' + running + '</div><div class="stat__hint">' + (M.participants ? M.participants + ' ' + A.plural(M.participants, 'участник', 'участника', 'участников') : 'участников пока нет') + '</div></div>' +
-    '<a href="review" class="card stat"><div class="lbl">Открытые ответы</div><div class="stat__value">' + openToReview + '</div><div class="stat__hint">агент оценил, нужна ваша подпись</div></a>';
+    '<a href="review" class="card stat"><div class="lbl">Развёрнутые ответы</div><div class="stat__value">' + openToReview + '</div><div class="stat__hint">агент оценил, нужна ваша подпись</div></a>';
 
   A.$('#materials').innerHTML = M.materials.map(function (m) {
     var mine = qs.filter(function (q) { return q.materialId === m.id; });
@@ -29,7 +29,7 @@
     // Статус материала, а не только вопросов: в обработке, ошибка, без вопросов
     var status = m.status === 'processing' ? A.chip('В обработке', 'blue')
       : m.status === 'error' ? A.chip('Ошибка чтения', 'red')
-      : p ? A.chip(p + ' на проверке', 'amber')
+      : p ? A.chip(p + ' ' + A.plural(p, 'ждёт', 'ждут', 'ждут') + ' одобрения', 'amber')
       : mine.length ? A.chip('Готово', 'green') : A.chip('Вопросов нет');
     // Вся строка — кнопка: по клику открывается карточка материала
     return '<button type="button" class="list-row list-row--btn" data-material="' + m.id + '" aria-haspopup="dialog">' +
