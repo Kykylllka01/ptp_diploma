@@ -6,7 +6,23 @@
   var f = { test: A.param('test') || '', attempt: A.param('attempt') ? +A.param('attempt') : 0, show: 'pending' };
 
   // Несколько преподавателей: по умолчанию ответы на свои тесты; ссылка на конкретный тест или попытку — без этого фильтра
-  var own = A.owner('review', function () { renderQueue(); });
+  var own = A.owner('review', function () {
+    // Открытый ответ выпал из охвата (или ещё ничего не открыто) — открываем первый из нового списка
+    if (current && inScope(current)) { renderQueue(); return; }
+    var first = firstOpen();
+    if (first) open(first.id); else { renderQueue(); showNothing(); }
+  });
+  function firstOpen() { return list().filter(function (r) { return r.status !== 'confirmed'; })[0] || list()[0]; }
+  // Своих ответов нет, а у коллег есть: экран проверки пуст, в очереди — переключатель «Все преподаватели»
+  function showNothing() {
+    A.$('.split__main').hidden = true;
+    var box = A.$('#own-empty');
+    if (!box) {
+      A.$('.split__main').insertAdjacentHTML('beforebegin', '<div class="card card--pad empty" style="flex: 1" id="own-empty"></div>');
+      box = A.$('#own-empty');
+    }
+    box.innerHTML = 'Ответов на ваши тесты пока нет. <button type="button" class="link-btn" data-owner="all">Показать ответы на тесты всех преподавателей</button>';
+  }
   function all() { return A.reviews(); }
   function inScope(r) { return (f.test || f.attempt || own.match(r)) && (!f.test || r.test === f.test) && (!f.attempt || r.attemptId === f.attempt); }
   function list() {
@@ -37,7 +53,9 @@
         '<span class="between" style="gap: 8px"><span class="strong">' + esc(r.student) + '</span>' + (r.appeal ? A.chip('апелляция', 'amber', 'chip--sm') : isDone ? A.chip('готово', 'green', 'chip--sm') : '') + '</span>' +
         (!f.test && r.testTitle ? '<span class="xsmall muted">' + esc(r.testTitle) + '</span>' : '') +
         '<span' + (isDone ? '' : ' class="muted"') + '>' + line + '</span></button>';
-    }).join('') || '<div class="empty small">' + (f.show === 'appeal' ? 'Апелляций нет' : 'Все ответы проверены') + '</div>';
+    }).join('') || '<div class="empty small">' + (!scope.length && all().length && !f.test && !f.attempt
+      ? 'На ваши тесты ответов нет. <button type="button" class="link-btn" data-owner="all">Показать все</button>'
+      : f.show === 'appeal' ? 'Апелляций нет' : 'Все ответы проверены') + '</div>';
   }
 
   function renderTotal() {
@@ -87,6 +105,8 @@
   }
   function open(id, focus) {
     current = all().filter(function (r) { return r.id === id; })[0];
+    A.$('.split__main').hidden = false;
+    if (A.$('#own-empty')) A.$('#own-empty').remove();
     renderCurrent();
     if (focus) A.$('#q-label').focus();
   }
@@ -151,13 +171,14 @@
       guard().then(function (ok) {
         if (!ok) { tf.value = f.test; return; }
         f.test = tf.value; f.attempt = 0;
-        var first = list().filter(function (r) { return r.status !== 'confirmed'; })[0] || list()[0];
+        var first = firstOpen();
         if (first) open(first.id); else renderQueue();
       });
     });
   }
 
-  var start = list().filter(function (r) { return r.status !== 'confirmed'; })[0] || list()[0] || all()[0];
+  var start = firstOpen();
+  if (!start && all().length) { renderQueue(); showNothing(); return; }
   if (!start) {
     A.$('#progress').textContent = 'Открытых ответов пока нет';
     A.$('.split').innerHTML = '<div class="card card--pad empty" style="flex: 1">Когда студенты сдадут тесты с развёрнутыми ответами, они появятся здесь с оценкой агента.</div>';

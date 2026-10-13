@@ -53,7 +53,7 @@
   function filtersOn() { return !!(lf.q.trim() || lf.kind || lf.show !== 'all'); }
 
   function renderTools() {
-    A.$('#lib-tools').hidden = library.length < 2 && !own.multi;
+    A.$('#lib-tools').hidden = library.length < 2 && !(own.multi && library.length);
     A.$('#lib-owner').innerHTML = own.html(library);
     var base = searched(), count = function (t) { return base.filter(function (m) { return inTab(m, t); }).length; };
     var tabs = [['all', 'Все', base.length], ['used', 'С вопросами', count('used')], ['fresh', 'Без вопросов', count('fresh')]];
@@ -73,7 +73,8 @@
     var sig = library.map(function (m) { return m.id + ':' + m.questionCount; }).join() + '|' + files.map(function (f) { return f.id || ''; }).join() + '|' + JSON.stringify(lf) + own.value();
     if (sig === librarySig) return;
     librarySig = sig;
-    A.$('#library-count').textContent = library.length ? library.length + ' ' + A.plural(library.length, 'материал', 'материала', 'материалов') : '';
+    var mineCount = library.filter(own.match).length;
+    A.$('#library-count').textContent = mineCount ? mineCount + ' ' + A.plural(mineCount, 'материал', 'материала', 'материалов') : '';
     renderTools();
     var all = A.sortBy(searched().filter(function (m) { return inTab(m, lf.show); }), SORTS[lf.sort][0], SORTS[lf.sort][1]);
     var page = all.slice(0, lf.limit);

@@ -194,7 +194,9 @@ class TestController extends Controller
     /** Удалить тест вместе с попытками студентов. */
     public function destroy(Test $test)
     {
-        abort_unless($test->isOwnedBy(CurrentUser::teacher()), 403, 'Удалить тест может только его автор: '.$test->author?->name);
+        if (! $test->isOwnedBy(CurrentUser::teacher())) {
+            abort(403, 'Удалить тест может только его автор: '.$test->author?->name);
+        }
         $test->delete();
 
         return response()->noContent();

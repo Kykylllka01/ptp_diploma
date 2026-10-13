@@ -84,7 +84,9 @@ class QuestionController extends Controller
     public function destroy(Question $question)
     {
         abort_unless($question->course_id === CurrentUser::course()->id, 404);
-        abort_unless($question->isOwnedBy(CurrentUser::teacher()), 403, 'Удалить вопрос может только его автор: '.$question->author?->name);
+        if (! $question->isOwnedBy(CurrentUser::teacher())) {
+            abort(403, 'Удалить вопрос может только его автор: '.$question->author?->name);
+        }
         if ($question->tests()->exists() || \App\Models\Answer::where('question_id', $question->id)->exists()) {
             return response()->json(['message' => 'Вопрос уже есть в тесте или на него отвечали студенты — удалить нельзя, отклоните его'], 409);
         }

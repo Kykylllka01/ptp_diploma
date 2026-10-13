@@ -475,7 +475,7 @@ class FrontendData
 
     public function run(GenerationRun $run): array
     {
-        $fresh = $run->questions()->latest('id')->take(6)->get()->reverse()->values();
+        $fresh = $run->questions()->with('author:id,name')->latest('id')->take(6)->get()->reverse()->values();
 
         return [
             'id' => $run->id,

@@ -9,7 +9,8 @@
 
   // Несколько преподавателей: банк общий, по умолчанию — свои вопросы; чужие можно взять в свой тест
   var own = A.owner('bank', function () { f.limit = PAGE; selected = {}; renderAll(); });
-  function pool() { return A.questions().filter(own.match); }
+  // Вопросы конкретного материала (ссылка из «Материалов») — все, чьи бы они ни были
+  function pool() { return f.source ? A.questions() : A.questions().filter(own.match); }
 
   var TABS = [['all', 'Все'], ['pending', 'Ждут одобрения'], ['approved', 'Одобрены'], ['rejected', 'Отклонены']];
 

@@ -5,8 +5,12 @@
   var CHOICE = ['single', 'multiple', 'tf'];
 
   var all = A.questions();
+  // Очередь «на одобрение» — в том же охвате, что выбран в банке («Мои» или «Все преподаватели»):
+  // «Одобрить и далее» не должно уводить к чужим вопросам
+  var scope = (M.teacherCount || 1) > 1 ? A.recall('owner.bank', 'mine') : 'all';
+  function inQueue(x) { return x.status === 'pending' && (scope === 'all' || x.mine !== false); }
   var q = all.filter(function (x) { return x.id === A.param('id'); })[0] ||
-          all.filter(function (x) { return x.status === 'pending'; })[0] || all[0];
+          all.filter(inQueue)[0] || all[0];
   if (!q) {
     A.$('main').innerHTML = '<section class="card card--pad empty">Вопросов пока нет. <a href="upload">Загрузите материал</a> — агенты составят вопросы для банка.</section>';
     return;
@@ -17,7 +21,7 @@
   draft.options = draft.options || [];
   var history = (draft.history || [['—', 'Вопрос из банка']]).slice();
 
-  var pending = all.filter(function (x) { return x.status === 'pending'; });
+  var pending = all.filter(inQueue);
   var idx = pending.map(function (x) { return x.id; }).indexOf(q.id);
 
   function fillSelect(el, dict, val) {
@@ -168,7 +172,7 @@
   }
 
   function goNext() {
-    var next = A.questions().filter(function (x) { return x.status === 'pending' && x.id !== q.id; })[0];
+    var next = A.questions().filter(function (x) { return inQueue(x) && x.id !== q.id; })[0];
     location.href = next ? 'question?id=' + next.id : 'bank?status=approved';
   }
 

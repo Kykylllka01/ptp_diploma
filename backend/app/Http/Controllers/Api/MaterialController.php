@@ -116,7 +116,9 @@ class MaterialController extends Controller
 
     public function destroy(Material $material)
     {
-        abort_unless($material->isOwnedBy(CurrentUser::teacher()), 403, 'Удалить материал может только тот, кто его загрузил: '.$material->author?->name);
+        if (! $material->isOwnedBy(CurrentUser::teacher())) {
+            abort(403, 'Удалить материал может только тот, кто его загрузил: '.$material->author?->name);
+        }
         if ($material->questions()->exists()) {
             return response()->json(['message' => 'По материалу уже есть вопросы в банке, удалить нельзя'], 422);
         }
