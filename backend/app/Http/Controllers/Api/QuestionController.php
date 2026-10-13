@@ -76,6 +76,21 @@ class QuestionController extends Controller
         return $this->data->question($q);
     }
 
+    /**
+     * Удалить вопрос можно, пока он нигде не использован: ни в одном тесте и без ответов студентов.
+     * Иначе пропали бы результаты — такой вопрос отклоняют, а не удаляют.
+     */
+    public function destroy(Question $question)
+    {
+        abort_unless($question->course_id === CurrentUser::course()->id, 404);
+        if ($question->tests()->exists() || \App\Models\Answer::where('question_id', $question->id)->exists()) {
+            return response()->json(['message' => 'Вопрос уже есть в тесте или на него отвечали студенты — удалить нельзя, отклоните его'], 409);
+        }
+        $question->delete();
+
+        return response()->noContent();
+    }
+
     /** Экспорт вопросов в Moodle XML (по умолчанию — все одобренные). */
     public function export(Request $request)
     {
@@ -207,6 +222,7 @@ class QuestionController extends Controller
             'context' => 'sometimes|nullable|string|max:5000',
             'type' => ['sometimes', Rule::in(array_keys(Question::TYPES))],
             'difficulty' => ['sometimes', Rule::in(array_keys(Question::DIFFICULTIES))],
+            'topic' => 'sometimes|string|max:255',
             'points' => 'sometimes|integer|min:1|max:100',
             'options' => 'sometimes|nullable|array',
             'options.*.text' => 'required_with:options|string|max:1000',
@@ -225,6 +241,9 @@ class QuestionController extends Controller
 
         if (isset($data['fixApplied'])) {
             $data['fix_applied'] = $data['fixApplied'];
+        }
+        if (($data['type'] ?? $question->type) === 'match' && ! empty($data['options'])) {
+            $data['options'] = array_map(fn ($o) => ['text' => Question::normalizePair((string) $o['text'])] + $o, $data['options']);
         }
         // Флаг критика снимаем, когда преподаватель принял решение
         if (in_array($data['status'] ?? null, ['approved', 'rejected'], true)) {

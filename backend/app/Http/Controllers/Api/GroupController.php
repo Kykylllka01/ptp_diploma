@@ -63,7 +63,7 @@ class GroupController extends Controller
             return response()->json(['message' => 'В группе есть студенты — сначала переведите их в другую группу'], 409);
         }
         if ($group->tests()->exists()) {
-            return response()->json(['message' => 'Группе назначены тесты — удалить её нельзя. Закройте приём по ссылке'], 409);
+            return response()->json(['message' => 'Группе назначены тесты — удалить её нельзя. Закройте регистрацию по ссылке'], 409);
         }
         $group->delete();
 
@@ -84,6 +84,25 @@ class GroupController extends Controller
         $user->update(['group_id' => $data['group_id']]);
 
         return ['id' => $user->id, 'group' => $data['group_id']];
+    }
+
+    /**
+     * Студент забыл пароль: почты для восстановления нет, поэтому преподаватель выдаёт временный.
+     * Пароль показывается один раз; открытые сессии и «запомнить меня» на других устройствах перестают работать
+     * (EndSessionAfterPasswordChange в группе web сверяет отпечаток пароля).
+     */
+    public function resetPassword(User $user)
+    {
+        abort_unless($user->role === User::ROLE_STUDENT, 404);
+        // Без похожих символов (0/o, 1/l/i): пароль диктуют или переписывают с экрана
+        $alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+        $password = '';
+        for ($i = 0; $i < 10; $i++) {
+            $password .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        }
+        $user->forceFill(['password' => $password, 'remember_token' => null])->save();
+
+        return ['id' => $user->id, 'password' => $password];
     }
 
     private function ownGroup(Group $group): void

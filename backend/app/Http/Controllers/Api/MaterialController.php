@@ -25,7 +25,7 @@ class MaterialController extends Controller
     }
 
     /**
-     * Карточка материала на «Обзоре»: сколько текста извлечено и его начало, вопросы по статусам
+     * Карточка материала на «Обзоре»: сколько текста извлечено, вопросы по статусам
      * и оценке Критика, запуски агентов с их стоимостью.
      */
     public function show(Material $material)
@@ -44,8 +44,6 @@ class MaterialController extends Controller
             'chars' => mb_strlen($text),
             // Аналитик режет текст на фрагменты примерно по 7000 символов
             'fragments' => $text === '' ? 0 : (int) ceil(mb_strlen($text) / 7000),
-            // Сначала короткий кусок: нормализовать пробелы во всём тексте лекции незачем
-            'excerpt' => mb_substr((string) preg_replace('/\s+/u', ' ', mb_substr($text, 0, 3000)), 0, 600),
             'questions' => [
                 'total' => $questions->count(),
                 'pending' => $questions->where('status', 'pending')->count(),
@@ -77,7 +75,7 @@ class MaterialController extends Controller
                     $fail('Поддерживаются файлы PDF, DOCX, PPTX, TXT и MP4.');
                 }
             }],
-            'url' => 'required_without_all:file,text|nullable|url|max:1000',
+            'url' => 'required_without_all:file,text|nullable|url:http,https|max:1000',
             'text' => 'required_without_all:file,url|nullable|string|max:500000',
             'title' => 'nullable|string|max:255',
         ]);

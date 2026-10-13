@@ -20,7 +20,10 @@
     <label class="field">Пароль
       <input class="input" type="password" name="password" autocomplete="current-password" required>
     </label>
-    <label class="ck"><input type="checkbox" name="remember" value="1"> Запомнить меня</label>
+    <div class="between" style="gap: 8px">
+      <label class="ck"><input type="checkbox" name="remember" value="1"> Запомнить меня</label>
+      <details class="forgot"><summary class="small">Забыли пароль?</summary><p class="muted small">Напишите преподавателю: на странице «Группы» он выдаст новый временный пароль. Сменить его можно в личном кабинете.</p></details>
+    </div>
 
     <button type="submit" class="btn btn--primary btn--block">Войти</button>
     <div class="auth-card__alt">

@@ -69,9 +69,38 @@ class ProfileUiTest extends TestCase
         $d = $this->actingAs($this->teacher())->getJson('/api/materials/'.$m->id)->assertOk()->json();
         $this->assertSame(9000, $d['chars']);
         $this->assertSame(2, $d['fragments']);
-        $this->assertSame(600, mb_strlen($d['excerpt']));
+        $this->assertArrayNotHasKey('excerpt', $d);   // вместо куска текста — сам файл
+        $this->assertNull($d['fileUrl']);               // у этого материала файла нет
         $this->assertSame(['total' => 2, 'pending' => 2, 'approved' => 0, 'rejected' => 0, 'clean' => 1, 'flagged' => 1, 'byType' => ['single' => 2]], $d['questions']);
 
         $this->actingAs($this->student())->getJson('/api/materials/'.$m->id)->assertForbidden();
+    }
+
+    public function test_material_file_opens_inline_or_downloads_with_safe_headers(): void
+    {
+        Storage::fake('local');
+        $course = Course::firstOrFail()->id;
+        Storage::put('materials/a.txt', '<script>alert(1)</script>');
+        Storage::put('materials/b.docx', 'PK');
+        $txt = Material::create(['course_id' => $course, 'title' => 'Лекция: 1/2', 'kind' => 'TXT', 'status' => 'ready', 'file_path' => 'materials/a.txt']);
+        $docx = Material::create(['course_id' => $course, 'title' => 'Нормализация', 'kind' => 'DOCX', 'status' => 'ready', 'file_path' => 'materials/b.docx']);
+        $link = Material::create(['course_id' => $course, 'title' => 'Сайт', 'kind' => 'URL', 'status' => 'ready', 'url' => 'https://example.org/lecture']);
+
+        $this->actingAs($this->teacher());
+        $this->assertStringEndsWith('/teacher/materials/'.$txt->id.'/file', $this->getJson('/api/materials/'.$txt->id)->json('fileUrl'));
+
+        // Текст — во вкладке, но как простой текст в песочнице: HTML внутри не исполнится
+        $r = $this->get('/teacher/materials/'.$txt->id.'/file')->assertOk();
+        $this->assertStringStartsWith('text/plain', $r->headers->get('Content-Type'));
+        $this->assertSame('sandbox', $r->headers->get('Content-Security-Policy'));
+        $this->assertSame('nosniff', $r->headers->get('X-Content-Type-Options'));
+        $this->assertStringContainsString('inline', $r->headers->get('Content-Disposition'));
+
+        $this->assertStringContainsString('attachment', $this->get('/teacher/materials/'.$docx->id.'/file')->assertOk()->headers->get('Content-Disposition'));
+        $this->get('/teacher/materials/'.$link->id.'/file')->assertRedirect('https://example.org/lecture');
+
+        Storage::delete('materials/b.docx');
+        $this->get('/teacher/materials/'.$docx->id.'/file')->assertNotFound();
+        $this->actingAs($this->student())->get('/teacher/materials/'.$txt->id.'/file')->assertRedirect();
     }
 }

@@ -37,7 +37,7 @@ class FrontendData
         $data = $this->base() + ['teacher' => $this->user(CurrentUser::teacher())];
 
         if ($want('materials')) {
-            $data['materials'] = Material::where('course_id', $course->id)->orderByDesc('created_at')->orderByDesc('id')->get()->map(fn ($m) => $this->material($m))->all();
+            $data['materials'] = Material::where('course_id', $course->id)->withCount('questions')->orderByDesc('created_at')->orderByDesc('id')->get()->map(fn ($m) => $this->material($m))->all();
         }
         if ($want('agents')) {
             $data['agents'] = Agent::orderBy('id')->whereIn('code', ['analyst', 'writer', 'critic', 'grader'])->get()
@@ -65,7 +65,7 @@ class FrontendData
         if ($want('reviews')) {
             // Очередь проверки: ответы этого курса, которые ждут подтверждения, с апелляцией
             // или подтверждены за последний месяц (для контекста), — а не все проверки за всё время
-            $reviews = Review::with(['student', 'question'])
+            $reviews = Review::with(['student', 'question', 'answer.attempt.test'])
                 ->whereHas('question', fn ($q) => $q->where('course_id', $course->id))
                 ->where(fn ($q) => $q->where('status', 'pending')->orWhereNotNull('appealed_at')->orWhere('confirmed_at', '>=', now()->subDays(30)))
                 ->orderBy('id')->get();
@@ -85,30 +85,10 @@ class FrontendData
         return ['analytics' => $test ? $this->analytics->forTest($test) : null];
     }
 
-    /**
-     * Список тестов на странице «Аналитика»: к строкам из tests добавляются ответы,
-     * ждущие проверки преподавателем, и дата последней сдачи — по ним видно, куда смотреть.
-     */
+    /** Стартовая страница «Аналитики»: курс целиком — темы, группы, трудные вопросы и тесты рядом. */
     public function analyticsTests(): array
     {
-        $pending = Review::query()
-            ->join('answers', 'answers.id', '=', 'reviews.answer_id')
-            ->join('attempts', 'attempts.id', '=', 'answers.attempt_id')
-            ->where('reviews.status', 'pending')
-            ->groupBy('attempts.test_id')
-            ->selectRaw('attempts.test_id, count(*) as n')
-            ->pluck('n', 'test_id');
-        $last = Attempt::where('status', '!=', 'in_progress')
-            ->groupBy('test_id')
-            ->selectRaw('test_id, max(submitted_at) as last')
-            ->pluck('last', 'test_id');
-
-        return ['analyticsTests' => Test::where('course_id', CurrentUser::course()->id)->pluck('id', 'code')
-            ->map(fn ($id) => [
-                'pending' => (int) ($pending[$id] ?? 0),
-                'lastSubmitted' => isset($last[$id]) ? Carbon::parse($last[$id])->translatedFormat('j F, H:i') : null,
-                'lastTs' => isset($last[$id]) ? Carbon::parse($last[$id])->getTimestamp() : 0,
-            ])->all()];
+        return ['overview' => $this->analytics->forCourse(CurrentUser::course()->id)];
     }
 
     public function pipeline(?GenerationRun $run): array
@@ -256,7 +236,11 @@ class FrontendData
             'date' => $this->date($m->created_at),
             'status' => $m->status,
             'hasText' => $m->has_text,
-            'size' => $m->size_bytes ? str_replace('.', ',', number_format($m->size_bytes / 1048576, 1)).' МБ' : null,
+            'size' => $this->fileSize($m->size_bytes),
+            // Исходный файл или страница-источник: открывается из карточки материала
+            'fileUrl' => $m->file_path || $m->url ? route('teacher.material.file', $m) : null,
+            'isLink' => (bool) $m->url,
+            'questionCount' => $m->questions_count ?? $m->questions()->count(),
         ];
     }
 
@@ -357,6 +341,13 @@ class FrontendData
             'statusLabel' => $statusLabel,
             'passed' => $t->status === 'draft' ? '—' : ($t->status === 'training' ? (string) $submitted : $submitted.' / '.max($students, $submitted)),
             'avg' => $avg !== null && $t->status !== 'draft' ? round($avg).'%' : '—',
+            // Сырые значения для сортировки в таблицах (подписи выше — для показа)
+            'avgPercent' => $avg !== null && $t->status !== 'draft' ? (int) round($avg) : null,
+            'students' => $students,
+            'deadlineTs' => $t->deadline_at?->getTimestamp(),
+            // Для поля datetime-local: время в поясе сервера, чтобы правка срока не сдвигалась из-за пояса браузера
+            'deadlineLocal' => $t->deadline_at?->format('Y-m-d\TH:i'),
+            'createdTs' => $t->created_at?->getTimestamp(),
             'deadline' => $deadline,
             'minutes' => $t->minutes,
             'attempts' => $t->attempts_allowed,
@@ -385,6 +376,10 @@ class FrontendData
             'id' => $r->id,
             'student' => $r->student->name,
             'questionId' => $r->question->code,
+            // Из какого теста ответ — для фильтра очереди и ссылок «проверить ответы теста/попытки»
+            'test' => $r->answer?->attempt?->test?->code,
+            'testTitle' => $r->answer?->attempt?->test?->title,
+            'attemptId' => $r->answer?->attempt_id,
             'confidence' => $r->confidence,
             'minutes' => $r->minutes,
             'status' => $r->status,
@@ -449,6 +444,17 @@ class FrontendData
     {
         return ['id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'since' => $this->date($u->created_at),
             'initials' => $u->initials, 'avatar' => $u->avatarUrl()];
+    }
+
+    /** Размер файла по-человечески: 340 КБ, 2,4 МБ (маленький файл — не «0,0 МБ»). */
+    private function fileSize(?int $bytes): ?string
+    {
+        return match (true) {
+            ! $bytes => null,
+            $bytes < 1024 => $bytes.' Б',
+            $bytes < 1048576 => max(1, (int) round($bytes / 1024)).' КБ',
+            default => str_replace('.', ',', number_format($bytes / 1048576, 1)).' МБ',
+        };
     }
 
     private function date(?Carbon $d): string

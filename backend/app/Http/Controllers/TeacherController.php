@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Attempt;
 use App\Models\GenerationRun;
 use App\Models\Group;
+use App\Models\Material;
 use App\Models\Test;
 use App\Services\AttemptService;
 use App\Services\FrontendData;
 use App\Services\GradebookService;
 use App\Support\CurrentUser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /** Экраны преподавателя (1–8). Данные уходят в шаблон как window.APP_DATA. */
 class TeacherController extends Controller
@@ -23,9 +26,9 @@ class TeacherController extends Controller
         'bank' => ['questions', 'materials', 'tests'],
         'question' => ['questions'],
         'test-builder' => ['groups'],
-        'tests' => ['tests'],
+        'tests' => ['tests', 'groups'],
         'analytics' => ['tests'],
-        'analytics-tests' => ['tests'],
+        'analytics-tests' => [],
         'review' => ['reviews'],
         'attempt' => [],
         'groups' => [],
@@ -43,7 +46,7 @@ class TeacherController extends Controller
 
     public function upload()
     {
-        return $this->page('upload', 'Загрузка материалов', 'materials');
+        return $this->page('upload', 'Материалы', 'materials');
     }
 
     public function pipeline(Request $request)
@@ -139,7 +142,38 @@ class TeacherController extends Controller
 
     public function review()
     {
-        return $this->page('review', 'Проверка открытых ответов', 'analytics');
+        return $this->page('review', 'Проверка развёрнутых ответов', 'analytics');
+    }
+
+    /**
+     * Исходный файл материала: PDF, текст и видео открываются во вкладке, DOCX и PPTX скачиваются,
+     * материал-ссылка ведёт на свою страницу. Тип отдаём по расширению, а не по содержимому:
+     * загруженный «.txt» с HTML внутри не должен открыться как страница сайта.
+     */
+    public function materialFile(Material $material)
+    {
+        abort_unless($material->course_id === CurrentUser::course()->id, 404);
+        if ($material->url) {
+            abort_unless(preg_match('#^https?://#i', $material->url), 404);
+
+            return redirect()->away($material->url);
+        }
+        abort_unless($material->file_path && Storage::exists($material->file_path), 404);
+
+        // Расширение — из исходного имени файла: при сохранении Laravel угадывает его по содержимому (DOCX → zip)
+        $ext = in_array($material->kind, Material::KINDS, true) ? strtolower($material->kind) : strtolower(pathinfo($material->file_path, PATHINFO_EXTENSION));
+        $base = trim((string) preg_replace('~[\p{Cc}\\\\/:*?"<>|]+~u', ' ', (string) $material->title));
+        $name = Str::limit($base !== '' ? $base : 'material', 150, '').'.'.$ext;
+        $inline = ['pdf' => 'application/pdf', 'txt' => 'text/plain; charset=utf-8', 'mp4' => 'video/mp4'];
+        $headers = ['X-Content-Type-Options' => 'nosniff'];
+
+        if (isset($inline[$ext])) {
+            // Текст — в песочнице: даже если браузер решит его разобрать, скрипты не выполнятся
+            return Storage::response($material->file_path, $name, $headers + ['Content-Type' => $inline[$ext]]
+                + ($ext === 'txt' ? ['Content-Security-Policy' => 'sandbox'] : []), 'inline');
+        }
+
+        return Storage::download($material->file_path, $name, $headers);
     }
 
     /** Группы курса и ссылки-приглашения для регистрации студентов. */

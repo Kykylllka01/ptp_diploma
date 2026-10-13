@@ -15,6 +15,8 @@
   var YOUR = T ? 'Ответ студента' : 'Ваш ответ';
 
   A.$('#test-title').textContent = att.testTitle;
+  // «Может измениться» — только если развёрнутые ответы ещё ждут преподавателя
+  if (A.$('#result-note')) A.$('#result-note').hidden = !pendingOpen || T;
   A.$('#percent').textContent = att.percent + '%';
   A.$('#score').textContent = att.score + ' / ' + att.max;
   A.$('#donut').style.background = 'conic-gradient(#0072BC 0 ' + att.percent + '%, #EEF0F3 ' + att.percent + '% 100%)';
@@ -26,7 +28,7 @@
     A.$('#points-line').innerHTML = att.weight != null
       ? 'В Модеус: <b class="strong">' + String(att.points).replace('.', ',') + '</b> из ' + String(att.weight).replace('.', ',') + ' баллов'
       : '<span class="muted">Вес теста в баллах не задан — в журнале будут проценты.</span>';
-    if (pendingOpen) A.$('#pending-line').innerHTML = '<a class="btn btn--sm btn--primary" href="review">Проверить открытые ответы</a>';
+    if (pendingOpen) A.$('#pending-line').innerHTML = '<a class="btn btn--sm btn--primary" href="review?attempt=' + att.attemptId + '">Проверить развёрнутые ответы этой попытки</a>';
     var others = M.others || [];
     if (others.length > 1) {
       A.$('#attempt-switch').innerHTML = '<span class="muted small">Попытки:</span>' + others.map(function (o, i) {
@@ -54,11 +56,13 @@
   var weakest = tlist.slice().sort(function (a, b) { return a[1] - b[1]; })[0];
   var wrong = Q.filter(function (q) { var r = att.results[q.id]; return r.final && r.score < r.max; });
   var weakQ = weakest && wrong.filter(function (q) { return q.topic === weakest[0]; })[0];
+  var canPractice = !T && att.showReview && wrong.some(function (q) { return q.type !== 'open'; });
   A.$('#advice').textContent = !weakest ? 'Подробного разбора по этому тесту нет.' : T
     ? (weakest[1] < 100 ? 'Больше всего ошибок в теме «' + weakest[0] + '» (' + weakest[1] + '%). Ошибок всего: ' + wrong.length + '.' : 'Ошибок нет.')
     : weakest[1] < 100
-    ? 'Больше всего ошибок в теме «' + weakest[0] + '» (' + weakest[1] + '%). Перечитайте ' + (weakQ && weakQ.ref ? (/^(Лекция|Лаб\. работа|Семинар)/.test(weakQ.ref) ? weakQ.ref.replace(/^Лекция/, 'лекцию').replace(/^Лаб\. работа/, 'лабораторную работу').replace(/^Семинар/, 'семинар') : 'материал «' + weakQ.ref + '»') : 'материалы по теме') + ' и пройдите короткую тренировку.'
-    : 'Ошибок нет — отличный результат. Можно пройти тренировку по следующей теме.';
+    ? 'Больше всего ошибок в теме «' + weakest[0] + '» (' + weakest[1] + '%). Перечитайте ' + (weakQ && weakQ.ref ? (/^(Лекция|Лаб\. работа|Семинар)/.test(weakQ.ref) ? weakQ.ref.replace(/^Лекция/, 'лекцию').replace(/^Лаб\. работа/, 'лабораторную работу').replace(/^Семинар/, 'семинар') : 'материал «' + weakQ.ref + '»') : 'материалы по теме') +
+      (canPractice ? ' и пройдите работу над ошибками.' : '.')
+    : 'Ошибок нет — отличный результат.';
   // Работа над ошибками: вопросы с выбором ответа, сопоставление и SQL (развёрнутые проверяет преподаватель)
   var practice = wrong.filter(function (q) { return q.type !== 'open'; });
   A.$('#train-btn').hidden = T || !practice.length || !att.showReview;
@@ -69,7 +73,7 @@
   var filter = 'all';
   function renderFilters() {
     var open = Q.filter(function (q) { return q.type === 'open' || q.type === 'sql'; }).length;
-    var opts = [['all', 'Все'], ['wrong', 'Ошибки · ' + wrong.length], ['open', 'Открытые · ' + open]];
+    var opts = [['all', 'Все'], ['wrong', 'Ошибки · ' + wrong.length], ['open', 'Развёрнутые и SQL · ' + open]];
     A.$('#filters').innerHTML = opts.map(function (o) {
       return '<button type="button" class="btn btn--xs' + (filter === o[0] ? ' is-on' : '') + '" aria-pressed="' + (filter === o[0]) + '" data-f="' + o[0] + '">' + o[1] + '</button>';
     }).join('');
@@ -84,7 +88,7 @@
   function renderReview() {
     var items = Q.map(function (q, i) { return [q, i]; }).filter(function (x) {
       var q = x[0], r = att.results[q.id];
-      if (filter === 'wrong') return r.score < r.max;
+      if (filter === 'wrong') return r.final && r.score < r.max;
       if (filter === 'open') return q.type === 'open' || q.type === 'sql';
       return true;
     });
@@ -146,13 +150,16 @@
     var ap = e.target.closest('[data-appeal]');
     if (ap) {
       var res = att.results[ap.getAttribute('data-appeal')];
-      var text = prompt('Почему вы не согласны с оценкой? Преподаватель перепроверит ответ.');
-      if (!text || text.trim().length < 5) return;
-      A.api('POST', 'answers/' + res.answerId + '/appeal', { text: text.trim() }).then(function () {
-        res.appeal = text.trim();
-        A.toast('Апелляция отправлена преподавателю');
-        renderReview();
-      });
+      A.ask({ title: 'Апелляция', label: 'Почему вы не согласны с оценкой?', hint: 'Преподаватель перепроверит ответ и увидит ваш комментарий.', multiline: true, maxlength: 2000, ok: 'Отправить',
+        validate: function (v) { return v.length < 5 ? 'Опишите хотя бы в паре слов, с чем вы не согласны' : ''; } })
+        .then(function (text) {
+          if (!text) return;
+          A.api('POST', 'answers/' + res.answerId + '/appeal', { text: text }).then(function () {
+            res.appeal = text;
+            A.toast('Апелляция отправлена преподавателю');
+            renderReview();
+          });
+        });
     }
   });
 

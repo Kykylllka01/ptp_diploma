@@ -19,9 +19,9 @@
 
   A.$('#stats').innerHTML =
     '<div class="card stat"><div class="lbl">Вопросов в банке</div><div class="stat__value">' + qs.length + '</div><div class="stat__hint">' + (M.materials.length ? 'по ' + M.materials.length + ' ' + A.plural(M.materials.length, 'материалу', 'материалам', 'материалам') : 'материалов пока нет') + '</div></div>' +
-    '<a href="bank" class="card stat' + (pending.length ? ' card--warn' : '') + '"><div class="lbl">Ждут проверки</div><div class="stat__value">' + pending.length + '</div><div class="stat__hint">Открыть очередь →</div></a>' +
+    '<a href="bank" class="card stat' + (pending.length ? ' card--warn' : '') + '"><div class="lbl">Ждут одобрения</div><div class="stat__value">' + pending.length + '</div><div class="stat__hint">Открыть очередь →</div></a>' +
     '<div class="card stat"><div class="lbl">Активных тестов</div><div class="stat__value">' + running + '</div><div class="stat__hint">' + (M.participants ? M.participants + ' ' + A.plural(M.participants, 'участник', 'участника', 'участников') : 'участников пока нет') + '</div></div>' +
-    '<a href="review" class="card stat"><div class="lbl">Открытые ответы</div><div class="stat__value">' + openToReview + '</div><div class="stat__hint">агент оценил, нужна ваша подпись</div></a>';
+    '<a href="review" class="card stat"><div class="lbl">Развёрнутые ответы</div><div class="stat__value">' + openToReview + '</div><div class="stat__hint">агент оценил, нужна ваша подпись</div></a>';
 
   A.$('#materials').innerHTML = M.materials.map(function (m) {
     var mine = qs.filter(function (q) { return q.materialId === m.id; });
@@ -29,11 +29,11 @@
     // Статус материала, а не только вопросов: в обработке, ошибка, без вопросов
     var status = m.status === 'processing' ? A.chip('В обработке', 'blue')
       : m.status === 'error' ? A.chip('Ошибка чтения', 'red')
-      : p ? A.chip(p + ' на проверке', 'amber')
+      : p ? A.chip(p + ' ' + A.plural(p, 'ждёт', 'ждут', 'ждут') + ' одобрения', 'amber')
       : mine.length ? A.chip('Готово', 'green') : A.chip('Вопросов нет');
     // Вся строка — кнопка: по клику открывается карточка материала
     return '<button type="button" class="list-row list-row--btn" data-material="' + m.id + '" aria-haspopup="dialog">' +
-      '<span class="filetype">' + esc(m.kind) + '</span>' +
+      A.fileIcon(m.kind, 40) +
       '<span class="list-row__main"><span class="strong">' + esc(m.title) + '</span><span class="list-row__meta">' + esc([m.meta, 'загружено ' + m.date].filter(Boolean).join(' · ')) + '</span></span>' +
       status +
       '<span class="muted small" style="width: 90px; text-align: right">' + mine.length + ' ' + A.plural(mine.length, 'вопрос', 'вопроса', 'вопросов') + '</span>' +
@@ -51,30 +51,45 @@
   modal.addEventListener('click', function (e) { if (e.target === modal && downOnBackdrop) modal.close(); });
   var request = 0;
 
-  var STATE = { uploaded: 'Загружен', processing: 'В обработке', ready: 'Текст извлечён', error: 'Ошибка чтения' };
+  var STATE = { uploaded: ['Загружен', 'gray'], processing: ['В обработке', 'blue'], ready: ['Текст извлечён', 'green'], review: ['Вопросы ждут проверки', 'amber'], error: ['Ошибка чтения', 'red'] };
+  var KIND = { PDF: 'PDF', DOCX: 'Документ Word', PPTX: 'Презентация PowerPoint', TXT: 'Текст', MP4: 'Видео' };
   var RUN = { queued: ['В очереди', 'gray'], running: ['Идёт', 'blue'], paused: ['Пауза', 'gray'], done: ['Готово', 'green'], failed: ['Ошибка', 'red'], cancelled: ['Остановлен', 'gray'] };
 
   function tile(value, label, tone) {
     return '<div class="tile' + (tone ? ' tile--' + tone : '') + '"><div class="tile__value">' + value + '</div><div class="tile__label">' + label + '</div></div>';
   }
 
+  // Сам файл: крупная иконка типа, имя, размер; по клику PDF и текст открываются во вкладке, DOCX/PPTX скачиваются
+  function fileCard(d) {
+    var kind = String(d.kind || '').toUpperCase();
+    var opens = d.isLink ? 'Открыть страницу' : (kind === 'PDF' || kind === 'TXT' || kind === 'MP4') ? 'Открыть файл' : 'Скачать файл';
+    // «документ», «презентация» в meta повторяют тип файла — показываем только полезное (страницы, слайды)
+    var info = [d.isLink ? 'Ссылка на страницу' : (KIND[kind] || kind), d.size, /^(документ|презентация|текст)$/i.test(d.meta || '') ? '' : d.meta].filter(Boolean).join(' · ');
+    var inner = A.fileIcon(d.kind, 60) +
+      '<span class="file-card__main"><span class="file-card__name">' + esc(d.isLink || !d.fileUrl ? d.title : d.title + '.' + kind.toLowerCase()) + '</span><span class="muted small">' + esc(info) + '</span>' +
+      (d.fileUrl ? '<span class="file-card__go">' + (opens === 'Скачать файл' ? A.icons.download : A.icons.external) + opens + '</span>' : '') + '</span>';
+    return d.fileUrl
+      ? '<a class="file-card" href="' + esc(d.fileUrl) + '" target="_blank" rel="noopener noreferrer"' + (opens === 'Скачать файл' ? ' download' : '') + ' aria-label="' + esc(opens + ': ' + d.title) + '">' + inner + '</a>'
+      : '<div class="file-card">' + inner + '</div>';
+  }
+
   function details(d) {
     var q = d.questions;
+    // «review» ставится после генерации; когда все вопросы разобраны, показываем просто, что текст извлечён
+    var status = d.status === 'review' && !q.pending ? 'ready' : d.status;
     var types = Object.keys(q.byType).map(function (k) { return A.chip((M.types || {})[k] || k) + '<span class="muted small">' + q.byType[k] + '</span>'; }).join(' ');
     var runs = d.runs.map(function (r) {
       var st = RUN[r.status] || [r.status, 'gray'];
-      return '<a class="list-row" href="pipeline?run=' + r.id + '" style="padding: 10px 0; text-decoration: none; color: inherit">' +
-        '<span class="list-row__main"><span class="strong small">Запуск №' + r.id + '</span><span class="list-row__meta xsmall">' + esc(r.date || '') + ' · составлено ' + r.written +
-        (r.rejected ? ', отклонено Критиком ' + r.rejected : '') + (r.disputed ? ', спорных ' + r.disputed : '') + '</span></span>' +
-        (r.cost != null ? '<span class="muted small">$' + String(r.cost).replace('.', ',') + '</span>' : '') + A.chip(st[0], st[1]) + '</a>';
+      var made = 'составлено ' + r.written + (r.rejected ? ' · отклонено Критиком ' + r.rejected : '') + (r.disputed ? ' · спорных ' + r.disputed : '');
+      return '<a class="run-row" href="pipeline?run=' + r.id + '">' +
+        '<span class="run-row__main"><span class="run-row__title"><b>Запуск №' + r.id + '</b><span class="muted">' + esc(r.date || '') + '</span></span>' +
+        '<span class="muted xsmall">' + made + '</span></span>' +
+        (r.cost != null ? '<span class="muted small run-row__cost">$' + A.num(r.cost) + '</span>' : '') + A.chip(st[0], st[1]) + '</a>';
     }).join('');
-    return '<div class="row-wrap" style="gap: 8px">' + A.chip(STATE[d.status] || d.status, d.status === 'error' ? 'red' : (d.status === 'processing' ? 'blue' : 'green')) +
-        '<span class="muted small">' + esc([d.size, 'загружен ' + d.date].filter(Boolean).join(' · ')) + '</span></div>' +
-      '<section><div class="lbl">Текст</div>' +
-        (d.chars ? '<p class="small" style="margin: 6px 0 0">' + d.chars.toLocaleString('ru-RU') + ' символов · ' + d.fragments + ' ' + A.plural(d.fragments, 'фрагмент', 'фрагмента', 'фрагментов') + ' для Аналитика</p>' +
-          '<blockquote class="quote small" style="margin-top: 10px">' + esc(d.excerpt) + (d.chars > 600 ? '…' : '') + '</blockquote>'
-          : '<p class="small t-red" style="margin: 6px 0 0">Текст не извлечён — по этому материалу агенты не составят вопросы. Если это скан, загрузите версию с текстовым слоем.</p>') +
-      '</section>' +
+    return fileCard(d) +
+      '<div class="row-wrap" style="gap: 8px 12px">' + A.chip((STATE[status] || [status])[0], (STATE[status] || [0, 'gray'])[1]) +
+        '<span class="muted small">' + esc(['загружен ' + d.date, d.chars ? d.chars.toLocaleString('ru-RU') + ' символов текста' : ''].filter(Boolean).join(' · ')) + '</span></div>' +
+      (d.chars ? '' : '<p class="note note--warn" style="margin: 0">Текст не извлечён — по этому материалу агенты не составят вопросы. Если это скан, загрузите версию с текстовым слоем.</p>') +
       '<section><div class="lbl">Вопросы по материалу</div>' +
         '<div class="grid-tiles" style="margin-top: 10px">' + tile(q.total, 'всего') + tile(q.pending, 'ждут одобрения', q.pending ? 'amber' : '') +
           tile(q.approved, 'одобрено', q.approved ? 'green' : '') + tile(q.rejected, 'отклонено') + '</div>' +
@@ -85,7 +100,7 @@
       (runs ? '<section><div class="lbl">Запуски агентов</div><div style="margin-top: 4px">' + runs + '</div></section>' : '') +
       '<div class="actions" style="gap: 10px">' +
         (q.total ? '<a class="btn btn--primary" href="bank?status=' + (q.pending ? 'pending' : 'all') + '&source=' + d.id + '">Вопросы в банке</a>' : '') +
-        '<a class="btn" href="upload">' + (q.total ? 'Сгенерировать ещё' : 'Сгенерировать вопросы') + '</a>' +
+        (d.chars ? '<a class="btn" href="upload?material=' + d.id + '#new-set">' + (q.total ? 'Сгенерировать ещё' : 'Сгенерировать вопросы') + '</a>' : '') +
       '</div>';
   }
 
@@ -93,29 +108,34 @@
     var row = e.target.closest('[data-material]');
     if (!row) return;
     var m = M.materials.filter(function (x) { return String(x.id) === row.getAttribute('data-material'); })[0];
-    A.$('#mm-kind').textContent = m.kind;
+    A.$('#mm-kind').textContent = 'Материал курса';
     A.$('#mm-title').textContent = m.title;
+    A.$('#mm-body').setAttribute('aria-busy', 'true');
     A.$('#mm-body').innerHTML = '<div class="muted small">Загружаю…</div>';
     A.$('#mm-body').scrollTop = 0;
     modal.showModal();
     // Быстро открыли другой материал — поздний ответ по прежнему не должен подменить карточку
     var mine = ++request;
-    A.api('GET', 'materials/' + m.id).then(function (d) { if (mine === request) A.$('#mm-body').innerHTML = details(d); },
-      function () { if (mine === request) A.$('#mm-body').innerHTML = '<div class="t-red small">Не удалось загрузить сведения о материале.</div>'; });
+    A.api('GET', 'materials/' + m.id).then(function (d) { if (mine === request) { A.$('#mm-body').innerHTML = details(d); A.$('#mm-body').setAttribute('aria-busy', 'false'); } },
+      function () { if (mine === request) { A.$('#mm-body').innerHTML = '<div class="t-red small">Не удалось загрузить сведения о материале.</div>'; A.$('#mm-body').setAttribute('aria-busy', 'false'); } });
   });
 
   var dot = { done: 'green', warn: 'amber', work: 'blue', wait: 'gray' };
+  var DOT_LABEL = { done: 'готов', warn: 'есть замечания', work: 'работает', wait: 'ожидает' };
   A.$('#agents').innerHTML = M.agents.map(function (a) {
-    return '<div style="display: flex; gap: 12px; align-items: flex-start"><span class="dot dot--' + dot[a.state] + '"></span>' +
+    return '<div style="display: flex; gap: 12px; align-items: flex-start"><span class="dot dot--' + dot[a.state] + '"></span><span class="sr-only">' + DOT_LABEL[a.state] + ': </span>' +
       '<div><div class="strong">' + esc(a.name) + '</div><div class="muted small">' + esc(a.summary) + '</div></div></div>';
   }).join('');
 
+  // На «Обзоре» — пять самых свежих тестов, весь список на странице «Тесты»
   var tone = { running: 'blue', training: 'blue', draft: 'gray' };
-  A.$('#tests').innerHTML = M.tests.map(function (t) {
+  var recent = M.tests.slice().reverse().slice(0, 5);
+  A.$('#tests').innerHTML = recent.map(function (t) {
     var link = t.submitted
-      ? '<a href="analytics?test=' + encodeURIComponent(t.id) + '">Результаты</a>'
-      : t.count ? '<a href="preview?test=' + encodeURIComponent(t.id) + '">Пройти самому</a>' : '<a href="tests">Открыть</a>';
-    return '<tr><td class="strong">' + esc(t.title) + '</td><td>' + t.count + '</td><td>' + A.chip(t.statusLabel, tone[t.status]) +
-      '</td><td>' + t.passed + '</td><td>' + t.avg + '</td><td class="right">' + link + '</td></tr>';
-  }).join('');
+      ? '<a href="analytics?test=' + encodeURIComponent(t.id) + '" class="btn btn--xs">Результаты</a>'
+      : t.count ? '<a href="preview?test=' + encodeURIComponent(t.id) + '" class="btn btn--xs">Пройти самому</a>' : '<a href="tests" class="btn btn--xs">Открыть</a>';
+    return '<tr><td><span class="table__title">' + esc(t.title) + '</span></td><td class="num-col" data-label="Вопросов">' + t.count + '</td><td data-label="Статус">' + A.chip(t.statusLabel, tone[t.status]) +
+      '</td><td data-label="Сдали">' + t.passed + '</td><td class="num-col" data-label="Средний балл">' + t.avg + '</td><td class="right td-actions">' + link + '</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="empty">Тестов пока нет. <a href="test-builder">Соберите первый</a>, когда в банке появятся одобренные вопросы.</td></tr>';
+  if (M.tests.length > recent.length) A.$('#all-tests').textContent = 'Все тесты (' + M.tests.length + ')';
 })();

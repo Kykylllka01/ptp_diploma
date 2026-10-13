@@ -140,9 +140,13 @@ class FlowTest extends TestCase
 
         $this->actingAs($this->teacher());
         $list = $this->get('/teacher/analytics')->assertOk()->assertViewIs('teacher.analytics-tests')->viewData('appData');
-        $this->assertSame(1, $list['analyticsTests']['m1']['pending']);       // развёрнутый ответ ждёт преподавателя
-        $this->assertNotNull($list['analyticsTests']['m1']['lastSubmitted']);
-        $this->assertNull($list['analyticsTests']['m2']['lastSubmitted']);     // по m2 сдач нет
+        $tests = collect($list['overview']['tests'])->keyBy('id');
+        $this->assertSame(['m1', 'm2'], $tests->keys()->sort()->values()->all());   // черновик d1 не показывается
+        $this->assertSame(1, $tests['m1']['pending']);                         // развёрнутый ответ ждёт преподавателя
+        $this->assertSame(1, $list['overview']['pending']);
+        $this->assertNotNull($tests['m1']['last']);
+        $this->assertNull($tests['m2']['last']);                               // по m2 сдач нет
+        $this->assertSame('m1', $list['overview']['tests'][0]['id']);          // свежие сдачи сверху
 
         $detail = $this->get('/teacher/analytics?test=m1')->assertOk()->assertViewIs('teacher.analytics')->viewData('appData');
         $this->assertSame('m1', $detail['analytics']['testId']);

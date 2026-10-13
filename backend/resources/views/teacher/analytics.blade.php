@@ -8,14 +8,14 @@
 <main class="page">
   <div class="page-head">
     <div>
-      <a href="analytics" class="back">← Все тесты</a>
+      <a href="analytics" class="back">← Аналитика курса</a>
       <div class="lbl" id="test-status" style="margin-top: 10px">Тест</div>
       <h1 class="page-title" id="title"></h1>
     </div>
     <div class="actions">
       <select class="select" id="test-switch" aria-label="Другой тест" style="width: auto" hidden></select>
       <button type="button" class="btn" id="export">Экспорт в Excel</button>
-      <a href="review" class="btn btn--primary" id="to-review"></a>
+      <a href="review" class="btn btn--primary" id="to-review" hidden></a>
     </div>
   </div>
 
@@ -27,14 +27,15 @@
         <h2 class="card-title">Студенты</h2>
         <p class="muted small" style="margin: 6px 0 0" id="weight-line"></p>
       </div>
-      <div class="row-wrap" style="gap: 8px">
-        <div class="row-wrap" style="gap: 6px" id="st-filters" role="group" aria-label="Фильтр студентов"></div>
-        <a class="btn btn--sm" id="to-journal" href="gradebook">Журнал для Модеуса</a>
-      </div>
+      <a class="btn btn--sm" id="to-journal" href="gradebook">Журнал для Модеуса</a>
+    </div>
+    <div class="toolbar" style="margin-top: 16px">
+      <label class="search"><span class="sr-only">Поиск студента</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5A6070" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="st-search" placeholder="Найти студента" autocomplete="off"></label>
+      <div id="st-filters"></div>
     </div>
     <div class="table-wrap">
-      <table class="table" style="min-width: 860px">
-        <thead><tr><th>Студент</th><th>Группа</th><th>Попыток</th><th>Лучший результат</th><th id="points-head">Баллы в Модеус</th><th>Статус</th><th>Сдан</th><th></th></tr></thead>
+      <table class="table table--stack" style="min-width: 900px"><caption class="sr-only">Студенты и их лучшие результаты</caption>
+        <thead id="st-head"></thead>
         <tbody id="students"></tbody>
       </table>
     </div>
@@ -55,10 +56,10 @@
   </div>
 
   <section class="card card--pad">
-    <div class="between"><h2 class="card-title">Вопросы</h2><span class="muted small">Отсортировано: сначала проблемные</span></div>
+    <div class="between"><h2 class="card-title">Вопросы</h2><span class="muted small">сначала проблемные</span></div>
     <div class="table-wrap">
       <table class="table" style="min-width: 820px">
-        <thead><tr><th>Вопрос</th><th>Тип</th><th style="width: 200px">Верно ответили</th><th>Сигнал</th><th></th></tr></thead>
+        <caption class="sr-only">Вопросы теста, сначала проблемные</caption><thead><tr><th>Вопрос</th><th>Тип</th><th style="width: 200px">Верно ответили</th><th>Сигнал</th><th><span class="sr-only">Открыть</span></th></tr></thead>
         <tbody id="problems"></tbody>
       </table>
     </div>

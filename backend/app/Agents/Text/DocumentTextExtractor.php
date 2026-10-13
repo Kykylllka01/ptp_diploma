@@ -124,7 +124,7 @@ class DocumentTextExtractor implements TextExtractor
     private function pptx(Material $m): array
     {
         $zip = new ZipArchive();
-        if ($zip->open($this->path($m)) !== true) {
+        if ($zip->open($this->path($m), ZipArchive::RDONLY) !== true) {
             return ['text' => '', 'has_text' => false, 'meta' => 'не удалось открыть презентацию'];
         }
         $slides = [];
@@ -180,7 +180,8 @@ class DocumentTextExtractor implements TextExtractor
     private function zipEntry(string $path, string $entry, bool $required = true): string
     {
         $zip = new ZipArchive();
-        if ($zip->open($path) !== true) {
+        // Только чтение: иначе close() на архиве без записей удаляет загруженный файл с диска
+        if ($zip->open($path, ZipArchive::RDONLY) !== true) {
             throw new \RuntimeException('Не удалось открыть архив');
         }
         $data = $zip->getFromName($entry);

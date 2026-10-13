@@ -2,9 +2,9 @@
    На бэкенде фильтры станут параметрами запроса GET /api/questions?status=&type[]=&... */
 (function () {
   var A = window.App, M = A.M, esc = A.esc;
-  var PAGE = 5;
+  var PAGE = 20;
 
-  var f = { status: A.param('status') || 'pending', types: Object.keys(M.types), diff: [], topics: [], source: A.param('source') || '', q: '', sort: 'flag', limit: PAGE };
+  var f = { status: A.param('status') || 'pending', types: [], diff: [], topics: [], source: A.param('source') || '', q: '', sort: 'flag', limit: PAGE };
   var selected = {};
 
   var TABS = [['all', 'Все'], ['pending', 'Ждут одобрения'], ['approved', 'Одобрены'], ['rejected', 'Отклонены']];
@@ -13,7 +13,7 @@
     var q = f.q.trim().toLowerCase();
     var list = A.questions().filter(function (x) {
       return (ignoreStatus || f.status === 'all' || x.status === f.status) &&
-        f.types.indexOf(x.type) >= 0 &&
+        (!f.types.length || f.types.indexOf(x.type) >= 0) &&
         (!f.diff.length || f.diff.indexOf(x.difficulty) >= 0) &&
         (!f.topics.length || f.topics.indexOf(x.topic) >= 0) &&
         (!f.source || String(x.materialId) === f.source) &&
@@ -36,7 +36,7 @@
     A.$('#tabs').innerHTML = TABS.map(function (t) {
       var n = t[0] === 'all' ? all.length : all.filter(function (q) { return q.status === t[0]; }).length;
       var badge = t[0] === 'pending' && n ? '<span class="chip chip--amber chip--sm">' + n + '</span>' : '<span class="muted">' + n + '</span>';
-      return '<button type="button" role="tab" class="tab' + (f.status === t[0] ? ' is-on' : '') + '" aria-selected="' + (f.status === t[0]) + '" data-tab="' + t[0] + '">' + t[1] + ' ' + badge + '</button>';
+      return '<button type="button" class="tab' + (f.status === t[0] ? ' is-on' : '') + '" aria-pressed="' + (f.status === t[0]) + '" data-tab="' + t[0] + '">' + t[1] + ' ' + badge + '</button>';
     }).join('');
   }
 
@@ -61,7 +61,7 @@
   function statusChip(q) {
     if (q.status === 'approved') return A.chip('Одобрен', 'green');
     if (q.status === 'rejected') return A.chip('Отклонён', 'red');
-    return q.flag ? A.chip(q.flag.text, q.flag.level) : A.chip('Ждёт одобрения', 'amber');
+    return q.flag ? A.chip(q.flag.level === 'red' ? 'Нужна правка' : 'Есть замечание', q.flag.level) : A.chip('Ждёт одобрения', 'amber');
   }
 
   // Вопрос без замечаний: Критик его проверил и ни Критик, ни Каталогизатор ничего не пометили
@@ -89,12 +89,13 @@
         '<input type="checkbox" class="check" style="margin-top: 3px" data-select="' + q.id + '"' + (selected[q.id] ? ' checked' : '') + ' aria-label="Выбрать вопрос ' + q.id + '">' +
         '<div style="flex: 1; min-width: 0">' +
           '<a class="q-row__text" href="question?id=' + q.id + '">' + esc(q.text) + '</a>' +
+          (q.flag && q.status === 'pending' ? '<div class="q-row__flag q-row__flag--' + esc(q.flag.level) + '">' + A.icons.flag + '<span>' + esc(q.flag.text) + '</span></div>' : '') +
           '<div class="row-wrap" style="margin-top: 10px">' + criticBadge(q) + A.chip(M.types[q.type]) + A.chip(M.difficulties[q.difficulty]) + A.chip(q.topic) +
           '<span class="muted xsmall">' + esc(q.source) + '</span></div>' +
         '</div>' +
         '<div class="q-row__side">' + statusChip(q) + '<div class="q-row__id">' + q.id + '</div></div>' +
       '</div>';
-    }).join('') || '<div class="empty">Ничего не найдено. Измените фильтры или поиск.</div>';
+    }).join('') || '<div class="empty">' + emptyText() + '</div>';
 
     A.$('#shown').textContent = list.length ? 'Показано ' + page.length + ' из ' + list.length : '';
     var clean = list.filter(function (q) { return q.status === 'pending' && isClean(q); }).length;
@@ -103,6 +104,15 @@
     A.$('#more').hidden = page.length >= list.length;
 
     updateBulk();
+  }
+
+  function emptyText() {
+    var all = A.questions();
+    if (!all.length) return 'Банк пуст. <a href="upload">Загрузите лекцию</a> — агенты составят по ней вопросы.';
+    var filtersOn = f.types.length || f.diff.length || f.topics.length || f.source || f.q.trim();
+    if (filtersOn) return 'Под фильтры ничего не подходит. <button type="button" class="link-btn" data-reset>Сбросить фильтры</button>';
+    if (f.status === 'pending') return 'Все вопросы разобраны — новых на проверке нет. <button type="button" class="link-btn" data-tab="all">Показать все</button>';
+    return 'В этой вкладке пока пусто. <button type="button" class="link-btn" data-tab="all">Показать все</button>';
   }
 
   function updateBulk() {
@@ -115,11 +125,17 @@
 
   A.$('#search-icon').outerHTML = A.icons.search;
 
+  A.$('#list').addEventListener('click', function (e) {
+    if (e.target.closest('[data-reset]')) A.$('#f-reset').click();
+    var t = e.target.closest('[data-tab]');
+    if (t) { f.status = t.getAttribute('data-tab'); f.limit = PAGE; selected = {}; renderTabs(); renderList(); }
+  });
+
   A.$('#tabs').addEventListener('click', function (e) {
     var t = e.target.closest('[data-tab]');
     if (!t) return;
     f.status = t.getAttribute('data-tab'); f.limit = PAGE; selected = {};
-    renderTabs(); renderList();
+    A.keepFocus(function () { renderTabs(); renderList(); });
   });
 
   document.addEventListener('change', function (e) {
@@ -151,13 +167,13 @@
     if (!b) return;
     var k = b.getAttribute('data-diff');
     f.diff = f.diff.indexOf(k) >= 0 ? f.diff.filter(function (x) { return x !== k; }) : f.diff.concat(k);
-    renderFilters(); renderList();
+    A.keepFocus(function () { renderFilters(); renderList(); });
   });
 
   A.$('#search').addEventListener('input', function (e) { f.q = e.target.value; f.limit = PAGE; renderList(); });
   A.$('#more').addEventListener('click', function () { f.limit += PAGE; renderList(); });
   A.$('#f-reset').addEventListener('click', function () {
-    f.types = Object.keys(M.types); f.diff = []; f.topics = []; f.source = ''; f.q = ''; A.$('#search').value = '';
+    f.types = []; f.diff = []; f.topics = []; f.source = ''; f.q = ''; A.$('#search').value = '';
     renderFilters(); renderList();
   });
 
@@ -166,6 +182,9 @@
     var clean = filtered().filter(function (q) { return q.status === 'pending' && isClean(q); });
     if (!clean.length) { A.toast('Вопросов на проверке без замечаний нет'); return; }
     clean.forEach(function (q) { selected[q.id] = true; });
+    // Одобрять можно только то, что видно: раскрываем список до последнего выбранного вопроса
+    var list = filtered(), last = list.indexOf(clean[clean.length - 1]);
+    if (last >= f.limit) f.limit = last + 1;
     renderList();
     A.toast('Выбрано ' + clean.length + ' ' + A.plural(clean.length, 'вопрос', 'вопроса', 'вопросов') + ' без замечаний критика');
   });
@@ -184,31 +203,47 @@
         renderAll();
       });
     } else if (act === 'export') {
+      // Адрес с сотнями ids упрётся в лимит длины URL — выгружаем частями
+      if (n > 150) { A.toast('За раз можно выгрузить до 150 вопросов — сузьте выбор фильтром', true); return; }
       location.href = '/api/questions-export?' + ids.map(function (id) { return 'ids[]=' + encodeURIComponent(id); }).join('&');
     } else if (act === 'regen') {
       // По одному: каждый вопрос — запрос к Составителю и Критику, это до минуты
       A.toast('Составитель переписывает ' + n + ' ' + word + '. Это до минуты на вопрос — не закрывайте страницу');
-      var done = 0;
+      var done = 0, failed = [];
+      A.$$('#bulk button').forEach(function (x) { x.disabled = true; });
+      A.$('#bulk-count').textContent = 'Переписано 0 из ' + n + '…';
       ids.reduce(function (chain, id) {
         return chain.then(function () {
           return A.api('POST', 'questions/' + encodeURIComponent(id) + '/regenerate').then(function (fresh) {
             Object.assign(A.questions().filter(function (q) { return q.id === id; })[0], fresh);
             done++;
-            A.$('#bulk-count').textContent = 'Переписано ' + done + ' из ' + n;
+          }, function () { failed.push(id); }).then(function () {
+            A.$('#bulk-count').textContent = 'Переписано ' + done + ' из ' + n + '…';
           });
         });
       }, Promise.resolve()).then(function () {
-        A.toast('Составитель переписал ' + n + ' ' + word + ', критик проверил их заново');
+        A.$$('#bulk button').forEach(function (x) { x.disabled = false; });
+        A.toast(failed.length ? 'Переписано ' + done + ' из ' + n + '. Не удалось: ' + failed.join(', ') + ' — попробуйте ещё раз'
+          : 'Составитель переписал ' + n + ' ' + word + ', Критик проверил их заново', !!failed.length);
         selected = {};
+        failed.forEach(function (id) { selected[id] = true; });
         renderAll();
       });
     } else {
       // Черновик теста, куда складываются вопросы из банка
-      var draft = (M.tests || []).filter(function (t) { return t.status === 'draft'; }).pop();
-      if (!draft) { A.toast('Нет черновика теста. Создайте его на странице «Тесты»'); return; }
-      A.api('POST', 'tests/' + encodeURIComponent(draft.id) + '/questions', { ids: ids }).then(function (r) {
-        A.toast(r.added + ' ' + A.plural(r.added, 'вопрос', 'вопроса', 'вопросов') + ' добавлено в тест «' + draft.title + '»' +
-          (r.skipped ? ' · пропущено неодобренных: ' + r.skipped : ''));
+      var drafts = (M.tests || []).filter(function (t) { return t.status === 'draft'; }).reverse();
+      if (!drafts.length) { A.toast('Вопросы добавляются в черновик теста. Соберите тест в режиме «Вручную» — он сохранится черновиком', true); return; }
+      A.choose({
+        title: 'Добавить в тест', text: 'Выбрано ' + n + ' ' + word + '. Неодобренные вопросы в тест не попадут.', ok: 'Добавить',
+        options: drafts.map(function (t) { return { value: t.id, label: t.title, hint: 'черновик · вопросов: ' + t.count }; })
+      }).then(function (code) {
+        if (!code) return;
+        var draft = drafts.filter(function (t) { return t.id === code; })[0];
+        A.api('POST', 'tests/' + encodeURIComponent(code) + '/questions', { ids: ids }).then(function (r) {
+          draft.count += r.added;
+          A.toast(r.added + ' ' + A.plural(r.added, 'вопрос', 'вопроса', 'вопросов') + ' добавлено в «' + draft.title + '»' +
+            (r.skipped ? ' · пропущено неодобренных: ' + r.skipped : ''));
+        });
       });
     }
   });

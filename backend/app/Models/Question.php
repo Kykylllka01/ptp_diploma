@@ -77,6 +77,12 @@ class Question extends Model
      *
      * @return array{terms: string[], definitions: string[], key: int[]}  key[i] — номер верного определения для термина i
      */
+    /** «Термин - определение» и «Термин – определение» → «Термин — определение» (первое тире с пробелами вокруг). */
+    public static function normalizePair(string $text): string
+    {
+        return preg_match('/^Лишнее:/u', $text) || preg_match('/\s—\s/u', $text) ? $text : (string) preg_replace('/\s+[–-]\s+/u', ' — ', $text, 1);
+    }
+
     public function matchParts(): array
     {
         $terms = [];
@@ -87,7 +93,7 @@ class Question extends Model
                 $defs[] = trim($m[1]);
                 continue;
             }
-            [$term, $def] = array_pad(preg_split('/\s+—\s+/u', $text, 2), 2, '');
+            [$term, $def] = array_pad(preg_split('/\s+—\s+/u', self::normalizePair($text), 2), 2, '');
             $terms[] = trim($term);
             $defs[] = trim($def);
         }

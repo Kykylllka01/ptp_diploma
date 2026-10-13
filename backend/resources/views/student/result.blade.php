@@ -10,9 +10,9 @@
     <div class="donut" id="donut"><div class="donut__in"><div><div class="donut__value" id="percent"></div><div class="muted xsmall" style="margin-top: 4px" id="score"></div></div></div></div>
     <div style="flex: 1; min-width: 260px">
       <div class="lbl" id="test-title"></div>
-      <h1 class="page-title" style="font-size: 30px">Тест сдан</h1>
+      <h1 class="page-title" style="font-size: 30px" id="result-title">Тест сдан</h1>
       <div class="row-wrap" style="margin-top: 12px" id="chips"></div>
-      <p style="margin: 14px 0 0; color: var(--text-2); line-height: 1.55">Итоговый балл может измениться после того, как преподаватель проверит открытые ответы.</p>
+      <p style="margin: 14px 0 0; color: var(--text-2); line-height: 1.55" id="result-note" hidden>Итоговый балл может измениться после того, как преподаватель проверит развёрнутые ответы.</p>
     </div>
   </section>
 

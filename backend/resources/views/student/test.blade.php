@@ -12,7 +12,7 @@
       <button type="button" class="btn btn--sm btn--flag" id="flag" aria-pressed="false"></button>
     </div>
     <div id="q-context"></div>
-    <h1 class="player__q" id="q-text"></h1>
+    <h1 class="player__q" id="q-text" tabindex="-1"></h1>
     <div id="q-body" style="margin-top: 28px"></div>
     <div id="feedback" style="margin-top: 16px" aria-live="polite" hidden></div>
     <div class="between" style="margin-top: 32px">
@@ -25,7 +25,7 @@
     <div class="strong">Навигация</div>
     <div class="qnav" id="qnav"></div>
     <div class="legend" id="legend"></div>
-    <div class="note xsmall" style="margin-top: 18px" id="autosave">Ответы сохраняются автоматически</div>
+    <div class="note xsmall save-status" style="margin-top: 18px" id="autosave" role="status">Ответы сохраняются автоматически</div>
   </aside>
 </main>
 @endsection

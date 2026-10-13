@@ -10,7 +10,7 @@
     <div class="note note--info" role="status">{{ session('status') }}</div>
   @endif
   <div>
-    <div class="lbl">Базы данных · осенний семестр</div>
+    <div class="lbl">{{ collect([$appData['course']['title'], $appData['course']['semester']])->filter()->implode(' · ') }}</div>
     <h1 class="page-title">Мои тесты</h1>
   </div>
 
@@ -28,7 +28,7 @@
     <a href="#" class="btn btn--white" id="train-start">Начать тренировку</a>
   </section>
 
-  <section class="stack" style="gap: 14px">
+  <section class="stack" style="gap: 14px; scroll-margin-top: 24px" id="results">
     <h2 class="card-title">Пройдено</h2>
     <div class="card card--clip" id="done"></div>
   </section>
