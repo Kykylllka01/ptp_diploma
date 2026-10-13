@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 use Throwable;
@@ -47,6 +49,40 @@ class SqlSandbox
         }
 
         $timeout = (float) config('agents.sql_sandbox_timeout', 3);
+        if (! $slot = $this->slot($timeout)) {
+            return $this->fail('infra', 'Учебная база сейчас перегружена — попробуйте ещё раз через несколько секунд');
+        }
+        try {
+            return $this->execute($body, $timeout);
+        } finally {
+            $slot->release();
+        }
+    }
+
+    /**
+     * Место в учебной базе: одновременно работает не больше sql_sandbox_parallel процессов,
+     * остальные ждут до 15 секунд. Блокировки живут чуть дольше таймаута запроса — упавший
+     * PHP-процесс не держит место вечно.
+     */
+    private function slot(float $timeout): ?Lock
+    {
+        $max = (int) config('agents.sql_sandbox_parallel', 6);
+        $deadline = microtime(true) + 15;
+        do {
+            for ($i = 0; $i < $max; $i++) {
+                $lock = Cache::lock('sql-sandbox-slot-'.$i, (int) ceil($timeout) + 10);
+                if ($lock->get()) {
+                    return $lock;
+                }
+            }
+            usleep(100_000);
+        } while (microtime(true) < $deadline);
+
+        return null;
+    }
+
+    private function execute(string $body, float $timeout): array
+    {
         $process = new Process(
             [$this->php(), '-d', 'memory_limit=128M', resource_path('sandbox/sql-runner.php')],
             null,

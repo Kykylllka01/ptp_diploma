@@ -99,20 +99,32 @@ class AttemptService
             if (Attempt::whereKey($attempt->id)->lockForUpdate()->value('status') !== 'in_progress') {
                 return;
             }
+            // Клиент каждый раз присылает все ответы: пишем одним запросом только изменившиеся.
+            // При 200 студентах с автосохранением раз в пару секунд это десятки запросов в секунду вместо тысяч.
+            $saved = Answer::where('attempt_id', $attempt->id)->get(['question_id', 'value'])->keyBy('question_id');
+            $now = now();
+            $rows = [];
             foreach ($answers as $code => $value) {
                 if (! $q = $questions->get($code)) {
                     continue;
                 }
                 $value = self::normalize($q, $value);
-                Answer::updateOrCreate(
-                    ['attempt_id' => $attempt->id, 'question_id' => $q->id],
-                    ['value' => $value, 'max_score' => $q->points],
-                );
+                if ($saved->has($q->id) && $saved->get($q->id)->value === $value) {
+                    continue;
+                }
+                $rows[] = ['attempt_id' => $attempt->id, 'question_id' => $q->id, 'value' => json_encode($value, JSON_UNESCAPED_UNICODE),
+                    'max_score' => $q->points, 'is_final' => false, 'created_at' => $now, 'updated_at' => $now];
             }
-            $attempt->update([
+            if ($rows) {
+                Answer::upsert($rows, ['attempt_id', 'question_id'], ['value', 'max_score', 'updated_at']);
+            }
+            $attempt->fill([
                 'flags' => array_keys(array_filter($flags)),
                 'current_index' => $current,
             ]);
+            if ($attempt->isDirty()) {
+                $attempt->save();
+            }
         });
     }
 

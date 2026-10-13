@@ -98,14 +98,15 @@
     return false;
   }
 
-  function api(method, path, body) {
+  // quiet — без всплывающего сообщения: экран сам показывает состояние (автосохранение теста)
+  function api(method, path, body, quiet) {
     var headers = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': csrf() };
     var opts = { method: method, headers: headers, credentials: 'same-origin' };
     if (body instanceof FormData) opts.body = body;
     else if (body !== undefined) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
     return fetch('/api/' + path, opts).catch(function (e) {
       // Запрос не дошёл до сервера: пропала сеть или сервер выключен — говорим об этом, а не молчим
-      toast('Нет связи с сервером. Проверьте интернет и повторите действие', true);
+      if (!quiet) toast('Нет связи с сервером. Проверьте интернет и повторите действие', true);
       e.network = true;
       throw e;
     }).then(function (r) {
@@ -115,8 +116,11 @@
         if (!r.ok) {
           // Laravel кладёт подробности проверки в errors: первая ошибка понятнее общего «The given data…»
           var first = data && data.errors ? Object.keys(data.errors).map(function (k) { return data.errors[k][0]; })[0] : null;
-          var msg = first || (data && data.message) || ('Ошибка сервера: ' + r.status);
-          toast(msg, true);
+          var msg = r.status === 429 ? 'Слишком много запросов подряд — подождите несколько секунд и повторите'
+            : first || (r.status >= 500 && (!data || !data.message || data.message === 'Server Error')
+              ? 'Сервер временно не отвечает — повторите через минуту'
+              : (data && data.message) || ('Ошибка сервера: ' + r.status));
+          if (!quiet) toast(msg, true);
           var err = new Error(msg); err.status = r.status; err.data = data;
           throw err;
         }

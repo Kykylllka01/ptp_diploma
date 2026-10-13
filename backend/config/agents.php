@@ -124,8 +124,15 @@ return [
     // Пусто — запускайте вручную: php artisan queue:work --timeout=1800
     'queue_autostart_php' => env('QUEUE_AUTOSTART_PHP'),
 
+    // Сколько обработчиков очереди работают одновременно: после сдачи потоком 200 студентов
+    // развёрнутые ответы оценивают параллельно, а не по одному. Каждый — отдельный php.exe (~40 МБ).
+    'queue_max_workers' => max(1, (int) env('QUEUE_MAX_WORKERS', 3)),
+
     // Учебная база SQL выполняет запрос отдельным процессом php.exe и прерывает его по таймауту, с.
     // Под Apache нужен путь к консольному php.exe; по умолчанию берётся тот же, что для очереди.
     'sql_sandbox_php' => env('SQL_SANDBOX_PHP', env('QUEUE_AUTOSTART_PHP')),
     'sql_sandbox_timeout' => (float) env('SQL_SANDBOX_TIMEOUT', 3),
+    // Сколько запросов учебной базы выполняется одновременно (каждый — отдельный php.exe).
+    // Остальные ждут свободного места до 15 с: сдача 200 студентов разом не плодит сотни процессов.
+    'sql_sandbox_parallel' => max(1, (int) env('SQL_SANDBOX_PARALLEL', 6)),
 ];
