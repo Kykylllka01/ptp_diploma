@@ -29,12 +29,37 @@
       ? 'В Модеус: <b class="strong">' + String(att.points).replace('.', ',') + '</b> из ' + String(att.weight).replace('.', ',') + ' баллов'
       : '<span class="muted">Вес теста в баллах не задан — в журнале будут проценты.</span>';
     if (pendingOpen) A.$('#pending-line').innerHTML = '<a class="btn btn--sm btn--primary" href="review?attempt=' + att.attemptId + '">Проверить развёрнутые ответы этой попытки</a>';
+    proctorCard(att.proctor);
     var others = M.others || [];
     if (others.length > 1) {
       A.$('#attempt-switch').innerHTML = '<span class="muted small">Попытки:</span>' + others.map(function (o, i) {
         return '<a class="btn btn--xs' + (o.id === att.attemptId ? ' is-on' : '') + '" href="attempt?id=' + o.id + '">' + (i + 1) + ' · ' + o.percent + '%</a>';
       }).join('');
     }
+  }
+
+  // Журнал прокторинга: когда студент уходил со страницы теста и на сколько
+  function proctorCard(P) {
+    if (!P) return;
+    var dur = function (sec) {
+      if (sec == null) return 'без возврата на страницу';
+      return sec < 60 ? sec + ' с' : Math.floor(sec / 60) + ' мин ' + (sec % 60 ? sec % 60 + ' с' : '');
+    };
+    A.$('#chips').insertAdjacentHTML('beforeend', P.count
+      ? A.chip('Уходы со страницы: ' + P.count, 'red')
+      : A.chip('Прокторинг: уходов нет', 'green'));
+    A.$('#proctor-card').hidden = false;
+    var open = P.events.filter(function (e) { return e.seconds == null; }).length;
+    A.$('#proctor-sum').innerHTML = (P.seconds ? A.chip('Вне страницы ' + dur(P.seconds).trim(), 'red') : '') +
+      (open ? ' ' + A.chip('Без возврата: ' + open, 'red') : '');
+    A.$('#proctor-note').textContent = P.count
+      ? 'Во время попытки вопросы скрывались, пока студент был на другой вкладке или в другом окне.'
+      : 'Во время этой попытки студент не уходил со страницы теста.';
+    A.$('#proctor-log').innerHTML = P.events.map(function (e) {
+      return '<li><span class="proctor-log__time">' + esc(e.at) + '</span>' +
+        '<span class="proctor-log__what">' + esc(e.label) + (e.minute != null ? ' <span class="muted xsmall">· ' + (e.minute + 1) + '-я минута теста</span>' : '') + '</span>' +
+        '<span class="' + (e.seconds == null || e.seconds >= 10 ? 't-red strong' : 'muted') + '">' + esc(dur(e.seconds).trim()) + '</span></li>';
+    }).join('');
   }
 
   // По темам

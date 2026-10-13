@@ -26,7 +26,9 @@
     '<span class="jlegend"><i class="jlegend__final">12,5</i>итог</span>' +
     '<span class="jlegend"><i class="jlegend__pending">12,5*</i>предварительно — есть неподтверждённые ответы</span>' +
     '<span class="jlegend"><i class="jlegend__progress">идёт</i>проходит сейчас</span>' +
-    '<span class="jlegend"><i class="jlegend__none">—</i>не сдавал</span>';
+    '<span class="jlegend"><i class="jlegend__none">—</i>не сдавал</span>' +
+    (J.students.some(function (s) { return J.tests.some(function (t) { return s.cells[t.id].violations; }); })
+      ? '<span class="jlegend"><span class="proctor-flag" aria-hidden="true">!</span>уходил со страницы теста при прокторинге</span>' : '');
 
   var maxTotal = J.tests.reduce(function (s, t) { return s + (t.weight || 0); }, 0);
   if (state.sort.key === 'total' && !maxTotal) state.sort = { key: 'name', dir: 'asc' };
@@ -55,9 +57,12 @@
     var v = value(t, c);
     var cls = { final: 'is-final', pending: 'is-pending', in_progress: 'is-progress' }[c.status] || 'is-none';
     var text = v == null ? (c.status === 'in_progress' ? 'идёт' : '—') : num(v) + (t.weight == null ? '%' : '') +
-      (c.status === 'pending' ? '<span class="mark-pending" aria-hidden="true">*</span><span class="sr-only"> (предварительно)</span>' : '');
+      (c.status === 'pending' ? '<span class="mark-pending" aria-hidden="true">*</span><span class="sr-only"> (предварительно)</span>' : '') +
+      // Прокторинг: студент уходил со страницы теста
+      (c.violations ? '<span class="proctor-flag" aria-hidden="true">!</span><span class="sr-only"> (уходы со страницы теста: ' + c.violations + ')</span>' : '');
     if (!c.attemptId) return '<td class="journal__cell ' + cls + '"><span>' + text + '</span></td>';
-    var title = c.percent + '% · ' + c.attempts + ' ' + A.plural(c.attempts, 'попытка', 'попытки', 'попыток') + (c.status === 'pending' ? ' · ждёт подтверждения' : '') + ' — открыть ответы';
+    var title = c.percent + '% · ' + c.attempts + ' ' + A.plural(c.attempts, 'попытка', 'попытки', 'попыток') + (c.status === 'pending' ? ' · ждёт подтверждения' : '') +
+      (c.violations ? ' · уходы со страницы теста: ' + c.violations : '') + ' — открыть ответы';
     return '<td class="journal__cell ' + cls + '"><a href="attempt?id=' + c.attemptId + '" title="' + esc(title) + '">' + text + '</a></td>';
   }
 

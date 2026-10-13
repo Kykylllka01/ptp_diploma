@@ -874,3 +874,24 @@ a.file-card:hover { box-shadow: 0 8px 20px -10px rgba(11, 46, 79, .35); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- Жёсткий прокторинг: пока студент не на странице теста, вопросы скрыты ---------- */
+.is-proctor-locked main.page { visibility: hidden; }
+.proctor { position: fixed; inset: 0; z-index: 45; display: grid; place-items: center; padding: 96px 16px 24px; background: var(--bg); overflow-y: auto; }
+.proctor[hidden] { display: none; }
+.proctor__box { width: min(560px, 100%); padding: 32px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); box-shadow: 0 12px 32px rgba(11, 46, 79, .1); display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.proctor__icon { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: var(--red-bg); color: var(--red-text); }
+.proctor__icon--info { background: var(--blue-bg); }
+.proctor__icon svg { width: 24px; height: 24px; }
+.proctor__title { margin: 0; font-size: 22px; line-height: 1.3; }
+.proctor__text { margin: 0; color: var(--text-2); line-height: 1.55; }
+.proctor__rules { margin: 0; padding-left: 20px; color: var(--text-2); line-height: 1.55; display: flex; flex-direction: column; gap: 8px; }
+.proctor .btn { margin-top: 6px; }
+@media (max-width: 520px) { .proctor { padding-top: 120px; } .proctor__box { padding: 22px; } }
+/* Уходы со страницы у преподавателя */
+.proctor-log { margin: 14px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.proctor-log li { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--divider); font-size: 14px; }
+.proctor-log li:first-child { border-top: none; }
+.proctor-log__time { font-family: var(--mono); color: var(--muted); min-width: 64px; }
+.proctor-log__what { flex: 1; min-width: 200px; }
+.proctor-flag { display: inline-flex; align-items: center; justify-content: center; min-width: 16px; height: 16px; padding: 0 4px; margin-left: 4px; border-radius: 8px; background: var(--red-bg); color: var(--red-text); font-size: 11px; font-weight: 700; line-height: 1; vertical-align: 2px; }

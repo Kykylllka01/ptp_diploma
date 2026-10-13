@@ -47,7 +47,7 @@ class GradebookTest extends TestCase
 
         $r = $this->actingAs($this->teacher())->get('/teacher/analytics?test=m1')->assertOk()->viewData('appData')['results'];
         $this->assertEquals(20, $r['weight']);
-        $this->assertSame(['total' => 2, 'final' => 1, 'pending' => 0, 'none' => 1], $r['counts']);
+        $this->assertSame(['total' => 2, 'final' => 1, 'pending' => 0, 'none' => 1, 'proctor' => 0], $r['counts']);
 
         $byName = collect($r['students'])->keyBy('name');
         $this->assertSame('none', $byName['Абрамов Б.']['status']);           // не сдавал — тоже в списке

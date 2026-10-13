@@ -43,6 +43,12 @@ class Attempt extends Model
         return $this->hasMany(Answer::class);
     }
 
+    /** Журнал прокторинга: уходы со страницы теста и повторные открытия. */
+    public function proctorEvents(): HasMany
+    {
+        return $this->hasMany(ProctorEvent::class)->orderBy('id');
+    }
+
     /**
      * Ответы больше не принимаются: вышло время попытки или срок сдачи (с минутой запаса на сеть),
      * либо преподаватель закрыл приём. Такую попытку можно только сдать с тем, что уже сохранено.

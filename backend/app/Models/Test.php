@@ -122,6 +122,15 @@ class Test extends Model
         return $this->setting('individual');
     }
 
+    /**
+     * Жёсткий прокторинг: уход со страницы теста прячет вопросы и записывается в журнал попытки.
+     * В тренировке попыток нет — там прокторинг не действует.
+     */
+    public function isProctored(): bool
+    {
+        return $this->status !== 'training' && $this->setting('proctoring');
+    }
+
     /** Сколько вопросов в одном варианте: сумма матрицы (лёгких + средних + сложных по каждому типу). */
     public function variantSize(): int
     {

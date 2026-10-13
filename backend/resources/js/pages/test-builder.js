@@ -141,6 +141,10 @@
   function publishLabel() {
     var manual = (A.$('input[name=mode]:checked') || {}).value === 'manual';
     A.$('#publish').textContent = manual ? 'Создать черновик' : on('#training') ? 'Опубликовать тренировку' : 'Опубликовать тест';
+    // В тренировке попыток нет — следить не за чем
+    var proctor = A.$('#sw-proctoring');
+    proctor.disabled = on('#training');
+    if (proctor.disabled) proctor.setAttribute('aria-pressed', 'false');
   }
   A.$('#training').addEventListener('click', function () { setTimeout(publishLabel); });
 
@@ -167,7 +171,7 @@
       weight: A.$('#weight').value === '' ? null : +A.$('#weight').value,
       training: training,
       publish: true,
-      settings: { shuffle: on('#sw-shuffle'), show_review: on('#sw-review'), auto_grade: on('#sw-auto'), individual: on('#sw-individual') }
+      settings: { shuffle: on('#sw-shuffle'), show_review: on('#sw-review'), auto_grade: on('#sw-auto'), individual: on('#sw-individual'), proctoring: !training && on('#sw-proctoring') }
     }).then(function (r) {
       var msg = mode === 'manual'
         ? 'Тест «' + title + '» создан. Отметьте вопросы в банке и нажмите «Добавить в тест» — после этого он откроется студентам'

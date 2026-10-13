@@ -49,6 +49,7 @@ class TestController extends Controller
             'settings.show_review' => 'boolean',
             'settings.auto_grade' => 'boolean',
             'settings.individual' => 'boolean',
+            'settings.proctoring' => 'boolean',
             // Сколько баллов БРС даёт тест (за 100 %); без веса в журнале — проценты
             'weight' => 'nullable|numeric|min:0|max:100',
             'training' => 'boolean',
@@ -97,6 +98,8 @@ class TestController extends Controller
                     'show_review' => (bool) ($data['settings']['show_review'] ?? true),
                     'auto_grade' => (bool) ($data['settings']['auto_grade'] ?? false),
                     'individual' => $individual,
+                    // Жёсткий прокторинг: в тренировке попыток нет — там он не нужен
+                    'proctoring' => empty($data['training']) && ! empty($data['settings']['proctoring']),
                     'weight' => isset($data['weight']) ? round((float) $data['weight'], 1) : null,
                 ],
             ]);
@@ -127,6 +130,7 @@ class TestController extends Controller
             'groups' => 'sometimes|nullable|array|max:50',
             'groups.*' => ['integer', Rule::exists('student_groups', 'id')->where('course_id', $test->course_id)],
             'weight' => 'sometimes|nullable|numeric|min:0|max:100',
+            'proctoring' => 'sometimes|boolean',
         ], ['deadline_at.after' => 'Срок сдачи уже прошёл — выберите время в будущем']);
         // Повторное открытие после срока: продлеваем на неделю, иначе тест сразу снова закроется
         if (($data['status'] ?? null) === 'running' && $test->deadline_at?->isPast() && ! array_key_exists('deadline_at', $data)) {
@@ -139,11 +143,17 @@ class TestController extends Controller
             return response()->json(['message' => 'В тесте нет вопросов — добавьте их из банка, потом открывайте приём'], 422);
         }
         DB::transaction(function () use ($test, $data) {
-            if (array_key_exists('weight', $data)) {
+            if (array_key_exists('weight', $data) || array_key_exists('proctoring', $data)) {
                 // Настройки перечитываются под блокировкой: правка из другой вкладки не затрётся
                 $settings = Test::lockForUpdate()->findOrFail($test->id)->settings ?? [];
-                $test->settings = ['weight' => $data['weight'] === null ? null : round((float) $data['weight'], 1)] + $settings;
-                unset($data['weight']);
+                if (array_key_exists('weight', $data)) {
+                    $settings['weight'] = $data['weight'] === null ? null : round((float) $data['weight'], 1);
+                }
+                if (array_key_exists('proctoring', $data)) {
+                    $settings['proctoring'] = (bool) $data['proctoring'];
+                }
+                $test->settings = $settings;
+                unset($data['weight'], $data['proctoring']);
             }
             if (array_key_exists('groups', $data)) {
                 $groups = array_values(array_unique($data['groups'] ?? []));

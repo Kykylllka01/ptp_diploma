@@ -19,7 +19,7 @@ class GradebookService
     public function forTest(Test $test): array
     {
         $test->loadMissing('groups');
-        $attempts = $test->attempts()->with('group')->whereIn('status', ['in_progress', 'submitted', 'confirmed'])->get()->groupBy('user_id');
+        $attempts = $test->attempts()->with('group')->withCount('proctorEvents')->whereIn('status', ['in_progress', 'submitted', 'confirmed'])->get()->groupBy('user_id');
         // Назначенные студенты плюс те, кто сдавал и потом перешёл в другую группу
         $students = $test->participants()->with('group')->get()
             ->merge(User::with('group')->whereIn('id', $attempts->keys())->get())
@@ -33,12 +33,14 @@ class GradebookService
             'title' => $test->title,
             'weight' => $test->weight(),
             'transferred' => $test->settings['transferred'] ?? [],
+            'proctoring' => $test->isProctored(),
             'students' => $rows->all(),
             'counts' => [
                 'total' => $rows->count(),
                 'final' => $rows->where('status', 'final')->count(),
                 'pending' => $rows->where('status', 'pending')->count(),
                 'none' => $rows->whereIn('status', ['none', 'in_progress'])->count(),
+                'proctor' => $rows->where('violations', '>', 0)->count(),
             ],
         ];
     }
@@ -54,7 +56,7 @@ class GradebookService
             ->where(fn ($q) => $q->where('audience', 'all')
                 ->orWhereHas('groups', fn ($g) => $g->where('student_groups.id', $group?->id ?? 0)))
             ->orderBy('id')->get();
-        $attempts = Attempt::with('group')->whereIn('test_id', $tests->pluck('id'))->whereIn('user_id', $students->pluck('id'))
+        $attempts = Attempt::with('group')->withCount('proctorEvents')->whereIn('test_id', $tests->pluck('id'))->whereIn('user_id', $students->pluck('id'))
             ->whereIn('status', ['in_progress', 'submitted', 'confirmed'])->get()->groupBy(fn ($a) => $a->test_id.':'.$a->user_id);
 
         $key = (string) ($group?->id ?? 0);
@@ -73,7 +75,7 @@ class GradebookService
                 $total = 0.0;
                 foreach ($tests as $t) {
                     $r = $this->row($t, $u, $attempts->get($t->id.':'.$u->id, collect()));
-                    $cells[$t->code] = array_intersect_key($r, array_flip(['status', 'percent', 'points', 'attemptId', 'attempts']));
+                    $cells[$t->code] = array_intersect_key($r, array_flip(['status', 'percent', 'points', 'attemptId', 'attempts', 'violations']));
                     $total += $r['points'] ?? 0;
                 }
 
@@ -106,6 +108,8 @@ class GradebookService
             'points' => $best ? $test->points($best->exactPercent()) : null,
             'minutes' => $best?->minutesSpent(),
             'submitted' => $best?->submitted_at?->format('d.m.Y H:i'),
+            // Прокторинг: уходы со страницы теста во всех попытках студента
+            'violations' => (int) $own->sum('proctor_events_count'),
         ];
     }
 }

@@ -386,6 +386,148 @@
   // Переключился на другую вкладку — сохраняем сразу, вдруг дальше закроет браузер
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && saveTimer && !submitted) flush(); });
 
+  /* ---------- Жёсткий прокторинг ----------
+     Уход со страницы — другая вкладка, свёрнутое или другое окно, закрытая страница — прячет вопросы
+     и записывается в попытку: преподаватель видит каждый уход, когда он был и сколько длился. */
+  if (M.attempt.proctoring && !training && M.attempt.attemptId && Q.length) proctoring();
+
+  function proctoring() {
+    var id = M.attempt.attemptId, count = M.attempt.proctorCount || 0;
+    var ackKey = 'proctor-ok-' + M.attempt.testId;
+    var acked = false;
+    try { acked = sessionStorage.getItem(ackKey) === '1'; } catch (e) { /* хранилище недоступно — покажем правила */ }
+    var out = false, closing = false, reportTimer, pending = null;
+    var title = document.title;
+
+    var screen = document.createElement('div');
+    screen.className = 'proctor';
+    screen.hidden = true;
+    screen.setAttribute('role', 'alertdialog');
+    screen.setAttribute('aria-modal', 'true');
+    screen.setAttribute('aria-labelledby', 'proctor-title');
+    screen.setAttribute('aria-describedby', 'proctor-text');
+    document.body.appendChild(screen);
+
+    // Запрос с keepalive: браузер доставит его, даже если вкладку как раз закрывают
+    function post(path, body) {
+      try {
+        return fetch('/api/attempts/' + id + '/' + path, {
+          method: 'POST', keepalive: true, credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': A.csrf(), 'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify(body || {})
+        }).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+      } catch (e) { return Promise.resolve(null); }
+    }
+
+    var main = A.$('main.page'), lastFocus = null;
+    function show(html) {
+      // Где был фокус (например, в поле ответа) — туда и вернёмся
+      if (screen.hidden && main.contains(document.activeElement)) lastFocus = document.activeElement;
+      screen.innerHTML = '<div class="proctor__box">' + html + '</div>';
+      screen.hidden = false;
+      document.body.classList.add('is-proctor-locked');
+      main.inert = true;
+      focusButton();
+    }
+    function focusButton() {
+      var b = screen.querySelector('button');
+      if (b && document.hasFocus()) b.focus();
+    }
+    function unlock() {
+      screen.hidden = true;
+      document.body.classList.remove('is-proctor-locked');
+      main.inert = false;
+      (lastFocus && lastFocus.isConnected ? lastFocus : A.$('#q-text')).focus({ preventScroll: true });
+      lastFocus = null;
+    }
+    // Студент на странице и видит вопросы: незакрытые уходы (закрытая вкладка, другая вкладка теста) отмечаются возвращёнными
+    function present() {
+      if (acked && !out && document.hasFocus() && document.visibilityState === 'visible') post('proctor/back');
+    }
+
+    function rules() {
+      show('<div class="proctor__icon proctor__icon--info" aria-hidden="true">' + A.icons.info + '</div>' +
+        '<h2 class="proctor__title" id="proctor-title">В этом тесте жёсткий прокторинг</h2>' +
+        '<div id="proctor-text"><ul class="proctor__rules">' +
+          '<li>Не переключайтесь на другие вкладки, не сворачивайте браузер и не переходите в другие окна и программы.</li>' +
+          '<li>Не закрывайте и не перезагружайте страницу теста — это тоже считается уходом.</li>' +
+          '<li>Если уйти со страницы, вопросы и варианты ответа скроются, а уход запишется: преподаватель увидит, когда и на сколько вы уходили.</li>' +
+          (M.attempt.minutes > 0 ? '<li>Время теста идёт, даже пока вопросы скрыты.</li>' : '') +
+        '</ul></div>' +
+        '<button type="button" class="btn btn--primary" data-proctor-ok>Понятно, начать тест</button>');
+    }
+    function warning() {
+      show('<div class="proctor__icon" aria-hidden="true">' + A.icons.cross + '</div>' +
+        '<h2 class="proctor__title" id="proctor-title">Вы ушли со страницы теста</h2>' +
+        '<p class="proctor__text" id="proctor-text">Вопросы скрыты. Уход записан, преподаватель его увидит.<br>' +
+          'Уходов за эту попытку: <b>' + count + '</b>.</p>' +
+        '<button type="button" class="btn btn--primary" data-proctor-ok>Вернуться к тесту</button>');
+    }
+
+    screen.addEventListener('click', function (e) {
+      if (!e.target.closest('[data-proctor-ok]') || out) return;
+      if (!acked) {
+        acked = true;
+        try { sessionStorage.setItem(ackKey, '1'); } catch (err) { /* без памяти правила покажутся снова после перезагрузки */ }
+      }
+      unlock();
+      present();
+    });
+
+    function report(kind) {
+      clearTimeout(reportTimer);
+      reportTimer = null;
+      pending = post('proctor', { kind: kind });
+    }
+    function leave(hidden) {
+      if (!acked || submitted || closing) return;
+      if (!out) {
+        out = true;
+        count++;
+        document.title = '⚠ Вернитесь к тесту';
+        // Открытое окно («Завершить тест?») лежит поверх всего — закрываем, чтобы предупреждение было видно
+        A.$$('dialog[open] [data-cancel]').forEach(function (b) { b.click(); });
+        warning();
+        // Сначала окно теряет фокус, а скрытие вкладки приходит следом — ждём, чтобы записать точный вид ухода
+        if (!hidden) reportTimer = setTimeout(function () { report(document.visibilityState === 'hidden' ? 'hidden' : 'blur'); }, 300);
+      }
+      if (hidden && reportTimer) report('hidden');
+      else if (hidden && !pending) report('hidden');
+    }
+    function back() {
+      if (!out || document.visibilityState !== 'visible' || !document.hasFocus()) return;
+      out = false;
+      document.title = title;
+      if (reportTimer) report('blur');
+      // Возврат отмечаем после записи ухода, иначе отмечать будет нечего
+      var p = pending || Promise.resolve();
+      pending = null;
+      p.then(function () { post('proctor/back'); });
+      focusButton();
+    }
+
+    window.addEventListener('blur', function () { leave(false); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') leave(true); else back();
+    });
+    window.addEventListener('focus', back);
+    // Закрытие или перезагрузка страницы — тоже уход; время возврата отметится, когда тест откроют снова
+    window.addEventListener('beforeunload', function () {
+      if (closing || !acked || submitted) return;
+      closing = true;
+      if (!out) post('proctor', { kind: 'close' });
+      // Уход отменили (страница жива через полторы секунды) — надзор продолжается, а «уход» закрываем
+      setTimeout(function () { closing = false; present(); }, 1500);
+    });
+    window.addEventListener('pageshow', function (e) { if (e.persisted) { closing = false; present(); } });
+
+    // Открыли заново после закрытия: запрос об уходе мог дойти позже, чем страница, — отмечаем возврат ещё раз
+    setTimeout(present, 2000);
+
+    // Правила — до первого вопроса; страница без фокуса (открыта в фоновой вкладке) тоже начинается с них
+    if (!acked || !document.hasFocus()) rules();
+  }
+
   if (!Q.length) {
     A.$('#q-text').textContent = /^Работа над ошибками/.test(M.attempt.title) ? 'Ошибок нет — повторять нечего' : 'В тесте пока нет вопросов';
     A.$('#q-label').textContent = '';
