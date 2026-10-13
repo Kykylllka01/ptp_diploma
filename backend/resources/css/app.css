@@ -512,6 +512,8 @@ mark.good { background: #DDF1E5; }
 .hist-axis span { flex: 1; text-align: center; }
 .diff-bar { margin-top: 8px; display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--divider); }
 .diff-bar div { transition: width .2s; }
+.swatch-l { display: inline-flex; align-items: center; gap: 6px; }
+.swatch-l i { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 
 /* Полосы аналитики курса: подпись · полоса · процент · пояснение (строка-ссылка — с шевроном) */
 .bars { display: flex; flex-direction: column; margin-top: 14px; }

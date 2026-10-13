@@ -53,6 +53,9 @@
     A.$('#s-points').textContent = points;
     A.$('#s-time').textContent = '~' + Math.round(minutes);
     A.$('#s-open').textContent = open;
+    A.$('#s-count-l').textContent = A.plural(total, 'вопрос', 'вопроса', 'вопросов');
+    A.$('#s-points-l').textContent = A.plural(points, 'балл', 'балла', 'баллов') + ' максимум';
+    A.$('#s-open-l').textContent = A.plural(open, 'развёрнутый или SQL', 'развёрнутых или SQL', 'развёрнутых или SQL');
     var pct = function (n) { return total ? (n / total * 100) + '%' : '0%'; };
     A.$('#d-easy').style.width = pct(easy); A.$('#d-med').style.width = pct(med); A.$('#d-hard').style.width = pct(hard);
     A.$('#l-easy').textContent = 'Лёгкие ' + easy; A.$('#l-med').textContent = 'Средние ' + med; A.$('#l-hard').textContent = 'Сложные ' + hard;
@@ -130,8 +133,16 @@
       var n = notes[r.value];
       A.$('#mode-note').hidden = !n;
       A.$('#mode-note').innerHTML = r.value === 'manual' ? n + ' <a href="bank?status=approved">Открыть банк</a>' : n;
+      // Вручную матрица не нужна: вопросы выбираются в банке, а тест сохраняется черновиком
+      A.$('#composition').hidden = r.value === 'manual';
+      publishLabel();
     });
   });
+  function publishLabel() {
+    var manual = (A.$('input[name=mode]:checked') || {}).value === 'manual';
+    A.$('#publish').textContent = manual ? 'Создать черновик' : on('#training') ? 'Опубликовать тренировку' : 'Опубликовать тест';
+  }
+  A.$('#training').addEventListener('click', function () { setTimeout(publishLabel); });
 
   A.$('#builder').addEventListener('submit', function (e) {
     e.preventDefault();
@@ -182,8 +193,11 @@
     counts = s.counts || {};
     Object.keys(counts).forEach(function (t) { if (allTopics.indexOf(t) < 0) allTopics.push(t); });
     topics = allTopics.filter(function (t) { return counts[t]; });
+    var wanted = A.param('topic');
+    if (wanted && allTopics.indexOf(wanted) >= 0) topics = [wanted];
     if (!topics.length) topics = allTopics.slice(0, 1);
     A.$('#bank-total').textContent = 'Одобрено в банке: ' + s.total;
     fillFromBank();
+    publishLabel();
   });
 })();

@@ -45,7 +45,7 @@
   if (weak.length) {
     A.$('#topic-note').hidden = false;
     A.$('#topic-note').innerHTML = '<b class="strong">Стоит повторить:</b> ' + weak.slice(0, 3).map(function (t) { return '«' + esc(t.name) + '» — ' + t.percent + '%'; }).join(', ') +
-      '. <a href="test-builder?training=1" class="strong">Собрать тренировку</a>';
+      '. <a href="test-builder?training=1&amp;topic=' + encodeURIComponent(weak[0].name) + '" class="strong">Собрать тренировку по «' + esc(weak[0].name) + '»</a>';
   }
 
   // Группы

@@ -118,6 +118,9 @@
   A.$('#insight').textContent = D.insight;
   // Тренировку по слабой теме предлагаем, только когда сдач хватает для вывода
   A.$('#insight-training').hidden = !D.insightReady;
+  // Тренировка — по самой слабой теме теста
+  var weakest = D.topics.length ? D.topics[D.topics.length - 1][0] : '';
+  if (weakest) A.$('#insight-training a').href = 'test-builder?training=1&topic=' + encodeURIComponent(weakest);
 
   A.$('#problems').innerHTML = D.problems.map(function (p) {
     var weak = p.correct < 50;
