@@ -65,7 +65,7 @@ class FrontendData
         if ($want('reviews')) {
             // Очередь проверки: ответы этого курса, которые ждут подтверждения, с апелляцией
             // или подтверждены за последний месяц (для контекста), — а не все проверки за всё время
-            $reviews = Review::with(['student', 'question'])
+            $reviews = Review::with(['student', 'question', 'answer.attempt.test'])
                 ->whereHas('question', fn ($q) => $q->where('course_id', $course->id))
                 ->where(fn ($q) => $q->where('status', 'pending')->orWhereNotNull('appealed_at')->orWhere('confirmed_at', '>=', now()->subDays(30)))
                 ->orderBy('id')->get();
@@ -373,6 +373,10 @@ class FrontendData
             'id' => $r->id,
             'student' => $r->student->name,
             'questionId' => $r->question->code,
+            // Из какого теста ответ — для фильтра очереди и ссылок «проверить ответы теста/попытки»
+            'test' => $r->answer?->attempt?->test?->code,
+            'testTitle' => $r->answer?->attempt?->test?->title,
+            'attemptId' => $r->answer?->attempt_id,
             'confidence' => $r->confidence,
             'minutes' => $r->minutes,
             'status' => $r->status,

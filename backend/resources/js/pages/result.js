@@ -26,7 +26,7 @@
     A.$('#points-line').innerHTML = att.weight != null
       ? 'В Модеус: <b class="strong">' + String(att.points).replace('.', ',') + '</b> из ' + String(att.weight).replace('.', ',') + ' баллов'
       : '<span class="muted">Вес теста в баллах не задан — в журнале будут проценты.</span>';
-    if (pendingOpen) A.$('#pending-line').innerHTML = '<a class="btn btn--sm btn--primary" href="review">Проверить открытые ответы</a>';
+    if (pendingOpen) A.$('#pending-line').innerHTML = '<a class="btn btn--sm btn--primary" href="review?attempt=' + att.attemptId + '">Проверить развёрнутые ответы этой попытки</a>';
     var others = M.others || [];
     if (others.length > 1) {
       A.$('#attempt-switch').innerHTML = '<span class="muted small">Попытки:</span>' + others.map(function (o, i) {

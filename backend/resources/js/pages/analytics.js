@@ -27,6 +27,7 @@
   // Кнопка проверки — только когда есть что проверять
   if (waiting) {
     A.$('#to-review').hidden = false;
+    A.$('#to-review').href = 'review?test=' + encodeURIComponent(D.testId);
     A.$('#to-review').textContent = 'Проверить ' + waiting + ' ' + A.plural(waiting, 'ответ', 'ответа', 'ответов');
   }
 

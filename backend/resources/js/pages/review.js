@@ -1,24 +1,40 @@
 /* Экран 8. Проверка открытых ответов: балл агента + уверенность, подтверждение преподавателем */
 (function () {
   var A = window.App, M = A.M, esc = A.esc;
-  var current, scores;
+  var current, scores, saved = '';
+  // Фильтры очереди: тест (?test=код), одна попытка (?attempt=id) и что показывать
+  var f = { test: A.param('test') || '', attempt: A.param('attempt') ? +A.param('attempt') : 0, show: 'pending' };
 
-  function list() { return A.reviews(); }
+  function all() { return A.reviews(); }
+  function inScope(r) { return (!f.test || r.test === f.test) && (!f.attempt || r.attemptId === f.attempt); }
+  function list() {
+    return all().filter(function (r) {
+      return inScope(r) && (f.show === 'all' || (f.show === 'appeal' ? !!r.appeal : r.status !== 'confirmed') || (current && r.id === current.id));
+    });
+  }
   function crit(r) { return M.criteria[r.questionId]; }
   function maxOf(r) { return crit(r).reduce(function (s, c) { return s + c[1]; }, 0); }
   function agentTotal(r) { return r.agent.reduce(function (s, a) { return s + a[0]; }, 0); }
 
   function renderQueue() {
-    var all = list();
-    var done = all.filter(function (r) { return r.status === 'confirmed'; }).length;
-    A.$('#progress').textContent = done + ' из ' + all.length + ' подтверждено';
-    A.$('#queue').innerHTML = all.map(function (r) {
+    var scope = all().filter(inScope);
+    var done = scope.filter(function (r) { return r.status === 'confirmed'; }).length;
+    A.$('#progress').textContent = done + ' из ' + scope.length + ' подтверждено' + (f.attempt ? ' · одна попытка' : '');
+    A.$('#queue-filters').innerHTML = A.filterTabs([
+      ['pending', 'Ждут', scope.length - done],
+      ['appeal', 'Апелляции', scope.filter(function (r) { return r.appeal; }).length],
+      ['all', 'Все', scope.length]
+    ], f.show, 'Какие ответы показать');
+    A.$('#queue').innerHTML = list().map(function (r) {
       var isDone = r.status === 'confirmed';
       var line = isDone ? r.questionId + ' · подтверждено ' + r.final + ' / ' + maxOf(r)
-        : (r.appeal ? 'апелляция · ' : '') + r.questionId + ' · агент: ' + agentTotal(r) + ' / ' + maxOf(r) + ' · уверенность ' + r.confidence + '%';
-      return '<button type="button" class="q-item' + (r.id === current.id ? ' is-on' : '') + (isDone ? ' is-done' : '') + '" data-id="' + r.id + '">' +
-        '<span class="strong">' + esc(r.student) + '</span><span' + (isDone ? '' : ' class="muted"') + '>' + line + '</span></button>';
-    }).join('');
+        : r.questionId + ' · агент: ' + agentTotal(r) + ' / ' + maxOf(r) + ' · уверенность ' + r.confidence + '%';
+      var on = current && r.id === current.id;
+      return '<button type="button" class="q-item' + (on ? ' is-on' : '') + (isDone ? ' is-done' : '') + '" data-id="' + r.id + '"' + (on ? ' aria-current="true"' : '') + '>' +
+        '<span class="between" style="gap: 8px"><span class="strong">' + esc(r.student) + '</span>' + (r.appeal ? A.chip('апелляция', 'amber', 'chip--sm') : isDone ? A.chip('готово', 'green', 'chip--sm') : '') + '</span>' +
+        (!f.test && r.testTitle ? '<span class="xsmall muted">' + esc(r.testTitle) + '</span>' : '') +
+        '<span' + (isDone ? '' : ' class="muted"') + '>' + line + '</span></button>';
+    }).join('') || '<div class="empty small">' + (f.show === 'appeal' ? 'Апелляций нет' : 'Все ответы проверены') + '</div>';
   }
 
   function renderTotal() {
@@ -47,33 +63,46 @@
       for (var p = 0; p <= cr[1]; p++) {
         btns += '<button type="button" data-c="' + i + '" data-p="' + p + '"' + (scores[i] === p ? ' class="is-on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + p + '</button>';
       }
-      return '<div class="crit"><div class="crit__main"><div class="strong">' + esc(cr[0]) + '</div>' +
+      return '<div class="crit"><div class="crit__main"><div class="strong" id="crit-' + i + '">' + esc(cr[0]) + '</div>' +
         '<div class="small ' + tone[a[1]] + '" style="margin-top: 4px">Агент: ' + esc(a[2]) + '</div></div>' +
-        '<div class="sc" role="group" aria-label="Баллы за критерий ' + (i + 1) + '">' + btns + '</div></div>';
+        '<div class="sc" role="group" aria-labelledby="crit-' + i + '">' + btns + '</div></div>';
     }).join('');
 
     A.$('#comment').value = r.comment || '';
+    saved = state();
+    A.$('#q-label').textContent += r.testTitle ? ' · ' + r.testTitle : '';
     A.$('#confirm').textContent = r.status === 'confirmed' ? 'Сохранить изменения' : 'Подтвердить и далее';
     renderTotal();
     renderQueue();
   }
 
-  function open(id) {
-    current = list().filter(function (r) { return r.id === id; })[0];
+  // Изменённые, но не подтверждённые баллы или комментарий — переход к другому ответу спрашивает
+  function state() { return JSON.stringify([scores, A.$('#comment').value]); }
+  function guard() {
+    if (!current || state() === saved) return Promise.resolve(true);
+    return A.confirm({ title: 'Уйти без сохранения?', text: 'Баллы или комментарий для ответа ' + current.student + ' изменены, но не подтверждены.', ok: 'Уйти', cancel: 'Остаться' });
+  }
+  function open(id, focus) {
+    current = all().filter(function (r) { return r.id === id; })[0];
     renderCurrent();
+    if (focus) A.$('#q-label').focus();
   }
 
   function next() {
-    var all = list();
-    var i = all.map(function (r) { return r.id; }).indexOf(current.id);
-    var rest = all.slice(i + 1).concat(all.slice(0, i)).filter(function (r) { return r.status !== 'confirmed'; });
-    if (rest.length) open(rest[0].id);
+    var scope = all().filter(inScope);
+    var i = scope.map(function (r) { return r.id; }).indexOf(current.id);
+    var rest = scope.slice(i + 1).concat(scope.slice(0, i)).filter(function (r) { return r.status !== 'confirmed'; });
+    if (rest.length) open(rest[0].id, true);
     else { renderQueue(); A.toast('Все ответы проверены — студенты увидят итоговые баллы'); }
   }
 
   A.$('#queue').addEventListener('click', function (e) {
     var b = e.target.closest('[data-id]');
-    if (b) open(+b.getAttribute('data-id'));
+    if (b && +b.getAttribute('data-id') !== current.id) guard().then(function (ok) { if (ok) open(+b.getAttribute('data-id'), true); });
+  });
+  A.$('#queue-filters').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-filter]');
+    if (b) { f.show = b.getAttribute('data-filter'); A.keepFocus(renderQueue); }
   });
   A.$('#criteria').addEventListener('click', function (e) {
     var b = e.target.closest('[data-c]');
@@ -95,18 +124,37 @@
     // К следующему ответу — только когда оценка сохранена; при ошибке ответ остаётся на экране
     A.saveReview(id, { status: 'confirmed', final: total, scores: scores.slice(), comment: A.$('#comment').value }).then(function () {
       A.toast(name + ': ' + total + ' из ' + max + ' — подтверждено');
-      current = list().filter(function (r) { return r.id === id; })[0];
+      current = all().filter(function (r) { return r.id === id; })[0];
+      saved = state();
       next();
     }, function () { renderQueue(); }).then(function () { btn.disabled = false; });
   });
-  A.$('#skip').addEventListener('click', next);
+  A.$('#skip').addEventListener('click', function () { guard().then(function (ok) { if (ok) next(); }); });
+  window.addEventListener('beforeunload', function (e) { if (current && state() !== saved) { e.preventDefault(); e.returnValue = ''; } });
 
-  var all = list();
-  if (!all.length) {
+  // Фильтр по тесту — когда ответы из нескольких тестов
+  var tests = {};
+  all().forEach(function (r) { if (r.test) tests[r.test] = r.testTitle; });
+  if (Object.keys(tests).length > 1 || f.test) {
+    var tf = A.$('#test-filter');
+    tf.innerHTML = '<option value="">Все тесты</option>' + Object.keys(tests).map(function (k) { return '<option value="' + esc(k) + '">' + esc(tests[k]) + '</option>'; }).join('');
+    tf.value = f.test;
+    tf.hidden = false;
+    tf.addEventListener('change', function () {
+      guard().then(function (ok) {
+        if (!ok) { tf.value = f.test; return; }
+        f.test = tf.value; f.attempt = 0;
+        var first = list().filter(function (r) { return r.status !== 'confirmed'; })[0] || list()[0];
+        if (first) open(first.id); else renderQueue();
+      });
+    });
+  }
+
+  var start = list().filter(function (r) { return r.status !== 'confirmed'; })[0] || list()[0] || all()[0];
+  if (!start) {
     A.$('#progress').textContent = 'Открытых ответов пока нет';
-    A.$('.split').innerHTML = '<div class="card card--pad empty">Когда студенты сдадут тесты с развёрнутыми ответами, они появятся здесь с оценкой агента.</div>';
+    A.$('.split').innerHTML = '<div class="card card--pad empty" style="flex: 1">Когда студенты сдадут тесты с развёрнутыми ответами, они появятся здесь с оценкой агента.</div>';
     return;
   }
-  var start = all.filter(function (r) { return r.status !== 'confirmed'; })[0] || all[0];
   open(start.id);
 })();

@@ -545,11 +545,12 @@ mark.good { background: #DDF1E5; }
 .q-item { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: none; border-top: 1px solid var(--divider); background: none; text-align: left; color: var(--text); font: 14px var(--font); width: 100%; cursor: pointer; }
 .q-item:hover { background: var(--surface-3); }
 .q-item.is-on { background: var(--blue-soft); box-shadow: inset 3px 0 0 var(--tsu-blue); }
+.q-item:focus-visible { outline: 2px solid var(--tsu-blue); outline-offset: -2px; }
 .q-item.is-done { color: var(--muted); }
 .answer-box { margin: 14px 0 0; font-size: 16px; line-height: 1.7; padding: 16px 18px; background: var(--surface-2); border-radius: 10px; }
 .crit { display: flex; gap: 16px; padding: 16px 0; border-top: 1px solid var(--divider); flex-wrap: wrap; }
 .crit__main { flex: 1; min-width: 260px; }
-.sc { display: flex; gap: 6px; }
+.sc { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
 .sc button { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border-strong); background: #fff; font: 600 15px var(--font); cursor: pointer; color: var(--text); }
 .sc button.is-on { background: var(--tsu-blue); border-color: var(--tsu-blue); color: #fff; }
 

@@ -142,7 +142,7 @@ class TeacherController extends Controller
 
     public function review()
     {
-        return $this->page('review', 'Проверка открытых ответов', 'analytics');
+        return $this->page('review', 'Проверка развёрнутых ответов', 'analytics');
     }
 
     /**
