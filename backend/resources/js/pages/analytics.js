@@ -83,7 +83,7 @@
   }
   A.$('#st-filters').addEventListener('click', function (e) {
     var b = e.target.closest('[data-filter]');
-    if (b) { st.filter = b.getAttribute('data-filter'); renderStudents(); }
+    if (b) { st.filter = b.getAttribute('data-filter'); A.keepFocus(renderStudents); }
   });
   A.$('#st-head').addEventListener('click', function (e) {
     var b = e.target.closest('[data-sort]');

@@ -87,7 +87,7 @@ class Question extends Model
                 $defs[] = trim($m[1]);
                 continue;
             }
-            [$term, $def] = array_pad(preg_split('/\s+—\s+/u', $text, 2), 2, '');
+            [$term, $def] = array_pad(preg_split('/\s+[—–-]\s+/u', $text, 2), 2, '');
             $terms[] = trim($term);
             $defs[] = trim($def);
         }

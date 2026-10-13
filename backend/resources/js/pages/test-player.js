@@ -64,6 +64,7 @@
         // Сеть пропала или сервер ответил ошибкой — не делаем вид, что сохранили, и повторяем
         var s = A.$('#saved');
         if (s) s.textContent = 'Не сохранено — повторим через несколько секунд';
+        saveStatus('Ответы не сохранились — нет связи с сервером. Повторим через несколько секунд, не закрывайте страницу.', 'error');
         clearTimeout(saveTimer);
         saveTimer = setTimeout(flush, 5000);
       });
@@ -176,10 +177,20 @@
     renderNav();
     var s = A.$('#saved');
     if (s && !training) s.innerHTML = 'Сохраняем…';
+    if (!training) saveStatus('Сохраняем ответ…', 'busy');
   }
   function markSaved() {
     var s = A.$('#saved');
     if (s) { s.innerHTML = A.icons.ok.replace(/18/g, '14') + ' Сохранено'; s.style.display = 'flex'; s.style.gap = '6px'; }
+    var d = new Date();
+    saveStatus('Ответы сохранены в ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2), 'ok');
+  }
+  // Состояние автосохранения в боковой панели — для всех типов вопросов, а не только для развёрнутых
+  function saveStatus(text, kind) {
+    var el = A.$('#autosave');
+    if (!el || preview || training) return;
+    el.textContent = text;
+    el.className = 'note xsmall save-status save-status--' + kind;
   }
   function updateChars() {
     var t = A.$('#answer');
@@ -292,11 +303,16 @@
   });
   A.$('#qnav').addEventListener('click', function (e) {
     var b = e.target.closest('[data-go]');
-    if (b) { st.current = +b.getAttribute('data-go'); persist(); render(); }
+    if (b) { st.current = +b.getAttribute('data-go'); persist(); A.keepFocus(render); }
   });
-  A.$('#prev').addEventListener('click', function () { if (st.current > 0) { st.current--; persist(); render(); } });
+  function go(step) {
+    st.current += step; persist(); render();
+    window.scrollTo(0, 0);
+    A.$('#q-text').focus({ preventScroll: true });
+  }
+  A.$('#prev').addEventListener('click', function () { if (st.current > 0) go(-1); });
   A.$('#next').addEventListener('click', function () {
-    if (st.current < Q.length - 1) { st.current++; persist(); render(); window.scrollTo(0, 0); }
+    if (st.current < Q.length - 1) go(1);
     else finish();
   });
   A.$('#finish').addEventListener('click', finish);
@@ -305,7 +321,11 @@
     if (training) { location.href = 'tests'; return; }
     if (submitted) return;
     var left = Q.length - answeredCount();
-    if (force !== true && left && !confirm('Без ответа ' + left + ' ' + A.plural(left, 'вопрос', 'вопроса', 'вопросов') + '. Завершить тест?')) return;
+    if (force !== true && left) {
+      A.confirm({ title: 'Завершить тест?', text: 'Без ответа ' + left + ' ' + A.plural(left, 'вопрос', 'вопроса', 'вопросов') + '. После завершения изменить ответы будет нельзя.', ok: 'Завершить', cancel: 'Вернуться к вопросам' })
+        .then(function (yes) { if (yes) finish(true); });
+      return;
+    }
     submitted = true;
     clearTimeout(saveTimer);
     saveTimer = null;
@@ -339,7 +359,10 @@
       var m = Math.floor(left / 60), s = left % 60;
       timerEl.lastChild.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
       timerEl.classList.toggle('is-low', left < 300);
+      if (left <= 300 && !warned5) { warned5 = true; A.toast('Осталось 5 минут. Ответы сохраняются автоматически'); }
+      if (left <= 60 && !warned1) { warned1 = true; A.toast('Осталась 1 минута — тест завершится сам', true); }
     };
+    var warned5 = M.attempt.minutes * 60 - Math.floor((Date.now() - st.startedAt) / 1000) <= 300, warned1 = false;
     if (M.attempt.minutes > 0) {
       tick();
       tickTimer = setInterval(tick, 1000);

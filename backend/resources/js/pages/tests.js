@@ -108,7 +108,7 @@
   A.$('#search').addEventListener('input', function (e) { query = e.target.value.trim(); render(); });
   A.$('#filters').addEventListener('click', function (e) {
     var b = e.target.closest('[data-filter]');
-    if (b) { state.filter = b.getAttribute('data-filter'); render(); }
+    if (b) { state.filter = b.getAttribute('data-filter'); A.keepFocus(render); }
   });
   A.$('#head').addEventListener('click', function (e) {
     var b = e.target.closest('[data-sort]');
@@ -123,7 +123,7 @@
 
   function replace(fresh) {
     M.tests = M.tests.map(function (t) { return t.id === fresh.id ? fresh : t; });
-    render();
+    A.keepFocus(render);
   }
 
   A.$('#tests').addEventListener('click', function (e) {

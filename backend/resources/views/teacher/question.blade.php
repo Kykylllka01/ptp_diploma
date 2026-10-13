@@ -8,13 +8,15 @@
 <main class="page" style="padding-top: 32px">
   <div class="between" style="gap: 16px">
     <div class="row-wrap" style="gap: 14px">
-      <a href="bank" class="back">← На проверке</a>
+      <a href="bank" class="back" id="back">← Банк вопросов</a>
       <span class="mono muted small" id="pos"></span>
       <span id="status-chip"></span>
     </div>
     <div class="actions actions--sm">
+      <span class="muted small" id="dirty" aria-live="polite"></span>
       <button type="button" class="btn" id="reject">Отклонить</button>
       <button type="button" class="btn" id="regen">Перегенерировать</button>
+      <button type="button" class="btn" id="save">Сохранить</button>
       <button type="button" class="btn btn--primary" id="approve">Одобрить и далее</button>
     </div>
   </div>
@@ -24,6 +26,7 @@
       <div class="row-wrap" style="gap: 12px; align-items: flex-end">
         <label class="field">Тип<select class="select" id="type"></select></label>
         <label class="field">Сложность<select class="select" id="difficulty"></select></label>
+        <label class="field">Тема<select class="select" id="topic"></select></label>
         <label class="field">Баллы<input class="input" type="number" id="points" min="1" max="10" style="width: 90px"></label>
       </div>
 
@@ -65,7 +68,7 @@
         <button type="button" class="btn btn--sm btn--block" style="margin-top: 16px" id="apply-fix" hidden>Применить предложение критика</button>
       </div>
       <div class="card" style="padding: 22px">
-        <div class="between"><h2 class="card-title card-title--xs">Источник</h2><a href="upload" class="small" id="source"></a></div>
+        <div class="between"><h2 class="card-title card-title--xs">Источник</h2><a href="bank?status=all" class="small" id="source"></a></div>
         <blockquote class="quote" id="quote"></blockquote>
       </div>
       <div class="card" style="padding: 22px">

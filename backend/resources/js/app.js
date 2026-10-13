@@ -51,19 +51,38 @@
   function num(v) { return v == null ? '' : String(v).replace('.', ','); }
 
   /* ---------- Тост ---------- */
-  var toastEl, toastTimer;
+  var toastEl, toastTimer, liveStatus, liveAlert;
+  function live(role) {
+    var el = document.createElement('div');
+    el.className = 'sr-only';
+    el.setAttribute('role', role);
+    el.setAttribute('aria-atomic', 'true');
+    document.body.appendChild(el);
+    return el;
+  }
   function toast(text, isError) {
     if (!toastEl) {
       toastEl = document.createElement('div');
       toastEl.className = 'toast';
-      toastEl.setAttribute('role', 'status');
-      document.body.appendChild(toastEl);
+      toastEl.setAttribute('aria-hidden', 'true');   // зачитывают живые области ниже
+      liveStatus = live('status');
+      liveAlert = live('alert');
     }
+    // Открыто модальное окно — тост кладём в него, иначе окно (верхний слой) закроет тост
+    var host = document.querySelector('dialog[open]') || document.body;
+    if (toastEl.parentNode !== host) host.appendChild(toastEl);
     toastEl.textContent = text;
     toastEl.classList.add('is-show');
     clearTimeout(toastTimer);
     toastEl.classList.toggle('is-error', !!isError);
-    toastTimer = setTimeout(function () { toastEl.classList.remove('is-show'); }, isError ? 7000 : 2600);
+    // Сначала очищаем: одинаковое сообщение подряд иначе не зачитается
+    var region = isError ? liveAlert : liveStatus;
+    liveStatus.textContent = liveAlert.textContent = '';
+    setTimeout(function () { region.textContent = text; }, 60);
+    toastTimer = setTimeout(function () {
+      toastEl.classList.remove('is-show');
+      liveStatus.textContent = liveAlert.textContent = '';
+    }, isError ? 7000 : 2600);
   }
 
   /* ---------- Запросы к API ----------
@@ -75,7 +94,7 @@
   // Сессия закончилась: отправляем на вход
   function authFailed(status) {
     if (status === 401) { location.href = '/login'; return true; }
-    if (status === 419) { toast('Сессия устарела — обновите страницу'); return true; }
+    if (status === 419) { toast('Сессия устарела — обновите страницу (F5) и повторите действие', true); return true; }
     return false;
   }
 
@@ -84,7 +103,12 @@
     var opts = { method: method, headers: headers, credentials: 'same-origin' };
     if (body instanceof FormData) opts.body = body;
     else if (body !== undefined) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
-    return fetch('/api/' + path, opts).then(function (r) {
+    return fetch('/api/' + path, opts).catch(function (e) {
+      // Запрос не дошёл до сервера: пропала сеть или сервер выключен — говорим об этом, а не молчим
+      toast('Нет связи с сервером. Проверьте интернет и повторите действие', true);
+      e.network = true;
+      throw e;
+    }).then(function (r) {
       if (r.status === 204) return null;
       if (authFailed(r.status)) throw new Error('auth');
       return r.json().catch(function () { return {}; }).then(function (data) {
@@ -352,9 +376,12 @@
   function dialog(opts, withInput) {
     return new Promise(function (resolve) {
       var id = 'dlg-' + (++uid), opener = document.activeElement, done = false;
+      var fromMenu = opener && opener.closest && opener.closest('.menu');
+      if (fromMenu) opener = fromMenu.querySelector('[data-menu]');
       var d = document.createElement('dialog');
       d.className = 'modal modal--sm';
       d.setAttribute('aria-labelledby', id + '-t');
+      if (opts.text) d.setAttribute('aria-describedby', id + '-d');
       var attrs = ' id="' + id + '-in" aria-describedby="' + id + '-hint ' + id + '-err"' +
         (opts.placeholder ? ' placeholder="' + esc(opts.placeholder) + '"' : '') +
         (opts.inputmode ? ' inputmode="' + esc(opts.inputmode) + '"' : '') +
@@ -362,7 +389,7 @@
       d.innerHTML = '<form class="modal__form" novalidate>' +
         '<div class="modal__head"><h2 class="card-title" id="' + id + '-t">' + esc(opts.title) + '</h2></div>' +
         '<div class="modal__body">' +
-          (opts.text ? '<p class="modal__text">' + esc(opts.text) + '</p>' : '') +
+          (opts.text ? '<p class="modal__text" id="' + id + '-d">' + esc(opts.text) + '</p>' : '') +
           (opts.options ? '<fieldset class="choose" id="' + id + '-in" aria-describedby="' + id + '-err"><legend class="sr-only">' + esc(opts.label || opts.title) + '</legend>' +
             opts.options.map(function (o, i) {
               return '<label class="opt"><input type="radio" name="' + id + '-r" value="' + esc(o.value) + '"' + (String(o.value) === String(opts.value) || (opts.value == null && i === 0) ? ' checked' : '') + '>' +
@@ -437,7 +464,7 @@
     m.list.hidden = true;
     m.wrap.classList.remove('is-open');
     m.btn.setAttribute('aria-expanded', 'false');
-    if (focus && m.btn.isConnected) m.btn.focus();
+    if (focus && m.btn.isConnected && !document.querySelector('dialog[open]')) m.btn.focus();
   }
   function menuItems(list) { return $$('[role="menuitem"]:not([disabled])', list); }
   function placeMenu(m) {
@@ -463,7 +490,8 @@
       if (e.detail === 0) { var first = menuItems(list)[0]; if (first) first.focus(); }
       return;
     }
-    if (openMenu && (!openMenu.wrap.contains(e.target) || e.target.closest('[role="menuitem"]'))) closeMenu();
+    if (openMenu && e.target.closest('[role="menuitem"]') && openMenu.wrap.contains(e.target)) closeMenu(true);
+    else if (openMenu && !openMenu.wrap.contains(e.target)) closeMenu();
   });
   document.addEventListener('keydown', function (e) {
     if (!openMenu) return;
@@ -480,6 +508,27 @@
     if (openMenu && !openMenu.list.contains(e.target)) closeMenu();
   }, true);
   window.addEventListener('resize', function () { closeMenu(); });
+
+  /* keepFocus(render): перерисовать часть страницы, не выбросив фокус клавиатуры в начало страницы.
+     Элемент в фокусе узнаётся по data-атрибуту (data-sort, data-filter, …) или id и после перерисовки получает фокус снова. */
+  var FOCUS_KEYS = ['data-sort', 'data-filter', 'data-tab', 'data-diff', 'data-done', 'data-copy', 'data-select', 'id'];
+  function keepFocus(render) {
+    var el = document.activeElement, sel = null;
+    if (el && el !== document.body && window.CSS && CSS.escape) {
+      for (var i = 0; i < FOCUS_KEYS.length && !sel; i++) {
+        var k = FOCUS_KEYS[i], v = el.getAttribute(k);
+        if (v) sel = k === 'id' ? '#' + CSS.escape(v) : (el.closest('.menu') ? null : '[' + k + '="' + CSS.escape(v) + '"]');
+      }
+      // Пункт меню: возвращаемся на кнопку «⋯» той же строки
+      if (!sel && el.closest('.menu')) { var b = el.closest('.menu').querySelector('[data-menu]'); if (b && b.getAttribute('aria-label')) sel = '[data-menu][aria-label="' + CSS.escape(b.getAttribute('aria-label')) + '"]'; }
+    }
+    var result = render();
+    if (sel && (!document.activeElement || document.activeElement === document.body || !document.activeElement.isConnected)) {
+      var again = document.querySelector(sel);
+      if (again) again.focus();
+    }
+    return result;
+  }
 
   // Пункты меню: [подпись, атрибуты] → разметка; null пропускается, '-' — разделитель
   function menu(label, items) {
@@ -554,7 +603,7 @@
     M: M, esc: esc, context: context, $: $, $$: $$, chip: chip, plural: plural, param: param, url: url,
     icons: icons, toast: toast, api: api, csrf: csrf, authFailed: authFailed,
     questions: questions, saveQuestion: saveQuestion, reviews: reviews, saveReview: saveReview,
-    ask: ask, choose: choose, confirm: confirmBox, menu: menu, closeMenu: closeMenu,
+    ask: ask, choose: choose, confirm: confirmBox, keepFocus: keepFocus, menu: menu, closeMenu: closeMenu,
     sortBy: sortBy, sortTh: sortTh, nextSort: nextSort, filterTabs: filterTabs, recall: recall, remember: remember,
     fileIcon: fileIcon, num: num
   };

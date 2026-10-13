@@ -110,18 +110,20 @@
     var m = M.materials.filter(function (x) { return String(x.id) === row.getAttribute('data-material'); })[0];
     A.$('#mm-kind').textContent = 'Материал курса';
     A.$('#mm-title').textContent = m.title;
+    A.$('#mm-body').setAttribute('aria-busy', 'true');
     A.$('#mm-body').innerHTML = '<div class="muted small">Загружаю…</div>';
     A.$('#mm-body').scrollTop = 0;
     modal.showModal();
     // Быстро открыли другой материал — поздний ответ по прежнему не должен подменить карточку
     var mine = ++request;
-    A.api('GET', 'materials/' + m.id).then(function (d) { if (mine === request) A.$('#mm-body').innerHTML = details(d); },
+    A.api('GET', 'materials/' + m.id).then(function (d) { if (mine === request) { A.$('#mm-body').innerHTML = details(d); A.$('#mm-body').setAttribute('aria-busy', 'false'); } },
       function () { if (mine === request) A.$('#mm-body').innerHTML = '<div class="t-red small">Не удалось загрузить сведения о материале.</div>'; });
   });
 
   var dot = { done: 'green', warn: 'amber', work: 'blue', wait: 'gray' };
+  var DOT_LABEL = { done: 'готов', warn: 'есть замечания', work: 'работает', wait: 'ожидает' };
   A.$('#agents').innerHTML = M.agents.map(function (a) {
-    return '<div style="display: flex; gap: 12px; align-items: flex-start"><span class="dot dot--' + dot[a.state] + '"></span>' +
+    return '<div style="display: flex; gap: 12px; align-items: flex-start"><span class="dot dot--' + dot[a.state] + '"></span><span class="sr-only">' + DOT_LABEL[a.state] + ': </span>' +
       '<div><div class="strong">' + esc(a.name) + '</div><div class="muted small">' + esc(a.summary) + '</div></div></div>';
   }).join('');
 

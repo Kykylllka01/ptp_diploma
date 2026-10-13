@@ -24,7 +24,7 @@
 
   A.$('#legend').innerHTML =
     '<span class="jlegend"><i class="jlegend__final">12,5</i>итог</span>' +
-    '<span class="jlegend"><i class="jlegend__pending">12,5</i>предварительно — есть неподтверждённые ответы</span>' +
+    '<span class="jlegend"><i class="jlegend__pending">12,5*</i>предварительно — есть неподтверждённые ответы</span>' +
     '<span class="jlegend"><i class="jlegend__progress">идёт</i>проходит сейчас</span>' +
     '<span class="jlegend"><i class="jlegend__none">—</i>не сдавал</span>';
 
@@ -53,7 +53,8 @@
   function cell(t, c) {
     var v = value(t, c);
     var cls = { final: 'is-final', pending: 'is-pending', in_progress: 'is-progress' }[c.status] || 'is-none';
-    var text = v == null ? (c.status === 'in_progress' ? 'идёт' : '—') : num(v) + (t.weight == null ? '%' : '');
+    var text = v == null ? (c.status === 'in_progress' ? 'идёт' : '—') : num(v) + (t.weight == null ? '%' : '') +
+      (c.status === 'pending' ? '<span class="mark-pending" aria-hidden="true">*</span><span class="sr-only"> (предварительно)</span>' : '');
     if (!c.attemptId) return '<td class="journal__cell ' + cls + '"><span>' + text + '</span></td>';
     var title = c.percent + '% · ' + c.attempts + ' ' + A.plural(c.attempts, 'попытка', 'попытки', 'попыток') + (c.status === 'pending' ? ' · ждёт подтверждения' : '') + ' — открыть ответы';
     return '<td class="journal__cell ' + cls + '"><a href="attempt?id=' + c.attemptId + '" title="' + esc(title) + '">' + text + '</a></td>';
@@ -136,7 +137,7 @@
   function toggleDone(t) {
     A.api('POST', 'tests/' + encodeURIComponent(t.id) + '/transferred', { group: groupKey, done: !t.transferred }).then(function (r) {
       t.transferred = r.transferred[String(groupKey)] || null;
-      render();
+      A.keepFocus(render);
       A.toast(t.transferred ? 'Отмечено: баллы перенесены в Модеус' : 'Отметка снята');
     });
   }
@@ -144,7 +145,7 @@
   A.$('#journal-card').addEventListener('click', function (e) {
     if (e.target.closest('#reset')) { state.filter = 'all'; query = ''; A.$('#search').value = ''; render(); return; }
     var f = e.target.closest('[data-filter]');
-    if (f) { state.filter = f.getAttribute('data-filter'); render(); return; }
+    if (f) { state.filter = f.getAttribute('data-filter'); A.keepFocus(render); return; }
     var so = e.target.closest('[data-sort]');
     if (so) {
       var key = so.getAttribute('data-sort');

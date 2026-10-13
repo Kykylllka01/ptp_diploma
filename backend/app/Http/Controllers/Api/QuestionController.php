@@ -207,6 +207,7 @@ class QuestionController extends Controller
             'context' => 'sometimes|nullable|string|max:5000',
             'type' => ['sometimes', Rule::in(array_keys(Question::TYPES))],
             'difficulty' => ['sometimes', Rule::in(array_keys(Question::DIFFICULTIES))],
+            'topic' => 'sometimes|string|max:255',
             'points' => 'sometimes|integer|min:1|max:100',
             'options' => 'sometimes|nullable|array',
             'options.*.text' => 'required_with:options|string|max:1000',

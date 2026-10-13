@@ -28,8 +28,14 @@
 
   function renderHead() {
     A.$('#pos').textContent = q.id + (idx >= 0 ? ' · ' + (idx + 1) + ' из ' + pending.length : '');
-    var st = { pending: ['На проверке', 'amber'], approved: ['Одобрен', 'green'], rejected: ['Отклонён', 'red'] }[draft.status];
+    var st = { pending: ['Ждёт одобрения', 'amber'], approved: ['Одобрен', 'green'], rejected: ['Отклонён', 'red'] }[draft.status];
     A.$('#status-chip').innerHTML = A.chip(st[0], st[1]);
+    // Одобренный вопрос правят и просто сохраняют; «далее» — только в очереди на проверку
+    A.$('#approve').hidden = draft.status === 'approved';
+    A.$('#approve').textContent = draft.status === 'pending' ? 'Одобрить и далее' : 'Одобрить';
+    A.$('#reject').hidden = draft.status === 'rejected';
+    A.$('#save').classList.toggle('btn--primary', draft.status === 'approved');
+    A.$('#back').href = 'bank?status=' + (q.status || 'all');
   }
 
   // Критерии развёрнутого ответа: [текст, баллы]; балл вопроса = сумма критериев
@@ -99,10 +105,11 @@
     var c = draft.critic;
     A.$('#critic-score').textContent = c ? c.score + ' / 10' : '';
     A.$('#critic').innerHTML = c
-      ? c.checks.map(function (ch) { return '<li>' + (ch.ok ? A.icons.ok : A.icons.warn) + '<span>' + esc(ch.text) + '</span></li>'; }).join('')
-      : '<li>' + A.icons.ok + '<span>Замечаний нет</span></li>';
+      ? c.checks.map(function (ch) { return '<li>' + (ch.ok ? A.icons.ok : A.icons.warn) + '<span><span class="sr-only">' + (ch.ok ? 'Пройдено: ' : 'Замечание: ') + '</span>' + esc(ch.text) + '</span></li>'; }).join('')
+      : '<li>' + A.icons.info + '<span>Критик этот вопрос не проверял: он создан или изменён вручную.</span></li>';
     A.$('#apply-fix').hidden = !(c && c.fix && !draft.fixApplied);
     A.$('#source').textContent = draft.source;
+    if (draft.materialId) A.$('#source').href = 'bank?status=all&source=' + draft.materialId;
     A.$('#quote').innerHTML = draft.quote || 'Фрагмент источника появится после разбора материала.';
     A.$('#history').innerHTML = history.map(function (h) {
       return '<div><span class="mono muted">' + h[0] + '</span> ' + esc(h[1]) + '</div>';
@@ -136,7 +143,8 @@
     }
     if (draft.type === 'sql' && !String(draft.reference || '').trim()) return 'Заполните эталонный запрос';
     if (draft.type === 'match') {
-      if (draft.options.some(function (o) { return o.correct && o.text.indexOf(' — ') < 0; })) return 'Пары записывайте как «термин — определение»';
+      draft.options.forEach(function (o) { if (o.correct) o.text = o.text.replace(/\s+[–-]\s+/, ' — '); });
+      if (draft.options.some(function (o) { return o.correct && o.text.indexOf(' — ') < 0; })) return 'Пары записывайте как «термин — определение» (подойдёт и обычный дефис с пробелами)';
       if (draft.options.filter(function (o) { return o.correct; }).length < 2) return 'Нужно минимум две пары';
     }
     return '';
@@ -144,13 +152,14 @@
 
   function save(status) {
     var patch = {
-      status: status, text: draft.text, context: draft.context || null, type: draft.type, difficulty: draft.difficulty, points: draft.points,
+      status: status, topic: draft.topic, text: draft.text, context: draft.context || null, type: draft.type, difficulty: draft.difficulty, points: draft.points,
       options: CHOICE.indexOf(draft.type) >= 0 || draft.type === 'match' ? draft.options.map(function (o) { return o.correct ? { text: o.text, correct: true } : { text: o.text }; }) : null,
       explanation: draft.explanation, reference: draft.reference, tags: draft.tags,
       criteria: draft.type === 'open' ? draft.criteria.map(function (c) { return [String(c[0]).trim(), +c[1]]; }) : undefined
     };
+    if (!status) delete patch.status;
     if (draft.fixApplied) { patch.fixApplied = true; patch.critic = draft.critic; }
-    return A.saveQuestion(q.id, patch);
+    return A.saveQuestion(q.id, patch).then(function (fresh) { setDirty(false); return fresh; });
   }
 
   function goNext() {
@@ -161,6 +170,26 @@
   // --- начальная отрисовка
   fillSelect(A.$('#type'), M.types, draft.type);
   fillSelect(A.$('#difficulty'), M.difficulties, draft.difficulty);
+  var topics = {};
+  (M.topics || []).concat(draft.topic && (M.topics || []).indexOf(draft.topic) < 0 ? [draft.topic] : []).forEach(function (t) { topics[t] = t; });
+  fillSelect(A.$('#topic'), topics, draft.topic);
+  A.$('#topic').addEventListener('change', function (e) { draft.topic = e.target.value; });
+
+  // Несохранённые правки: подпись у кнопок и предупреждение при уходе со страницы
+  var dirty = false;
+  function setDirty(v) {
+    dirty = v;
+    A.$('#dirty').textContent = v ? 'Есть несохранённые правки' : '';
+  }
+  A.$('#form').addEventListener('input', function () { setDirty(true); });
+  A.$('#form').addEventListener('change', function () { setDirty(true); });
+  A.$('#form').addEventListener('click', function (e) { if (e.target.closest('[data-del], [data-crit-del], [data-tag], #add-option, #add-criterion')) setDirty(true); });
+  window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+  function invalid(err) {
+    A.toast(err, true);
+    var field = /Формулировка/.test(err) ? '#text' : /эталон/i.test(err) ? '#reference' : null;
+    if (field) A.$(field).focus();
+  }
   A.$('#points').value = draft.points || 1;
   A.$('#text').value = draft.text;
   A.$('#context').value = draft.context || '';
@@ -238,8 +267,9 @@
     var t = e.target.closest('[data-tag]');
     if (t) { draft.tags = (draft.tags || [draft.topic]).filter(function (_, i) { return i !== +t.getAttribute('data-tag'); }); renderTags(); }
     if (e.target.id === 'add-tag') {
-      var v = prompt('Новый тег');
-      if (v && v.trim()) { draft.tags = (draft.tags || [draft.topic]).concat(v.trim()); renderTags(); }
+      A.ask({ title: 'Новый тег', label: 'Тег', placeholder: 'Например, 3НФ', maxlength: 60, ok: 'Добавить' }).then(function (v) {
+        if (v) { draft.tags = (draft.tags || [draft.topic]).concat(v); renderTags(); setDirty(true); }
+      });
     }
   });
 
@@ -255,11 +285,18 @@
 
   A.$('#approve').addEventListener('click', function () {
     var err = validate();
-    if (err) { A.toast(err); return; }
+    if (err) { invalid(err); return; }
+    var wasPending = q.status === 'pending';
     save('approved').then(function () {
       A.toast('Вопрос ' + q.id + ' одобрен');
-      setTimeout(goNext, 500);
+      if (wasPending) setTimeout(goNext, 500);
+      else { draft.status = 'approved'; renderHead(); }
     });
+  });
+  A.$('#save').addEventListener('click', function () {
+    var err = validate();
+    if (err) { invalid(err); return; }
+    save(null).then(function () { A.toast('Изменения сохранены'); });
   });
   A.$('#reject').addEventListener('click', function () {
     collect();
@@ -269,8 +306,17 @@
     });
   });
   A.$('#regen').addEventListener('click', function () {
-    A.toast('Составитель переписывает вопрос с учётом замечаний критика…');
-    A.api('POST', 'questions/' + encodeURIComponent(q.id) + '/regenerate').then(function (fresh) {
+    var btn = A.$('#regen');
+    (dirty ? A.confirm({ title: 'Перегенерировать вопрос?', text: 'Ваши несохранённые правки пропадут: Составитель перепишет вопрос заново.', ok: 'Перегенерировать', danger: true }) : Promise.resolve(true)).then(function (yes) {
+      if (!yes) return;
+      btn.disabled = true;
+      btn.textContent = 'Переписываю…';
+      A.toast('Составитель переписывает вопрос с учётом замечаний Критика — это до минуты');
+      regen().then(function () { btn.disabled = false; btn.textContent = 'Перегенерировать'; }, function () { btn.disabled = false; btn.textContent = 'Перегенерировать'; });
+    });
+  });
+  function regen() {
+    return A.api('POST', 'questions/' + encodeURIComponent(q.id) + '/regenerate').then(function (fresh) {
       Object.assign(q, fresh);
       draft = JSON.parse(JSON.stringify(fresh));
       draft.options = draft.options || [];
@@ -279,8 +325,9 @@
       A.$('#context').value = draft.context || '';
       A.$('#explanation').value = draft.explanation || '';
       renderHead(); renderOptions(); renderTags(); renderSide();
-      A.toast('Вопрос переписан, критик проверил его заново');
+      setDirty(false);
+      A.toast('Вопрос переписан, Критик проверил его заново');
     });
-  });
+  }
   A.$('#form').addEventListener('submit', function (e) { e.preventDefault(); });
 })();

@@ -18,7 +18,7 @@
     </div>
   </div>
 
-  <nav class="tabs" role="tablist" id="tabs"></nav>
+  <div class="tabs" role="group" aria-label="Статус вопросов" id="tabs"></div>
 
   <div class="split">
     <aside class="card split__nav" style="max-width: 100%; padding: 20px; display: flex; flex-direction: column; gap: 22px">

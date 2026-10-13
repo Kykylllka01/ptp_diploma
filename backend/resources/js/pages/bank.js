@@ -36,7 +36,7 @@
     A.$('#tabs').innerHTML = TABS.map(function (t) {
       var n = t[0] === 'all' ? all.length : all.filter(function (q) { return q.status === t[0]; }).length;
       var badge = t[0] === 'pending' && n ? '<span class="chip chip--amber chip--sm">' + n + '</span>' : '<span class="muted">' + n + '</span>';
-      return '<button type="button" role="tab" class="tab' + (f.status === t[0] ? ' is-on' : '') + '" aria-selected="' + (f.status === t[0]) + '" data-tab="' + t[0] + '">' + t[1] + ' ' + badge + '</button>';
+      return '<button type="button" class="tab' + (f.status === t[0] ? ' is-on' : '') + '" aria-pressed="' + (f.status === t[0]) + '" data-tab="' + t[0] + '">' + t[1] + ' ' + badge + '</button>';
     }).join('');
   }
 
@@ -135,7 +135,7 @@
     var t = e.target.closest('[data-tab]');
     if (!t) return;
     f.status = t.getAttribute('data-tab'); f.limit = PAGE; selected = {};
-    renderTabs(); renderList();
+    A.keepFocus(function () { renderTabs(); renderList(); });
   });
 
   document.addEventListener('change', function (e) {
@@ -167,7 +167,7 @@
     if (!b) return;
     var k = b.getAttribute('data-diff');
     f.diff = f.diff.indexOf(k) >= 0 ? f.diff.filter(function (x) { return x !== k; }) : f.diff.concat(k);
-    renderFilters(); renderList();
+    A.keepFocus(function () { renderFilters(); renderList(); });
   });
 
   A.$('#search').addEventListener('input', function (e) { f.q = e.target.value; f.limit = PAGE; renderList(); });
