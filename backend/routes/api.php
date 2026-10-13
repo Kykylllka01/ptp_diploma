@@ -52,7 +52,7 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::post('groups/{group}/invite', [GroupController::class, 'invite']);
         Route::delete('groups/{group}', [GroupController::class, 'destroy']);
         Route::patch('students/{user}/group', [GroupController::class, 'moveStudent']);
-        Route::post('students/{user}/password', [GroupController::class, 'resetPassword'])->middleware('throttle:20,1');
+        Route::post('students/{user}/password', [GroupController::class, 'resetPassword'])->middleware('throttle:20,1,student-password');
     });
 
     // Студент
@@ -60,13 +60,13 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::put('attempts/{attempt}', [AttemptController::class, 'update']);
         Route::post('attempts/{attempt}/submit', [AttemptController::class, 'submit']);
         // Прокторинг: уход со страницы теста и возвращение
-        Route::post('attempts/{attempt}/proctor', [AttemptController::class, 'proctor'])->middleware('throttle:120,1');
-        Route::post('attempts/{attempt}/proctor/back', [AttemptController::class, 'proctorBack'])->middleware('throttle:120,1');
+        Route::post('attempts/{attempt}/proctor', [AttemptController::class, 'proctor'])->middleware('throttle:120,1,proctor');
+        Route::post('attempts/{attempt}/proctor/back', [AttemptController::class, 'proctorBack'])->middleware('throttle:120,1,proctor-back');
         // Проверка SQL-ответа запускает учебную базу — частоту ограничиваем, как у sql/run
-        Route::post('questions/{question}/check', [QuestionController::class, 'check'])->middleware('throttle:60,1');
+        Route::post('questions/{question}/check', [QuestionController::class, 'check'])->middleware('throttle:60,1,question-check');
         Route::post('answers/{answer}/appeal', [AttemptController::class, 'appeal']);
     });
 
     // Учебная база SQL нужна обоим
-    Route::post('sql/run', [AttemptController::class, 'runSql'])->middleware(['role:teacher,student', 'throttle:30,1']);
+    Route::post('sql/run', [AttemptController::class, 'runSql'])->middleware(['role:teacher,student', 'throttle:30,1,sql-run']);
 });

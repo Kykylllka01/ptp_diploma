@@ -10,6 +10,7 @@ use App\Services\AttemptService;
 use App\Services\SqlSandbox;
 use App\Support\CurrentUser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -97,8 +98,16 @@ class AttemptController extends Controller
     public function runSql(Request $request, SqlSandbox $sandbox)
     {
         $data = $request->validate(['sql' => 'required|string|max:5000']);
-
-        return $sandbox->run($data['sql']);
+        // Один запрос студента за раз: повторные нажатия не занимают места учебной базы у остальных
+        $lock = Cache::lock('sql-user-'.$request->user()->id, 10);
+        if (! $lock->get()) {
+            return ['ok' => false, 'kind' => 'busy', 'error' => 'Предыдущий запрос ещё выполняется — подождите пару секунд'];
+        }
+        try {
+            return $sandbox->run($data['sql'], interactive: true);
+        } finally {
+            $lock->release();
+        }
     }
 
     /** Апелляция по развёрнутому ответу: ответ возвращается преподавателю на перепроверку. */

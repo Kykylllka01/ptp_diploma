@@ -180,4 +180,16 @@ class PilotLoadTest extends TestCase
             ->doesntExpectOutputToContain('sk-secret-value')
             ->assertExitCode(1);   // очередь sync — ошибка: развёрнутые ответы оценивались бы прямо при сдаче
     }
+
+    public function test_each_limited_route_has_its_own_counter(): void
+    {
+        // Уходы со страницы при прокторинге не должны съедать лимит «Выполнить на учебной базе»
+        $this->makeTest('m1', [$this->singleQuestion('Q-1')], ['settings' => ['proctoring' => true]]);
+        $this->actingAs($this->student())->get('/student/test?test=m1')->assertOk();
+        $attempt = Attempt::firstOrFail();
+        foreach (range(1, 35) as $i) {
+            $this->postJson("/api/attempts/{$attempt->id}/proctor", ['kind' => 'blur'])->assertOk();
+        }
+        $this->postJson('/api/sql/run', ['sql' => 'SELECT 1'])->assertOk();
+    }
 }

@@ -91,7 +91,7 @@ class SecurityTest extends TestCase
         // Учебная база не запускается (нет php.exe и т. п.) — сдача откатывается с 503, попытку можно сдать снова
         $this->app->instance(\App\Services\SqlSandbox::class, new class extends \App\Services\SqlSandbox
         {
-            public function run(string $sql): array
+            public function run(string $sql, bool $interactive = false): array
             {
                 return ['ok' => false, 'kind' => 'infra', 'error' => 'Учебная база сейчас недоступна'];
             }

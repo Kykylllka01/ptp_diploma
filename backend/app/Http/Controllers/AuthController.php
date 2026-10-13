@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 
 /** Вход и выход по сессии (стандартный guard web). */
@@ -25,7 +26,14 @@ class AuthController extends Controller
             'password.required' => 'Введите пароль',
         ]);
 
+        // Подбор паролей с одной сети: считаются только неудачные входы, поэтому вся группа за одним
+        // Wi-Fi входит без помех, а сотни ошибок в минуту с одного IP останавливаются
+        $failures = 'login-failures:'.$request->ip();
+        if (RateLimiter::tooManyAttempts($failures, 300)) {
+            throw ValidationException::withMessages(['email' => 'Слишком много неудачных входов из этой сети — подождите минуту'])->status(429);
+        }
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+            RateLimiter::hit($failures, 60);
             throw ValidationException::withMessages(['email' => 'Неверная почта или пароль']);
         }
 

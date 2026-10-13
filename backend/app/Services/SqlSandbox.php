@@ -32,7 +32,11 @@ class SqlSandbox
     private const KEEP_ENV = ['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'COMSPEC', 'PATHEXT', 'SYSTEMDRIVE', 'PHPRC', 'PHP_INI_SCAN_DIR'];
 
     /** @return array{ok: bool, kind?: string, error?: string, columns?: string[], rows?: array, ms?: int} */
-    public function run(string $sql): array
+    /**
+     * $interactive — кнопка «Выполнить на учебной базе»: ей достаются не все места и ожидание короче,
+     * чтобы проверка SQL-ответов при сдаче (по умолчанию) не откатывалась из-за чужих экспериментов.
+     */
+    public function run(string $sql, bool $interactive = false): array
     {
         $sql = trim($sql);
         $body = rtrim($sql, "; \n\r\t");
@@ -49,7 +53,7 @@ class SqlSandbox
         }
 
         $timeout = (float) config('agents.sql_sandbox_timeout', 3);
-        if (! $slot = $this->slot($timeout)) {
+        if (! $slot = $this->slot($timeout, $interactive)) {
             return $this->fail('infra', 'Учебная база сейчас перегружена — попробуйте ещё раз через несколько секунд');
         }
         try {
@@ -64,10 +68,14 @@ class SqlSandbox
      * остальные ждут до 15 секунд. Блокировки живут чуть дольше таймаута запроса — упавший
      * PHP-процесс не держит место вечно.
      */
-    private function slot(float $timeout): ?Lock
+    private function slot(float $timeout, bool $interactive = false): ?Lock
     {
         $max = (int) config('agents.sql_sandbox_parallel', 6);
-        $deadline = microtime(true) + 15;
+        // Два места всегда остаются за проверкой при сдаче
+        if ($interactive) {
+            $max = max(1, $max - 2);
+        }
+        $deadline = microtime(true) + ($interactive ? 3 : 15);
         do {
             for ($i = 0; $i < $max; $i++) {
                 $lock = Cache::lock('sql-sandbox-slot-'.$i, (int) ceil($timeout) + 10);

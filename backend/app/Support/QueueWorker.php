@@ -22,6 +22,12 @@ class QueueWorker
         if (! $php || config('queue.default') !== 'database' || ! is_file($php)) {
             return;
         }
+        // Путь уходит в командную строку: кавычки, %…% и $ в нём сломали бы или подменили команду
+        if (preg_match('/["%$`]/', $php.base_path())) {
+            report(new \RuntimeException('QUEUE_AUTOSTART_PHP или путь проекта содержит недопустимые символы — запускайте queue:work вручную'));
+
+            return;
+        }
         // Не чаще раза в 5 секунд: при потоке сдач проверка не должна идти на каждый запрос
         if (! Cache::add('queue-worker-kick', true, 5)) {
             return;

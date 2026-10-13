@@ -26,7 +26,7 @@ class PilotCheck extends Command
 
     public function handle(SqlSandbox $sandbox): int
     {
-        $this->check('Режим отладки', ! config('app.debug'), 'APP_DEBUG=true: студенты увидят трассировку ошибок. Поставьте APP_DEBUG=false', 'warn');
+        $this->check('Режим отладки', ! config('app.debug'), 'APP_DEBUG=true: студенты увидят трассировку ошибок и настройки сервера. Поставьте APP_DEBUG=false');
         $this->check('Окружение', app()->environment('production'), 'APP_ENV='.app()->environment().' — для пилота лучше production', 'warn');
         $this->check('Журнал', config('logging.channels.stack.channels') !== ['single'] || config('logging.default') !== 'stack',
             'журнал пишется в один растущий файл — LOG_STACK=daily', 'warn');

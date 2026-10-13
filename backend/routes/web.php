@@ -11,14 +11,14 @@ Route::middleware('guest')->group(function () {
     Route::get('login', [AuthController::class, 'show'])->name('login');
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
     // Регистрация только по ссылке-приглашению группы (код выдаёт преподаватель на экране «Группы»)
-    Route::get('register', [JoinController::class, 'enterCode'])->name('register')->middleware('throttle:300,1');
+    Route::get('register', [JoinController::class, 'enterCode'])->name('register')->middleware('throttle:300,1,register');
     // Вся группа регистрируется с одного вузовского Wi-Fi (один IP) — лимит по почте и с запасом на IP (RouteServiceProvider)
     Route::post('join/{code}', [JoinController::class, 'register'])->middleware('throttle:join');
 });
 
 // Страница приглашения открывается и гостю (форма регистрации), и вошедшему (подсказка, что делать)
-Route::get('join/{code}', [JoinController::class, 'show'])->name('join')->middleware('throttle:600,1');
-Route::post('join/{code}/accept', [JoinController::class, 'accept'])->name('join.accept')->middleware(['auth', 'role:student', 'throttle:10,1']);
+Route::get('join/{code}', [JoinController::class, 'show'])->name('join')->middleware('throttle:600,1,join-show');
+Route::post('join/{code}/accept', [JoinController::class, 'accept'])->name('join.accept')->middleware(['auth', 'role:student', 'throttle:10,1,join-accept']);
 
 Route::middleware('auth')->group(function () {
     Route::get('/', [AuthController::class, 'home'])->name('home');
@@ -52,7 +52,7 @@ Route::middleware('auth')->group(function () {
     Route::get('profile', [\App\Http\Controllers\ProfileController::class, 'show'])->name('profile');
     Route::post('profile/password', [\App\Http\Controllers\ProfileController::class, 'password'])->name('profile.password');
     Route::post('profile', [\App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
-    Route::post('profile/avatar', [AvatarController::class, 'store'])->name('profile.avatar')->middleware('throttle:20,1');
+    Route::post('profile/avatar', [AvatarController::class, 'store'])->name('profile.avatar')->middleware('throttle:20,1,avatar');
     Route::delete('profile/avatar', [AvatarController::class, 'destroy'])->name('profile.avatar.delete');
     Route::get('avatars/{user}', [AvatarController::class, 'show'])->name('avatar');
 });
