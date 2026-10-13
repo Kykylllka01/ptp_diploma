@@ -32,8 +32,8 @@
         <label class="dropzone" id="dropzone">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0072BC" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>
           <span style="font-weight: 600; font-size: 17px">Перетащите файлы или выберите на компьютере</span>
-          <span class="muted small">PDF, DOCX, PPTX, TXT, видео с субтитрами · до 50 МБ на файл</span>
-          <input type="file" multiple id="file-input" accept=".pdf,.docx,.pptx,.txt,.mp4">
+          <span class="muted small">Только PDF, DOCX, PPTX и TXT · до 50 МБ на файл</span>
+          <input type="file" multiple id="file-input" accept=".pdf,.docx,.pptx,.txt">
         </label>
         <div class="row-wrap" style="margin-top: 12px; gap: 10px">
           <button type="button" class="btn btn--sm" data-add="URL">Добавить ссылку</button>

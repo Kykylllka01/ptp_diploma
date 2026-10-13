@@ -145,6 +145,20 @@ class UxPolishTest extends TestCase
         $this->assertMatchesRegularExpression('/\.docx"?$/', $disposition);
     }
 
+    public function test_only_pdf_docx_pptx_txt_files_are_accepted(): void
+    {
+        Storage::fake('local');
+        $this->actingAs($this->teacher());
+        foreach (['Лекция.mp4', 'setup.exe', 'Конспект.doc', 'фото.png', 'без расширения'] as $name) {
+            $this->post('/api/materials', ['file' => UploadedFile::fake()->create($name, 12)], ['Accept' => 'application/json'])
+                ->assertUnprocessable()->assertJsonPath('errors.file.0', 'Поддерживаются только файлы PDF, DOCX, PPTX и TXT.');
+        }
+        foreach (['a.pdf', 'b.DOCX', 'c.pptx', 'd.txt'] as $name) {
+            $this->post('/api/materials', ['file' => UploadedFile::fake()->create($name, 12)], ['Accept' => 'application/json'])->assertOk();
+        }
+        $this->assertSame(4, \App\Models\Material::count());
+    }
+
     public function test_error_pages_are_in_russian(): void
     {
         $this->get('/no-such-page')->assertNotFound()->assertSee('Страница не найдена')->assertSee('На главную');

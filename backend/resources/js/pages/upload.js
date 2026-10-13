@@ -175,7 +175,22 @@
     xhr.send(fd);
   }
 
-  function addFiles(list) { Array.prototype.forEach.call(list, upload); }
+  // Файл другого типа или больше 50 МБ даже не начинает загружаться: сервер его всё равно не примет
+  var ALLOWED = ['PDF', 'DOCX', 'PPTX', 'TXT'], MAX_BYTES = 50 * 1048576;
+  function addFiles(list) {
+    var wrongType = [], tooBig = [];
+    Array.prototype.forEach.call(list, function (file) {
+      var ext = (file.name.indexOf('.') >= 0 ? file.name.split('.').pop() : '').toUpperCase();
+      if (ALLOWED.indexOf(ext) < 0) wrongType.push(file.name);
+      else if (file.size > MAX_BYTES) tooBig.push(file.name);
+      else upload(file);
+    });
+    var names = function (a) { return a.length > 3 ? a.slice(0, 3).join(', ') + ' и ещё ' + (a.length - 3) : a.join(', '); };
+    var msg = [];
+    if (wrongType.length) msg.push((wrongType.length > 1 ? 'Не загружены' : 'Не загружен') + ': ' + names(wrongType) + '. Подходят только PDF, DOCX, PPTX и TXT');
+    if (tooBig.length) msg.push((tooBig.length > 1 ? 'Больше 50 МБ' : 'Файл больше 50 МБ') + ': ' + names(tooBig));
+    if (msg.length) A.toast(msg.join('. '), true);
+  }
 
   A.$('#file-input').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
 
