@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Attempt;
 use App\Models\GenerationRun;
 use App\Models\Group;
+use App\Models\Material;
 use App\Models\Test;
 use App\Services\AttemptService;
 use App\Services\FrontendData;
 use App\Services\GradebookService;
 use App\Support\CurrentUser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /** Экраны преподавателя (1–8). Данные уходят в шаблон как window.APP_DATA. */
 class TeacherController extends Controller
@@ -140,6 +143,33 @@ class TeacherController extends Controller
     public function review()
     {
         return $this->page('review', 'Проверка открытых ответов', 'analytics');
+    }
+
+    /**
+     * Исходный файл материала: PDF, текст и видео открываются во вкладке, DOCX и PPTX скачиваются,
+     * материал-ссылка ведёт на свою страницу. Тип отдаём по расширению, а не по содержимому:
+     * загруженный «.txt» с HTML внутри не должен открыться как страница сайта.
+     */
+    public function materialFile(Material $material)
+    {
+        abort_unless($material->course_id === CurrentUser::course()->id, 404);
+        if ($material->url) {
+            return redirect()->away($material->url);
+        }
+        abort_unless($material->file_path && Storage::exists($material->file_path), 404);
+
+        $ext = strtolower(pathinfo($material->file_path, PATHINFO_EXTENSION));
+        $name = Str::limit(trim(preg_replace('/[\\\\\/:*?"<>|]+/u', ' ', $material->title)), 150, '').'.'.$ext;
+        $inline = ['pdf' => 'application/pdf', 'txt' => 'text/plain; charset=utf-8', 'mp4' => 'video/mp4'];
+        $headers = ['X-Content-Type-Options' => 'nosniff'];
+
+        if (isset($inline[$ext])) {
+            // Текст — в песочнице: даже если браузер решит его разобрать, скрипты не выполнятся
+            return Storage::response($material->file_path, $name, $headers + ['Content-Type' => $inline[$ext]]
+                + ($ext === 'txt' ? ['Content-Security-Policy' => 'sandbox'] : []), 'inline');
+        }
+
+        return Storage::download($material->file_path, $name, $headers);
     }
 
     /** Группы курса и ссылки-приглашения для регистрации студентов. */

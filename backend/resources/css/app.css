@@ -335,6 +335,13 @@ button.chip--dark.is-on { background: #fff; color: var(--navy); }
 .btn--danger { background: #C42B1C; border-color: #C42B1C; color: #fff; }
 .btn--danger:hover { background: #A3201A; color: #fff; }
 
+/* Запуски агентов в карточке материала: номер и дата в одной строке, но раздельно */
+.run-row { display: flex; align-items: center; gap: 12px; padding: 10px 8px; margin: 0 -8px; border-top: 1px solid var(--divider); border-radius: 0; color: var(--text); text-decoration: none; }
+.run-row:first-child { border-top: none; }
+.run-row:hover { background: var(--row-hover); color: var(--text); }
+.run-row__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.run-row__title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; font-size: 14px; }
+.run-row__cost { font-variant-numeric: tabular-nums; }
 /* Файл материала в карточке: крупная иконка типа — по клику открывается сам файл */
 .ficon { display: block; flex: none; }
 .file-card { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-3); color: var(--text); text-decoration: none; transition: border-color .12s, background-color .12s, box-shadow .12s; }
@@ -394,6 +401,11 @@ a.file-card:hover .ficon { transform: translateY(-2px) rotate(-2deg); }
 .ftabs__n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--divider); color: var(--muted); font-size: 12px; font-weight: 600; display: inline-grid; place-items: center; font-variant-numeric: tabular-nums; }
 .ftabs__btn.is-on .ftabs__n { background: var(--blue-bg); color: var(--tsu-blue-dark); }
 .result-line { margin-top: 12px; font-size: 13px; color: var(--muted); }
+.result-line:empty { display: none; }
+.table__title { font-weight: 600; color: var(--text); text-decoration: none; text-wrap: pretty; }
+a.table__title:hover { color: var(--tsu-blue); text-decoration: underline; text-underline-offset: 3px; }
+.link-btn { padding: 0; border: none; background: none; color: var(--tsu-blue); font: inherit; text-decoration: underline; cursor: pointer; }
+.link-btn:hover { color: #00548C; }
 
 /* Меню «⋯» */
 .menu { position: relative; display: inline-block; }
@@ -578,26 +590,52 @@ mark.good { background: #DDF1E5; }
 .how summary { cursor: pointer; }
 .how { display: block; }
 .how ol { margin: 10px 0 0; padding-left: 20px; line-height: 1.6; }
-.journal-wrap { max-height: 70vh; overflow: auto; }
-.journal { font-size: 14px; border-collapse: separate; border-spacing: 0; }
-.journal th, .journal td { padding: 10px 12px; border-top: 1px solid var(--divider); background: #fff; vertical-align: middle; }
-.journal thead th { position: sticky; top: 0; z-index: 2; vertical-align: bottom; border-top: none; border-bottom: 1px solid var(--border); }
-/* Номер и фамилия остаются на месте при прокрутке вбок */
-.journal__n { position: sticky; left: 0; z-index: 1; width: 40px; min-width: 40px; text-align: right; }
-.journal__name { position: sticky; left: 40px; z-index: 1; min-width: 220px; box-shadow: 1px 0 0 var(--border); }
-.journal thead .journal__n, .journal thead .journal__name { z-index: 3; }
-.journal__test { min-width: 170px; max-width: 220px; }
-.journal__title { font-weight: 600; color: var(--text); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.journal__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 8px; font-weight: 400; }
-.journal__done { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap; }
-.journal__cell { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
-.journal__cell a, .journal__cell span { display: inline-block; min-width: 46px; padding: 4px 8px; border-radius: 8px; text-decoration: none; }
-.journal__cell.is-final a { background: var(--green-bg); color: var(--green-text); }
+.journal-wrap { max-height: 72vh; overflow: auto; margin-top: 14px; border-top: 1px solid var(--border); }
+.journal { width: 100%; font-size: 14px; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+.journal th, .journal td { padding: 10px 12px; border-bottom: 1px solid var(--divider); background: #fff; vertical-align: middle; }
+.journal tr > :first-child { padding-left: 24px; }
+.journal tr > :last-child { padding-right: 24px; }
+.journal thead th { position: sticky; top: 0; z-index: 2; vertical-align: top; text-align: left; color: var(--muted); font-size: 13px; font-weight: 500; background: var(--surface-3); border-bottom: 1px solid var(--border); }
+.journal thead .journal__n, .journal thead .journal__name, .journal thead .journal__total { vertical-align: bottom; }
+.journal tfoot td { position: sticky; bottom: 0; z-index: 2; background: var(--surface-3); border-top: 1px solid var(--border); border-bottom: none; }
+.journal tbody tr:hover > td:not(.empty) { background: var(--row-hover); }
+.journal .empty { padding: 40px 20px; }
+/* Номер и фамилия остаются на месте при прокрутке вбок, «Итого» — справа */
+.journal__n { position: sticky; left: 0; z-index: 1; width: 64px; min-width: 64px; text-align: right; color: var(--muted); }
+.journal__name { position: sticky; left: 64px; z-index: 1; min-width: 240px; max-width: 320px; box-shadow: inset -1px 0 0 var(--border); }
+.journal__total { position: sticky; right: 0; z-index: 1; min-width: 104px; text-align: center; font-weight: 700; box-shadow: inset 1px 0 0 var(--border); }
+.journal thead .journal__n, .journal thead .journal__name, .journal thead .journal__total,
+.journal tfoot .journal__n, .journal tfoot .journal__name, .journal tfoot .journal__total { z-index: 3; }
+.journal thead .journal__total { text-align: center; }
+.journal__test { width: 196px; min-width: 176px; max-width: 220px; }
+/* Заголовок теста: название (до двух строк, по клику — сортировка), баллы, отметка переноса и инструменты */
+.journal .jt__title { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; width: calc(100% + 12px); margin: -4px -6px 0; color: var(--text); font-weight: 600; font-size: 14px; text-align: left; white-space: normal; }
+.jt__title span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; text-wrap: balance; }
+.jt__title .th-sort__icon { margin-top: 3px; }
+.jt__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.jt__badge { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.jt__badge svg { width: 12px; height: 12px; }
+.jt__badge--done { background: var(--green-bg); color: var(--green-text); }
+.jt__badge--pending { background: var(--amber-bg); color: var(--amber-text); }
+.jt__tools { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-weight: 400; }
+.jt__tools .btn--pill { gap: 5px; height: 30px; min-height: 30px; color: var(--text-2); }
+.jt__tools .btn--more { width: 30px; height: 30px; min-height: 30px; border-radius: 999px; }
+/* Ячейки: итог — обычный текст, предварительный балл — жёлтый, «идёт» — синий, несдавший — прочерк */
+.journal__cell { text-align: center; font-weight: 600; white-space: nowrap; }
+.journal__cell a, .journal__cell > span { display: inline-block; min-width: 54px; padding: 5px 8px; border-radius: 8px; color: var(--text); text-decoration: none; transition: background-color .12s, box-shadow .12s; }
+.journal__cell.is-final a:hover { background: var(--blue-bg); color: var(--tsu-blue-dark); }
 .journal__cell.is-pending a { background: var(--amber-bg); color: var(--amber-text); }
+.journal__cell.is-pending a:hover { box-shadow: inset 0 0 0 1.5px #E0A040; }
 .journal__cell.is-progress span { background: var(--blue-bg); color: var(--tsu-blue-dark); font-weight: 500; }
-.journal__cell.is-none span { color: #B9BFCB; font-weight: 400; }
-.journal__cell a:hover { outline: 2px solid currentColor; }
-.journal__total { text-align: center; min-width: 90px; font-variant-numeric: tabular-nums; }
+.journal__cell.is-none span { color: #8A90A0; font-weight: 400; }
+.journal__cell a:focus-visible { outline: 2px solid var(--tsu-blue); outline-offset: 1px; }
+.journal tfoot .journal__cell { font-weight: 400; }
+.jlegend { display: inline-flex; align-items: center; gap: 6px; }
+.jlegend i { min-width: 34px; padding: 1px 6px; border-radius: 6px; font-style: normal; font-weight: 600; font-size: 12px; text-align: center; color: var(--text); }
+.jlegend__final { box-shadow: inset 0 0 0 1px var(--border); }
+.jlegend .jlegend__pending { background: var(--amber-bg); color: var(--amber-text); }
+.jlegend .jlegend__progress { background: var(--blue-bg); color: var(--tsu-blue-dark); font-weight: 500; }
+.jlegend .jlegend__none { color: #8A90A0; font-weight: 400; }
 
 /* ---------- Тост ---------- */
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: var(--navy); color: #fff; padding: 12px 20px; border-radius: 12px; font-size: 15px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 100; max-width: calc(100% - 32px); }

@@ -257,6 +257,9 @@ class FrontendData
             'status' => $m->status,
             'hasText' => $m->has_text,
             'size' => $m->size_bytes ? str_replace('.', ',', number_format($m->size_bytes / 1048576, 1)).' МБ' : null,
+            // Исходный файл или страница-источник: открывается из карточки материала
+            'fileUrl' => $m->file_path || $m->url ? route('teacher.material.file', $m) : null,
+            'isLink' => (bool) $m->url,
         ];
     }
 
