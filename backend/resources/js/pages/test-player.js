@@ -61,7 +61,8 @@
     saving = A.api('PUT', 'attempts/' + M.attempt.attemptId, { answers: st.answers, flags: st.flags, current: st.current }, true)
       .then(function () { markSaved(); })
       .catch(function (err) {
-        if (err && err.status === 409) { finish(true); return; }
+        // Срок или время вышли, приём закрыт — сдаём сохранённое (тоже с разносом во времени)
+        if (err && err.status === 409) { autoFinish(); return; }
         // Сеть пропала или сервер ответил ошибкой — не делаем вид, что сохранили, и повторяем
         var s = A.$('#saved');
         if (s) s.textContent = 'Не сохранено — повторим через несколько секунд';
@@ -348,11 +349,27 @@
       // Сдача не прошла (например, учебная база SQL недоступна — сервер откатил её): ответы сохранены,
       // сообщение уже показано, кнопку «Завершить тест» можно нажать ещё раз. Таймер не перезапускаем,
       // чтобы после конца времени он не повторял сдачу каждую секунду.
-      .catch(function () { submitted = false; });
+      .catch(function () {
+        submitted = false;
+        // Время вышло, а сдача не прошла (сервер перегружен в конце потока) — повторяем сами, без студента
+        if (timeUp && autoTries++ < 5) setTimeout(function () { finish(true); }, 5000 + Math.random() * 10000);
+      });
   }
 
   /* ---------- Таймер ---------- */
-  var timerEl = A.$('#timer'), tickTimer;
+  var timerEl = A.$('#timer'), tickTimer, timeUp = false, autoTries = 0;
+  // Время вышло. Поток, начавший тест вместе, заканчивает его в одну секунду — сдачи разносятся на
+  // несколько секунд, чтобы не обрушить сервер разом (сервер принимает сохранённое ещё минуту после конца)
+  function autoFinish() {
+    if (timeUp || submitted) return;
+    timeUp = true;
+    clearInterval(tickTimer);
+    timerEl.lastChild.textContent = '00:00';
+    A.$('main.page').inert = true;
+    A.$('#autosave').textContent = 'Время вышло — сдаём ваши ответы…';
+    A.toast('Время вышло — ответы сдаются автоматически');
+    setTimeout(function () { finish(true); }, Math.random() * 15000);
+  }
   if (preview) {
     timerEl.hidden = true;
     A.$('.test-header__title').textContent = 'Проверка теста · ' + M.attempt.title;
@@ -367,7 +384,7 @@
   } else {
     var tick = function () {
       var left = M.attempt.minutes * 60 - Math.floor((Date.now() - st.startedAt) / 1000);
-      if (left <= 0) { finish(true); return; }
+      if (left <= 0) { autoFinish(); return; }
       var m = Math.floor(left / 60), s = left % 60;
       timerEl.lastChild.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
       timerEl.classList.toggle('is-low', left < 300);
@@ -437,7 +454,7 @@
     function unlock() {
       screen.hidden = true;
       document.body.classList.remove('is-proctor-locked');
-      main.inert = false;
+      main.inert = timeUp;   // время вышло — ответы уже не меняются
       (lastFocus && lastFocus.isConnected ? lastFocus : A.$('#q-text')).focus({ preventScroll: true });
       lastFocus = null;
     }
@@ -481,7 +498,7 @@
       pending = post('proctor', { kind: kind });
     }
     function leave(hidden) {
-      if (!acked || submitted || closing) return;
+      if (!acked || submitted || closing || timeUp) return;
       if (!out) {
         out = true;
         count++;

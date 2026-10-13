@@ -128,7 +128,8 @@ class FrontendData
         return $this->base() + [
             'student' => $this->user($student),
             'tests' => $tests->map(function (Test $t) use ($mineByTest) {
-                $row = $this->test($t);
+                // Кто из преподавателей автор — студенту знать не нужно
+                $row = array_diff_key($this->test($t), ['author' => 1, 'mine' => 1]);
                 $mine = $mineByTest->get($t->id) ?? collect();
                 $my = $mine->first();
                 $used = $mine->where('status', '!=', 'in_progress')->count();

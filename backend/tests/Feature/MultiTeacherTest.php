@@ -81,6 +81,12 @@ class MultiTeacherTest extends TestCase
         $this->assertFalse($bank[$manual['id']]['mine']);
         $materials = collect($this->getJson('/api/materials')->assertOk()->json())->keyBy('id');
         $this->assertFalse($materials[$m['id']]['mine']);
+
+        // Студенту фамилии преподавателей-авторов не отдаются
+        $this->actingAs($this->student());
+        $tests = $this->get('/student/tests')->assertOk()->viewData('appData')['tests'];
+        $this->assertNotEmpty($tests);
+        $this->assertArrayNotHasKey('author', $tests[0]);
     }
 
     public function test_only_author_deletes_test_material_and_question(): void

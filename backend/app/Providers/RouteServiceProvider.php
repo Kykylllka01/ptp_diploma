@@ -40,15 +40,13 @@ class RouteServiceProvider extends ServiceProvider
                 ? Limit::perMinute(300)->by('user:'.$request->user()->id)
                 : Limit::perMinute(120)->by('ip:'.$request->ip());
         });
-        // Вход: подбор пароля к одной почте ограничен жёстко, а сам IP — с запасом на всю аудиторию
-        RateLimiter::for('login', fn (Request $request) => [
-            Limit::perMinute(10)->by('login:'.self::email($request).'|'.$request->ip()),
-            Limit::perMinute(600)->by('login-ip:'.$request->ip()),
-        ]);
+        // Вход: подбор пароля к одной почте — 10 попыток в минуту. Общего потолка на IP здесь нет
+        // (один студент не должен запирать вход всему классу) — неудачные входы с IP считает AuthController
+        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(10)->by('login:'.self::email($request).'|'.$request->ip()));
         // Регистрация по приглашению: группа регистрируется разом с одного IP
         RateLimiter::for('join', fn (Request $request) => [
             Limit::perMinute(10)->by('join:'.self::email($request).'|'.$request->ip()),
-            Limit::perMinute(400)->by('join-ip:'.$request->ip()),
+            Limit::perMinute(1000)->by('join-ip:'.$request->ip()),
         ]);
 
         $this->routes(function () {
