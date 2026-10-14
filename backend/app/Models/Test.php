@@ -133,9 +133,14 @@ class Test extends Model
         return $this->status !== 'training' && $this->setting('proctoring');
     }
 
-    /** Сколько вопросов в одном варианте: сумма матрицы (лёгких + средних + сложных по каждому типу). */
+    /** Сколько вопросов в одном варианте: сколько набралось по матрице при сборке теста, иначе сумма матрицы. */
     public function variantSize(): int
     {
+        // Сколько вопросов Экзаменатор набрал по матрице при сборке: в банке могло не хватить на какие-то клетки
+        if (isset($this->settings['variant'])) {
+            return (int) $this->settings['variant'];
+        }
+
         return (int) array_sum(array_map(fn ($r) => (int) ($r[2] ?? 0) + (int) ($r[3] ?? 0) + (int) ($r[4] ?? 0), $this->settings['matrix'] ?? []));
     }
 

@@ -70,14 +70,16 @@ class TestController extends Controller
         // Индивидуальный вариант: к тесту прикрепляется весь пул нужных типов и тем,
         // а вариант каждому студенту Экзаменатор собирает при старте попытки
         $individual = $data['mode'] !== 'manual' && ! empty($data['settings']['individual']);
+        // Сколько вопросов достанется студенту: клетка матрицы, где в банке меньше вопросов, чем нужно, даёт меньше
+        $variant = $picked->count();
         if ($individual) {
-            $types = array_column($data['matrix'], 0);
+            $types = array_column(array_filter($data['matrix'], fn ($r) => $r[2] + $r[3] + $r[4] > 0), 0);
             $topics = $data['topics'] ?? [];
             $picked = $pool->filter(fn ($q) => in_array($q->type, $types, true) && (! $topics || in_array($q->topic, $topics, true)))->values();
         }
 
         $groups = array_values(array_unique($data['groups'] ?? []));
-        $test = DB::transaction(function () use ($data, $course, $picked, $individual, $groups) {
+        $test = DB::transaction(function () use ($data, $course, $picked, $individual, $variant, $groups) {
             $test = Test::create([
                 'code' => 't'.Str::lower(Str::random(6)),
                 'course_id' => $course->id,
@@ -99,6 +101,7 @@ class TestController extends Controller
                     'show_review' => (bool) ($data['settings']['show_review'] ?? true),
                     'auto_grade' => (bool) ($data['settings']['auto_grade'] ?? false),
                     'individual' => $individual,
+                    'variant' => $individual ? $variant : null,
                     // Жёсткий прокторинг: в тренировке попыток нет — там он не нужен
                     'proctoring' => empty($data['training']) && ! empty($data['settings']['proctoring']),
                     'weight' => isset($data['weight']) ? round((float) $data['weight'], 1) : null,
@@ -115,7 +118,8 @@ class TestController extends Controller
         return [
             'test' => $this->data->test($test->loadCount('questions')),
             'requested' => $requested,
-            'picked' => $picked->count(),
+            'picked' => $variant,
+            'pool' => $picked->count(),
         ];
     }
 

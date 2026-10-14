@@ -48,7 +48,7 @@
 
   function row(t) {
     var meta = [own.by(t), t.status === 'training' ? 'тренировка без оценки' : (t.minutes ? t.minutes + ' мин' : 'без лимита времени'), t.group || 'все студенты курса',
-      t.individual ? 'свой вариант каждому' : '', t.proctoring ? 'жёсткий прокторинг' : '', t.weight != null ? weightLabel(t.weight) : ''].filter(Boolean).join(' · ');
+      t.individual ? 'свой вариант каждому · пул ' + t.pool : '', t.proctoring ? 'жёсткий прокторинг' : '', t.weight != null ? weightLabel(t.weight) : ''].filter(Boolean).join(' · ');
     var title = t.status !== 'draft'
       ? '<a href="analytics?test=' + encodeURIComponent(t.id) + '" class="table__title">' + esc(t.title) + '</a>'
       : '<span class="table__title">' + esc(t.title) + '</span>';
