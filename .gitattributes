@@ -3,3 +3,5 @@
 *.jpg binary
 *.docx binary
 *.xlsx binary
+*.sh text eol=lf
+scripts/deploy.env* text eol=lf
