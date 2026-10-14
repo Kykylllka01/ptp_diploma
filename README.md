@@ -173,6 +173,9 @@ php artisan test
 - [ ] Типы вопросов «пропуски» и «последовательность»
 - [ ] Экспериментальная глава: точность Оценщика и качество генерации
 
+Текущая версия — **1.0.0** (пилот, https://utmn.malanych.ru). Что менялось — [CHANGELOG.md](CHANGELOG.md),
+как выпускается версия — [backend/docs/releasing.md](backend/docs/releasing.md).
+
 ## 👥 Авторы
 
 | | |

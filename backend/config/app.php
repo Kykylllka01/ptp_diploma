@@ -18,6 +18,9 @@ return [
 
     'name' => env('APP_NAME', 'Laravel'),
 
+    // Номер версии из файла VERSION (меняется при выпуске, см. CHANGELOG.md)
+    'version' => trim((string) @file_get_contents(base_path('VERSION'))) ?: 'dev',
+
     /*
     |--------------------------------------------------------------------------
     | Application Environment
