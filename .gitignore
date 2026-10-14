@@ -7,3 +7,6 @@ desktop.ini
 
 # Локальные настройки Claude Code
 .claude/settings.local.json
+
+# Адрес сервера и ключ для scripts/deploy.sh
+scripts/deploy.env

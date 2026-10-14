@@ -37,11 +37,11 @@ QUEUE_CRON_WORKERS=3
 ## crontab
 
 ```
-* * * * * cd /var/www/u3376160/data/ptp && /opt/php/8.5/bin/php artisan schedule:run >> /dev/null 2>&1
-* * * * * cd /var/www/u3376160/data/ptp && flock -n storage/framework/worker-1.lock /opt/php/8.5/bin/php artisan queue:work --stop-when-empty --tries=1 --timeout=1800 >> /dev/null 2>&1
-* * * * * cd /var/www/u3376160/data/ptp && flock -n storage/framework/worker-2.lock /opt/php/8.5/bin/php artisan queue:work --stop-when-empty --tries=1 --timeout=1800 >> /dev/null 2>&1
-* * * * * cd /var/www/u3376160/data/ptp && flock -n storage/framework/worker-3.lock /opt/php/8.5/bin/php artisan queue:work --stop-when-empty --tries=1 --timeout=1800 >> /dev/null 2>&1
-30 3 * * * /var/www/u3376160/data/ptp-backup/backup.sh >> /var/www/u3376160/data/ptp-backup/backup.log 2>&1
+* * * * * cd /var/www/<логин>/data/ptp && /opt/php/8.5/bin/php artisan schedule:run >> /dev/null 2>&1
+* * * * * cd /var/www/<логин>/data/ptp && flock -n storage/framework/worker-1.lock /opt/php/8.5/bin/php artisan queue:work --stop-when-empty --tries=1 --timeout=1800 >> /dev/null 2>&1
+* * * * * cd /var/www/<логин>/data/ptp && flock -n storage/framework/worker-2.lock /opt/php/8.5/bin/php artisan queue:work --stop-when-empty --tries=1 --timeout=1800 >> /dev/null 2>&1
+* * * * * cd /var/www/<логин>/data/ptp && flock -n storage/framework/worker-3.lock /opt/php/8.5/bin/php artisan queue:work --stop-when-empty --tries=1 --timeout=1800 >> /dev/null 2>&1
+30 3 * * * /var/www/<логин>/data/ptp-backup/backup.sh >> /var/www/<логин>/data/ptp-backup/backup.log 2>&1
 ```
 
 `flock` не даёт запустить второй обработчик в том же «слоте», пока первый занят долгой генерацией.
@@ -49,12 +49,8 @@ QUEUE_CRON_WORKERS=3
 
 ## Обновление
 
-С компьютера, из корня репозитория:
+Только выпущенными версиями: выпуск и выкладка — [releasing.md](releasing.md), одной командой
+`scripts/deploy.sh vX.Y.Z` из корня репозитория. Адрес сервера и ключ скрипт берёт из `scripts/deploy.env`,
+которого нет в git (образец — `scripts/deploy.env.example`).
 
-```
-git archive HEAD:backend | ssh u3376160@31.31.197.40 "tar -x -C ~/ptp"
-tar -cf - -C backend/public build | ssh u3376160@31.31.197.40 "tar -x -C ~/ptp/public"
-ssh u3376160@31.31.197.40 "cd ~/ptp && /opt/php/8.5/bin/php ~/bin/composer.phar install --no-dev -o && /opt/php/8.5/bin/php artisan migrate --force && /opt/php/8.5/bin/php artisan optimize && /opt/php/8.5/bin/php artisan queue:restart"
-```
-
-Проверка: `php artisan pilot:check`.
+Проверка: `php artisan pilot:check` — первой строкой номер версии на сервере.
