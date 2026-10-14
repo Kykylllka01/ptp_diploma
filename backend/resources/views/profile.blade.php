@@ -49,7 +49,7 @@
         <form method="POST" action="{{ route('profile.update') }}" class="stack" style="margin-top: 18px; gap: 16px">
           @csrf
           <div class="grid-fields grid-fields--end">
-            <label class="field"><span>Имя на сайте <span class="field__hint">в шапке и списках, например «Иванов И. И.»</span></span><input class="input" name="name" value="{{ old('name', $user->name) }}" required maxlength="100"></label>
+            <label class="field"><span>Имя на сайте <span class="field__hint">в шапке и списках</span></span><input class="input" name="name" value="{{ old('name', $user->name) }}" required maxlength="100"></label>
             <label class="field"><span>Как к вам обращаться <span class="field__hint">в приветствии на «Обзоре»</span></span><input class="input" name="full_name" value="{{ old('full_name', $user->full_name) }}" maxlength="150"></label>
           </div>
           <div class="grid-fields grid-fields--end">
