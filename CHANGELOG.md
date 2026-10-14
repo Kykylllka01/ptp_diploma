@@ -23,6 +23,7 @@
 - **Проверка готовности сервера** `php artisan pilot:check` ([#28], [#31]) — без вывода секретов.
 - **Регламент пилота** [backend/docs/pilot.md](backend/docs/pilot.md): что настроить за неделю, что сделать за 2–3 дня, как действовать в день теста и при сбоях ([#31]).
 - **Установка на виртуальный хостинг** [backend/docs/hosting.md](backend/docs/hosting.md) ([#34]).
+- **Номер версии и журнал изменений**: версия видна в первой строке `pilot:check`, выкладка на хостинг — `scripts/deploy.sh vX.Y.Z` ([#36]).
 
 ### Изменено
 
@@ -67,3 +68,4 @@
 [#33]: https://github.com/Kykylllka01/ptp_diploma/pull/33
 [#34]: https://github.com/Kykylllka01/ptp_diploma/pull/34
 [#35]: https://github.com/Kykylllka01/ptp_diploma/pull/35
+[#36]: https://github.com/Kykylllka01/ptp_diploma/pull/36
