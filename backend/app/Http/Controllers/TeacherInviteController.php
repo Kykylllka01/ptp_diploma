@@ -35,6 +35,10 @@ class TeacherInviteController extends Controller
         if (Auth::check()) {
             return redirect()->route('teacher-invite', $token);
         }
+        // Сначала ссылка, потом форма: без действующей ссылки нельзя даже узнать, занята ли почта
+        if (! $this->find($token)?->isUsable()) {
+            return redirect()->route('teacher-invite', $token);
+        }
         $request->merge(['email' => mb_strtolower(trim((string) $request->input('email')))]);
         $data = $request->validate([
             'last_name' => 'required|string|max:60',

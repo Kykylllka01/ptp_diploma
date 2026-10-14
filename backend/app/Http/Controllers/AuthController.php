@@ -36,10 +36,12 @@ class AuthController extends Controller
             RateLimiter::hit($failures, 60);
             throw ValidationException::withMessages(['email' => 'Неверная почта или пароль']);
         }
-        // Доступ закрыт администратором — пароль верный, но войти нельзя
+        // Доступ закрыт администратором. Ответ — как на неверный пароль: иначе по отличию можно подбирать пароль
+        // к закрытому аккаунту. Открытые сессии такого аккаунта заканчиваются с понятным сообщением (EndSessionAfterPasswordChange)
         if (Auth::user()->disabled_at !== null) {
             Auth::logout();
-            throw ValidationException::withMessages(['email' => 'Доступ к аккаунту закрыт администратором']);
+            RateLimiter::hit($failures, 60);
+            throw ValidationException::withMessages(['email' => 'Неверная почта или пароль']);
         }
 
         $request->session()->regenerate();

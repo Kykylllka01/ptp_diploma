@@ -88,7 +88,9 @@ class AdminPanelTest extends TestCase
         // Второй раз одноразовая ссылка не работает
         $this->guest();
         $this->get('/teacher-invite/'.$invite->token)->assertOk()->assertSee('уже зарегистрировались');
-        $this->post('/teacher-invite/'.$invite->token, $this->form(['email' => 'second@utmn.local']))->assertSessionHasErrors('email');
+        $this->post('/teacher-invite/'.$invite->token, $this->form(['email' => 'second@utmn.local']))->assertRedirect(route('teacher-invite', $invite->token));
+        // По недействительной ссылке форма не проверяется — занятость почты не узнать
+        $this->post('/teacher-invite/'.str_repeat('x', 40), $this->form(['email' => 'petrova@utmn.local']))->assertSessionDoesntHaveErrors();
         $this->assertNull(User::where('email', 'second@utmn.local')->first());
 
         // В админ-панели видно, кто пришёл по ссылке
@@ -110,13 +112,13 @@ class AdminPanelTest extends TestCase
         // Отозванная
         $this->actingAs(User::where('role', User::ROLE_ADMIN)->first())->deleteJson('/api/admin/invites/'.$many->id)->assertOk()->assertJsonPath('status', 'revoked');
         $this->guest();
-        $this->post('/teacher-invite/'.$many->token, $this->form(['email' => 'c@utmn.local']))->assertSessionHasErrors('email');
+        $this->post('/teacher-invite/'.$many->token, $this->form(['email' => 'c@utmn.local']))->assertRedirect();
 
         // Истёкшая
         $short = TeacherInvite::issue(null, null, 1, 1);
         $this->travel(2)->days();
         $this->get('/teacher-invite/'.$short->token)->assertOk()->assertSee('Срок действия ссылки истёк');
-        $this->post('/teacher-invite/'.$short->token, $this->form(['email' => 'd@utmn.local']))->assertSessionHasErrors('email');
+        $this->post('/teacher-invite/'.$short->token, $this->form(['email' => 'd@utmn.local']))->assertRedirect();
 
         // Выдуманная
         $this->get('/teacher-invite/abc')->assertOk()->assertSee('Ссылка не работает');
