@@ -6,6 +6,7 @@ use App\Agents\Contracts\CriticAgent;
 use App\Agents\Contracts\WriterAgent;
 use App\Http\Controllers\Controller;
 use App\Models\AgentLog;
+use App\Models\Answer;
 use App\Models\Attempt;
 use App\Models\Question;
 use App\Models\Test;
@@ -13,6 +14,8 @@ use App\Services\FrontendData;
 use App\Services\GradingService;
 use App\Support\CurrentUser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class QuestionController extends Controller
@@ -271,12 +274,16 @@ class QuestionController extends Controller
     public function bulk(Request $request)
     {
         $data = $request->validate([
-            'ids' => 'required|array|min:1',
-            'action' => ['required', Rule::in(['approve', 'reject'])],
+            'ids' => 'required|array|min:1|max:2000',
+            'ids.*' => 'string|max:20',
+            'action' => ['required', Rule::in(['approve', 'reject', 'delete'])],
         ]);
+        $questions = Question::where('course_id', CurrentUser::course()->id)->whereIn('code', $data['ids'])->get();
+        if ($data['action'] === 'delete') {
+            return $this->bulkDelete($questions);
+        }
         $status = $data['action'] === 'approve' ? 'approved' : 'rejected';
 
-        $questions = Question::whereIn('code', $data['ids'])->get();
         foreach ($questions as $q) {
             $q->status = $status;
             $q->flag_text = $q->flag_level = null;
@@ -285,6 +292,28 @@ class QuestionController extends Controller
         }
 
         return ['updated' => $questions->count()];
+    }
+
+    /**
+     * Удаление выбранных вопросов — по тем же правилам, что и одного: только свои и только те,
+     * что не стоят в тесте и на которые не отвечали студенты. Остальные пропускаются, их можно отклонить.
+     */
+    private function bulkDelete(Collection $questions): array
+    {
+        $teacher = CurrentUser::teacher();
+        $ids = $questions->pluck('id');
+        $used = DB::table('question_test')->whereIn('question_id', $ids)->pluck('question_id')
+            ->merge(Answer::whereIn('question_id', $ids)->distinct()->pluck('question_id'))
+            ->unique()->flip();
+        $foreign = $questions->reject(fn (Question $q) => $q->isOwnedBy($teacher));
+        $deletable = $questions->filter(fn (Question $q) => $q->isOwnedBy($teacher) && ! $used->has($q->id));
+        Question::whereKey($deletable->pluck('id'))->delete();
+
+        return [
+            'deleted' => $deletable->pluck('code')->values(),
+            'used' => $questions->filter(fn (Question $q) => $q->isOwnedBy($teacher) && $used->has($q->id))->count(),
+            'foreign' => $foreign->count(),
+        ];
     }
 
     /** Перегенерация: Составитель переписывает вопрос, Критик проверяет заново. */

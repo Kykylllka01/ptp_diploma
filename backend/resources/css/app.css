@@ -452,6 +452,9 @@ a.table__title:hover { color: var(--tsu-blue); text-decoration: underline; text-
 .tab.is-on { color: var(--text); border-color: var(--tsu-blue); }
 
 /* ---------- Банк вопросов ---------- */
+.select-all { min-height: 28px; padding: 0 16px; font-size: 14px; color: var(--muted); }
+.bulk .bulk__danger { color: #FFB4AB; }
+.bulk .bulk__danger:hover { background: #C42B1C; border-color: #C42B1C; color: #fff; }
 .bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 16px; border-radius: 12px; background: var(--navy); color: #fff; font-size: 14px; }
 .q-row { display: flex; gap: 16px; align-items: flex-start; padding: 18px 20px; border-top: 1px solid var(--divider); color: var(--text); }
 .q-row:first-child { border-top: none; }

@@ -54,6 +54,8 @@
         </button>
       </div>
 
+      <label class="ck select-all" id="select-all-wrap"><input type="checkbox" id="select-all"><span id="select-all-label">Выбрать все</span></label>
+
       <div class="bulk" id="bulk" hidden>
         <span id="bulk-count">Выбрано 0</span>
         <span style="flex: 1"></span>
@@ -62,6 +64,7 @@
         <button type="button" class="btn btn--xs btn--ghost-dark btn--ai-soft" data-bulk="regen">Перегенерировать</button>
         <button type="button" class="btn btn--xs btn--ghost-dark" data-bulk="test">Добавить в тест</button>
         <button type="button" class="btn btn--xs btn--ghost-dark" data-bulk="export">В Moodle XML</button>
+        <button type="button" class="btn btn--xs btn--ghost-dark bulk__danger" data-bulk="delete">Удалить</button>
       </div>
 
       <div class="card card--clip" id="list"></div>
