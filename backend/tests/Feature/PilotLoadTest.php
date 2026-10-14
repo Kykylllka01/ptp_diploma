@@ -181,6 +181,15 @@ class PilotLoadTest extends TestCase
             ->assertExitCode(1);   // очередь sync — ошибка: развёрнутые ответы оценивались бы прямо при сдаче
     }
 
+    public function test_pilot_check_wants_crontab_lines_for_cron_workers(): void
+    {
+        // На хостинге обработчики запускает cron: без строк queue:work в crontab оценка ответов стоит
+        config(['agents.queue_cron_workers' => 3]);
+        $this->artisan('pilot:check')
+            ->expectsOutputToContain('QUEUE_CRON_WORKERS=3')
+            ->assertExitCode(1);
+    }
+
     public function test_each_limited_route_has_its_own_counter(): void
     {
         // Уходы со страницы при прокторинге не должны съедать лимит «Выполнить на учебной базе»

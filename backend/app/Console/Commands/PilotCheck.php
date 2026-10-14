@@ -48,10 +48,21 @@ class PilotCheck extends Command
         }
 
         $this->check('Очередь', config('queue.default') === 'database', 'QUEUE_CONNECTION='.config('queue.default').': для оценки развёрнутых ответов в фоне нужен database');
-        $php = config('agents.queue_autostart_php');
-        $this->check('Запуск обработчиков очереди', $php && is_file($php),
-            'QUEUE_AUTOSTART_PHP не задан или не найден — держите запущенным php artisan queue:work --timeout=1800', 'warn');
-        $this->check('Параллельных обработчиков', true, '', 'ok', (string) config('agents.queue_max_workers'));
+        $cronWorkers = (int) config('agents.queue_cron_workers');
+        if ($cronWorkers > 0) {
+            $lines = PHP_OS_FAMILY === 'Windows' ? 0 : substr_count((string) shell_exec('crontab -l 2>/dev/null'), 'queue:work');
+            $this->check('Запуск обработчиков очереди', $lines >= $cronWorkers,
+                'QUEUE_CRON_WORKERS='.$cronWorkers.', а строк queue:work в crontab: '.$lines.' — см. docs/hosting.md', 'fail', 'cron');
+            $this->check('Параллельных обработчиков', true, '', 'ok', (string) $cronWorkers);
+        } else {
+            $php = config('agents.queue_autostart_php');
+            $this->check('Запуск обработчиков очереди', $php && is_file($php),
+                'QUEUE_AUTOSTART_PHP не задан или не найден — держите запущенным php artisan queue:work --timeout=1800', 'warn');
+            $this->check('Параллельных обработчиков', true, '', 'ok', (string) config('agents.queue_max_workers'));
+        }
+        $sandboxPhp = config('agents.sql_sandbox_php');
+        $this->check('PHP учебной базы', $sandboxPhp && is_file($sandboxPhp),
+            'SQL_SANDBOX_PHP не задан или не найден — SQL-вопросы не проверяются', 'fail');
         try {
             $failed = DB::table('failed_jobs')->count();
             $stuck = DB::table('jobs')->whereNotNull('reserved_at')->where('reserved_at', '<', now()->subSeconds((int) config('queue.connections.database.retry_after', 1900))->getTimestamp())->count();
