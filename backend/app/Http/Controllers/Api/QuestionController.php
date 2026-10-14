@@ -50,6 +50,8 @@ class QuestionController extends Controller
 
     public function show(Question $question)
     {
+        $this->ownCourse($question);
+
         return $this->data->question($question);
     }
 
@@ -223,6 +225,7 @@ class QuestionController extends Controller
     /** Сохранение правок преподавателя, одобрение или отклонение. */
     public function update(Request $request, Question $question)
     {
+        $this->onlyAuthor($question, 'Изменить вопрос');
         $data = $request->validate([
             'status' => ['sometimes', Rule::in(['pending', 'approved', 'rejected'])],
             'text' => 'sometimes|string|max:5000',
@@ -252,6 +255,18 @@ class QuestionController extends Controller
         if (($data['type'] ?? $question->type) === 'match' && ! empty($data['options'])) {
             $data['options'] = array_map(fn ($o) => ['text' => Question::normalizePair((string) $o['text'])] + $o, $data['options']);
         }
+        // На вопрос уже отвечали: ключ, тип, баллы, эталон и критерии не меняются — иначе разойдутся
+        // с уже выставленными оценками. Текст, пояснение и теги поправить можно
+        $keyFields = ['type', 'options', 'points', 'reference', 'criteria'];
+        // Варианты сравниваются по тексту и отметке «верный»: редактор может прислать их с лишними полями
+        $norm = fn ($f, $v) => $f === 'options'
+            ? array_map(fn ($o) => [trim((string) ($o['text'] ?? '')), ! empty($o['correct'])], array_values((array) $v))
+            : $v;
+        $changesKey = collect($keyFields)->contains(fn ($f) => array_key_exists($f, $data) && $norm($f, $data[$f]) != $norm($f, $question->{$f}));
+        if ($changesKey && Answer::where('question_id', $question->id)->exists()) {
+            return response()->json(['message' => 'На вопрос уже отвечали студенты: ключ, тип, баллы, эталон и критерии менять нельзя — оценки разошлись бы с ними. Отклоните вопрос и добавьте исправленный'], 409);
+        }
+
         // Флаг критика снимаем, когда преподаватель принял решение
         if (in_array($data['status'] ?? null, ['approved', 'rejected'], true)) {
             $data['flag_text'] = null;
@@ -283,6 +298,9 @@ class QuestionController extends Controller
             return $this->bulkDelete($questions);
         }
         $status = $data['action'] === 'approve' ? 'approved' : 'rejected';
+        $teacher = CurrentUser::teacher();
+        $foreign = $questions->reject(fn (Question $q) => $q->isOwnedBy($teacher))->count();
+        $questions = $questions->filter(fn (Question $q) => $q->isOwnedBy($teacher));
 
         foreach ($questions as $q) {
             $q->status = $status;
@@ -291,7 +309,7 @@ class QuestionController extends Controller
             $q->save();
         }
 
-        return ['updated' => $questions->count()];
+        return ['updated' => $questions->count(), 'ids' => $questions->pluck('code')->values(), 'foreign' => $foreign];
     }
 
     /**
@@ -319,6 +337,10 @@ class QuestionController extends Controller
     /** Перегенерация: Составитель переписывает вопрос, Критик проверяет заново. */
     public function regenerate(Question $question, WriterAgent $writer, CriticAgent $critic)
     {
+        $this->onlyAuthor($question, 'Перегенерировать вопрос');
+        if (Answer::where('question_id', $question->id)->exists()) {
+            return response()->json(['message' => 'На вопрос уже отвечали студенты — переписать его нельзя, оценки разошлись бы с ним'], 409);
+        }
         $draft = $writer->rewrite($question->only($question->getFillable()), $question->critic['checks'] ?? []);
         $verdict = $critic->review($draft);
 
@@ -372,6 +394,7 @@ class QuestionController extends Controller
      */
     public function previewCheck(Request $request, Question $question, GradingService $grading)
     {
+        $this->ownCourse($question);
         return $this->feedback($grading, $question, $request->input('answer'), $request->boolean('agent'), true);
     }
 

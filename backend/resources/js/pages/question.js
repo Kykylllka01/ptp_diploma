@@ -33,11 +33,14 @@
   function renderHead() {
     A.$('#pos').textContent = q.id + (idx >= 0 ? ' · ' + (idx + 1) + ' из ' + pending.length : '');
     var st = { pending: ['Ждёт одобрения', 'amber'], approved: ['Одобрен', 'green'], rejected: ['Отклонён', 'red'] }[draft.status];
-    A.$('#status-chip').innerHTML = A.chip(st[0], st[1]) + (q.mine === false && q.author ? ' ' + A.chip('Автор: ' + q.author) : '');
+    var foreign = q.mine === false;
+    A.$('#status-chip').innerHTML = A.chip(st[0], st[1]) + (foreign && q.author ? ' ' + A.chip('Автор: ' + q.author) + ' <span class="muted small">изменить вопрос может только автор</span>' : '');
     // Одобренный вопрос правят и просто сохраняют; «далее» — только в очереди на проверку
-    A.$('#approve').hidden = draft.status === 'approved';
+    A.$('#approve').hidden = foreign || draft.status === 'approved';
     A.$('#approve').textContent = draft.status === 'pending' ? 'Одобрить и далее' : 'Одобрить';
-    A.$('#reject').hidden = draft.status === 'rejected';
+    A.$('#reject').hidden = foreign || draft.status === 'rejected';
+    A.$('#regen').hidden = foreign;
+    A.$('#save').hidden = foreign;
     A.$('#save').classList.toggle('btn--primary', draft.status === 'approved');
     A.$('#back').href = 'bank?status=' + (q.status || 'all');
   }

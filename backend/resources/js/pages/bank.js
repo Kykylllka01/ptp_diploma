@@ -216,9 +216,11 @@
     var word = A.plural(n, 'вопрос', 'вопроса', 'вопросов');
     if (act === 'approve' || act === 'reject') {
       var status = act === 'approve' ? 'approved' : 'rejected';
-      A.api('POST', 'questions/bulk', { ids: ids, action: act }).then(function () {
-        A.questions().forEach(function (q) { if (ids.indexOf(q.id) >= 0) { q.status = status; q.flag = null; } });
-        A.toast((act === 'approve' ? 'Одобрено: ' : 'Отклонено: ') + n + ' ' + word);
+      A.api('POST', 'questions/bulk', { ids: ids, action: act }).then(function (r) {
+        var done = r.ids || [];
+        A.questions().forEach(function (q) { if (done.indexOf(q.id) >= 0) { q.status = status; q.flag = null; } });
+        A.toast((act === 'approve' ? 'Одобрено: ' : 'Отклонено: ') + done.length + ' ' + A.plural(done.length, 'вопрос', 'вопроса', 'вопросов') +
+          (r.foreign ? ' · вопросы других преподавателей (' + r.foreign + ') одобряет и отклоняет их автор' : ''), !done.length);
         selected = {};
         renderAll();
       });
@@ -273,7 +275,7 @@
       });
     } else {
       // Черновик теста, куда складываются вопросы из банка
-      var drafts = (M.tests || []).filter(function (t) { return t.status === 'draft'; }).reverse();
+      var drafts = (M.tests || []).filter(function (t) { return t.status === 'draft' && t.mine !== false; }).reverse();
       if (!drafts.length) { A.toast('Вопросы добавляются в черновик теста. Соберите тест в режиме «Вручную» — он сохранится черновиком', true); return; }
       A.choose({
         title: 'Добавить в тест', text: 'Выбрано ' + n + ' ' + word + '. Неодобренные вопросы в тест не попадут.', ok: 'Добавить',

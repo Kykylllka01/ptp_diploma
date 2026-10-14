@@ -104,8 +104,13 @@ class MultiTeacherTest extends TestCase
         $this->deleteJson('/api/tests/'.$t['id'])->assertForbidden()->assertJsonPath('message', 'Удалить тест может только его автор: Петрова А. С.');
         $this->deleteJson('/api/materials/'.$m['id'])->assertForbidden();
         $this->deleteJson('/api/questions/'.$q['id'])->assertForbidden();
-        // Пользоваться чужим можно: например, закрыть приём или переименовать тест
-        $this->patchJson('/api/tests/'.$t['id'], ['title' => 'Контрольная (общая)'])->assertOk();
+        // Менять чужое тоже нельзя: закрыть приём, переименовать тест, править или одобрить вопрос
+        $this->patchJson('/api/tests/'.$t['id'], ['title' => 'Контрольная (общая)'])->assertForbidden()
+            ->assertJsonPath('message', 'Менять тест может только автор: Петрова А. С.');
+        $this->patchJson('/api/questions/'.$q['id'], ['text' => 'Чужая правка'])->assertForbidden();
+        $this->postJson('/api/questions/bulk', ['ids' => [$q['id']], 'action' => 'approve'])->assertOk()->assertJson(['updated' => 0, 'foreign' => 1]);
+        // Пользоваться можно: пройти чужой тест самому, посмотреть вопрос
+        $this->getJson('/api/questions/'.$q['id'])->assertOk();
 
         $this->actingAs($colleague);
         $this->deleteJson('/api/tests/'.$t['id'])->assertNoContent();

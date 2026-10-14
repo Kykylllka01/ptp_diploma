@@ -48,11 +48,11 @@
         </div>
         <form method="POST" action="{{ route('profile.update') }}" class="stack" style="margin-top: 18px; gap: 16px">
           @csrf
-          <div class="grid-fields">
+          <div class="grid-fields grid-fields--end">
             <label class="field"><span>Имя на сайте <span class="field__hint">в шапке и списках, например «Иванов И. И.»</span></span><input class="input" name="name" value="{{ old('name', $user->name) }}" required maxlength="100"></label>
             <label class="field"><span>Как к вам обращаться <span class="field__hint">в приветствии на «Обзоре»</span></span><input class="input" name="full_name" value="{{ old('full_name', $user->full_name) }}" maxlength="150"></label>
           </div>
-          <div class="grid-fields">
+          <div class="grid-fields grid-fields--end">
             <label class="field">Почта для входа<input class="input" value="{{ $user->email }}" disabled></label>
             @unless ($user->isTeacher() || $user->isAdmin())
               <label class="field">Группа<input class="input" value="{{ $user->group?->name ?: '—' }}" disabled></label>
@@ -67,7 +67,7 @@
         <form method="POST" action="{{ route('profile.password') }}" class="stack" style="margin-top: 18px; gap: 16px">
           @csrf
           <label class="field">Текущий пароль<input class="input" type="password" name="current_password" autocomplete="current-password" required></label>
-          <div class="grid-fields">
+          <div class="grid-fields grid-fields--end">
             <label class="field"><span>Новый пароль <span class="field__hint">от 8 символов</span></span><input class="input" type="password" name="password" autocomplete="new-password" required minlength="8"></label>
             <label class="field">Повтор<input class="input" type="password" name="password_confirmation" autocomplete="new-password" required minlength="8"></label>
           </div>
@@ -94,17 +94,6 @@
           <div class="row-wrap" style="margin-top: 16px">
             <a href="{{ route('teacher.tests') }}" class="btn btn--sm">Тесты</a>
             <a href="{{ route('teacher.bank') }}" class="btn btn--sm">Банк вопросов</a>
-          </div>
-        </section>
-        <section class="card card--pad">
-          <h2 class="card-title">Нейросеть</h2>
-          <p class="muted small" style="margin: 8px 0 0">Сколько раз агенты обращались к нейросети и сколько текста (токенов) это заняло.</p>
-          <div class="stack-sm" style="margin-top: 14px">
-            <div class="between"><span class="muted">Обращений</span><b class="strong">{{ $llm['calls'] }}</b></div>
-            <div class="between"><span class="muted">Токенов</span><b class="strong">{{ number_format($llm['tokens'], 0, ',', ' ') }}</b></div>
-            @foreach ($llm['byAgent'] as $row)
-              <div class="between small"><span class="muted">{{ \Illuminate\Support\Str::ucfirst(\App\Models\AgentLog::LABELS[$row->agent] ?? $row->agent) }}</span><span>{{ $row->n }} · {{ number_format((int) $row->t, 0, ',', ' ') }} токенов</span></div>
-            @endforeach
           </div>
         </section>
       @else

@@ -401,6 +401,38 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', countUp);
   else countUp();
 
+  /* ---------- Глазок у пароля: показать введённое, чтобы проверить опечатку ---------- */
+  var EYE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_OFF = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.7 5.1A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-2.4 3.3M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2M2 2l20 20"/></svg>';
+  function passwordToggles() {
+    Array.prototype.forEach.call(document.querySelectorAll('input[type=password]'), function (input) {
+      if (input.parentNode.classList.contains('pw-wrap')) return;
+      var wrap = document.createElement('span');
+      wrap.className = 'pw-wrap';
+      input.parentNode.insertBefore(wrap, input);
+      wrap.appendChild(input);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pw-toggle';
+      btn.setAttribute('aria-pressed', 'false');
+      btn.setAttribute('aria-label', 'Показать пароль');
+      btn.innerHTML = EYE;
+      wrap.appendChild(btn);
+      btn.addEventListener('click', function () {
+        var show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        btn.setAttribute('aria-pressed', String(show));
+        btn.setAttribute('aria-label', show ? 'Скрыть пароль' : 'Показать пароль');
+        btn.innerHTML = show ? EYE_OFF : EYE;
+        input.focus();
+      });
+      // Перед отправкой пароль снова скрыт: браузер не запомнит его как обычный текст
+      if (input.form) input.form.addEventListener('submit', function () { input.type = 'password'; });
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', passwordToggles);
+  else passwordToggles();
+
   /* ---------- Окна вместо prompt() и confirm() ----------
      ask({ title, label, value, hint, placeholder, ok, required, validate, multiline, inputmode, maxlength }) → Promise<строка | null>
      confirm({ title, text, ok, danger }) → Promise<true | false>

@@ -26,6 +26,29 @@
       tile('Опубликовано тестов', s.tests || 0, 'у всех преподавателей');
   }
 
+  // Расход на нейросеть: всего, за 30 дней и по агентам, в рублях
+  function renderLlm() {
+    var L = M.llm || { calls: 0, tokens: 0, rub: 0, rub30: 0, agents: [], rate: {} };
+    var int = function (n) { return Number(n || 0).toLocaleString('ru-RU'); };
+    var rub = function (n) { return Number(n || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ₽'; };
+    var r = L.rate || {};
+    A.$('#llm-rate').textContent = r.rate
+      ? (r.source === 'cbr' ? 'Курс ЦБ' + (r.date ? ' на ' + r.date.split('-').reverse().join('.') : '') : 'Курс из настроек (сайт ЦБ недоступен)') + ': ' + String(r.rate).replace('.', ',') + ' ₽ за $'
+      : '';
+    var tile = function (label, value, hint) {
+      return '<div class="card stat"><div class="lbl">' + label + '</div><div class="stat__value">' + value + '</div><div class="stat__hint">' + hint + '</div></div>';
+    };
+    A.$('#llm-stats').innerHTML =
+      tile('Потрачено всего', rub(L.rub), 'с первого обращения') +
+      tile('За 30 дней', rub(L.rub30), 'последний месяц') +
+      tile('Обращений', int(L.calls), 'к нейросети') +
+      tile('Токенов', int(L.tokens), 'вход и ответ вместе');
+    A.$('#llm-agents').innerHTML = L.agents.map(function (a) {
+      return '<tr><td data-label="Агент" class="strong">' + esc(a.agent) + '</td><td class="num-col" data-label="Обращений">' + int(a.calls) +
+        '</td><td class="num-col" data-label="Токенов">' + int(a.tokens) + '</td><td class="num-col" data-label="Стоимость">' + rub(a.rub) + '</td></tr>';
+    }).join('') || '<tr><td colspan="4" class="empty">Агенты ещё не обращались к нейросети</td></tr>';
+  }
+
   function renderInvites() {
     A.remember('admin.invites', filter);
     var active = invites.filter(function (i) { return i.status === 'active'; });
@@ -69,7 +92,7 @@
     }).join('') || '<tr><td colspan="7" class="empty">' + (teachers.length ? 'Никого не нашлось' : 'Преподавателей пока нет — отправьте кому-нибудь ссылку-приглашение.') + '</td></tr>';
   }
 
-  function render() { renderStats(); renderInvites(); renderTeachers(); }
+  function render() { renderStats(); renderLlm(); renderInvites(); renderTeachers(); }
 
   // Новая ссылка: сразу показываем и копируем
   A.$('#invite-form').addEventListener('submit', function (e) {

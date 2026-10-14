@@ -51,7 +51,7 @@
           <label class="opt"><input type="checkbox" name="types[]" value="multiple" checked><span><b class="strong">Несколько верных</b><br><span class="opt__desc">2–3 верных из 5–6</span></span></label>
           <label class="opt"><input type="checkbox" name="types[]" value="tf"><span><b class="strong">Верно / неверно</b><br><span class="opt__desc">Проверка утверждений</span></span></label>
           <label class="opt"><input type="checkbox" name="types[]" value="match"><span><b class="strong">Сопоставление</b><br><span class="opt__desc">Термин ↔ определение</span></span></label>
-          <label class="opt"><input type="checkbox" name="types[]" value="sql" checked><span><b class="strong">SQL-запрос</b><br><span class="opt__desc">Проверка на учебной базе</span></span></label>
+          <label class="opt"><input type="checkbox" name="types[]" value="sql" checked><span><b class="strong">SQL-запрос</b> <span class="chip chip--beta">Экспериментально</span><br><span class="opt__desc">Проверка на учебной базе</span><br><span class="opt__desc beta-note">Ещё дорабатывается: учебная база пока одна и небольшая, перед тестом проверьте эталон</span></span></label>
           <label class="opt"><input type="checkbox" name="types[]" value="open" checked><span><b class="strong">Развёрнутый ответ</b><br><span class="opt__desc">С эталоном и критериями оценки</span></span></label>
         </div>
 

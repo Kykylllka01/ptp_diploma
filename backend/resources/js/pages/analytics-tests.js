@@ -2,6 +2,12 @@
 (function () {
   var A = window.App, M = A.M, esc = A.esc, O = M.overview;
   var STATUS = { running: ['Идёт', 'blue'], training: ['Тренировка', 'blue'], closed: ['Приём закрыт', 'gray'] };
+  // Состояние теста — первым и одной ширины у всех строк, чтобы названия начинались ровно
+  var statusWidth = Math.max.apply(null, O.tests.map(function (t) { return (STATUS[t.status] || [''])[0].length; }).concat(0));
+  function status(t) {
+    var st = STATUS[t.status] || ['', 'gray'];
+    return '<span class="bar-row__status" style="min-width:' + (statusWidth * 8 + 24) + 'px">' + A.chip(st[0], st[1], 'chip--sm') + '</span>';
+  }
 
   // Полоса с подписью: слабый результат (< 60 %) — оранжевым
   function bar(label, percent, side, href, extra) {
@@ -32,7 +38,7 @@
     A.$('#charts').hidden = true;
     A.$('#problems-card').hidden = true;
     A.$('#tests').innerHTML = O.tests.length
-      ? O.tests.map(function (t) { return bar(esc(t.title) + ' ' + A.chip(STATUS[t.status][0], STATUS[t.status][1], 'chip--sm'), null, 'пока никто не сдал', 'analytics?test=' + encodeURIComponent(t.id)); }).join('')
+      ? O.tests.map(function (t) { return bar(status(t) + '<span>' + esc(t.title) + '</span>', null, 'пока никто не сдал', 'analytics?test=' + encodeURIComponent(t.id)); }).join('')
       : '<div class="empty">Здесь появится аналитика, когда студенты сдадут первый тест. <a href="test-builder">Собрать тест</a></div>';
     return;
   }
@@ -59,10 +65,9 @@
   function renderTests() {
     var list = allTests ? O.tests : O.tests.slice(0, TESTS_SHOWN);
     A.$('#tests').innerHTML = list.map(function (t) {
-      var st = STATUS[t.status] || ['', 'gray'];
       var side = (t.participants != null ? 'сдали ' + t.submitted + ' из ' + t.participants : 'сдали ' + t.submitted) + (t.last ? ' · ' + esc(t.last) : '');
       var extra = t.pending ? ' ' + A.chip(t.pending + ' ждут проверки', 'amber', 'chip--sm') : '';
-      return bar('<span class="strong">' + esc(t.title) + '</span> ' + A.chip(st[0], st[1], 'chip--sm'), t.avg, side, 'analytics?test=' + encodeURIComponent(t.id), extra);
+      return bar(status(t) + '<span class="strong">' + esc(t.title) + '</span>', t.avg, side, 'analytics?test=' + encodeURIComponent(t.id), extra);
     }).join('') + (O.tests.length > TESTS_SHOWN && !allTests
       ? '<button type="button" class="btn btn--sm" id="tests-all" style="margin-top: 14px">Показать все тесты (' + O.tests.length + ')</button>' : '');
   }

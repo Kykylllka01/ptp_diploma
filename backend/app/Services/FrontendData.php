@@ -6,6 +6,7 @@ use App\Models\Agent;
 use App\Models\AgentLog;
 use App\Models\Attempt;
 use App\Models\GenerationRun;
+use App\Models\LlmCall;
 use App\Models\Group;
 use App\Models\Material;
 use App\Models\ProctorEvent;
@@ -15,8 +16,10 @@ use App\Models\TeacherInvite;
 use App\Models\Test;
 use App\Models\User;
 use App\Support\CurrentUser;
+use App\Support\UsdRate;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Собирает данные для страниц в той же форме, что была в mock-data.js (window.MOCK),
@@ -265,6 +268,31 @@ class FrontendData
                 'groups' => Group::count(),
                 'tests' => Test::where('status', '!=', 'draft')->count(),
             ],
+            'llm' => $this->llmUsage(),
+        ];
+    }
+
+    /** Расход на нейросеть: обращения, токены и стоимость по агентам — всего и за 30 дней, в рублях по курсу ЦБ. */
+    private function llmUsage(): array
+    {
+        $rate = UsdRate::get();
+        $rows = LlmCall::selectRaw('agent, count(*) as n, sum(tokens_in + tokens_out) as t, sum(cost_usd) as usd, '
+            .'sum(case when created_at >= ? then cost_usd else 0 end) as usd30', [now()->subDays(30)])
+            ->groupBy('agent')->get();
+        $rub = fn ($usd) => round((float) $usd * $rate['rate'], 2);
+
+        return [
+            'rate' => $rate,
+            'calls' => (int) $rows->sum('n'),
+            'tokens' => (int) $rows->sum('t'),
+            'rub' => $rub($rows->sum('usd')),
+            'rub30' => $rub($rows->sum('usd30')),
+            'agents' => $rows->sortByDesc('usd')->map(fn ($r) => [
+                'agent' => Str::ucfirst(AgentLog::LABELS[$r->agent] ?? $r->agent),
+                'calls' => (int) $r->n,
+                'tokens' => (int) $r->t,
+                'rub' => $rub($r->usd),
+            ])->values()->all(),
         ];
     }
 

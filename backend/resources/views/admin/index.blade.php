@@ -38,6 +38,18 @@
     </div>
   </section>
 
+  <section class="card card--pad" aria-labelledby="llm-title">
+    <div class="between"><h2 class="card-title" id="llm-title">Нейросеть</h2><span class="muted small" id="llm-rate"></span></div>
+    <p class="muted small" style="margin: 8px 0 0">Сколько раз агенты обращались к нейросети DeepSeek, сколько текста (токенов) это заняло и сколько стоило. Стоимость считается по ценам DeepSeek и переводится в рубли по курсу доллара.</p>
+    <div class="grid-stats" id="llm-stats" style="margin-top: 16px"></div>
+    <div class="table-wrap">
+      <table class="table table--stack" style="min-width: 560px"><caption class="sr-only">Расход нейросети по агентам</caption>
+        <thead><tr><th>Агент</th><th class="num-col">Обращений</th><th class="num-col">Токенов</th><th class="num-col">Стоимость</th></tr></thead>
+        <tbody id="llm-agents"></tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="card card--pad">
     <div class="between"><h2 class="card-title">Аккаунты преподавателей</h2>
       <label class="search" id="t-search-box" hidden><span class="sr-only">Найти преподавателя</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5A6070" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="t-search" placeholder="Фамилия или почта" autocomplete="off"></label>

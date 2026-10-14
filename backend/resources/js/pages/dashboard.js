@@ -7,7 +7,8 @@
   function own(list) { return several ? list.filter(function (x) { return x.mine !== false; }) : list; }
   var qs = own(A.questions());
   var materials = own(M.materials), tests = own(M.tests);
-  var SHOWN = 6;
+  // Три последних материала: карточка вровень с «Агентами», остальные — по ссылке «Все материалы»
+  var SHOWN = 3;
   if (several) A.$('#materials-title').textContent = 'Мои материалы';
   var pending = qs.filter(function (q) { return q.status === 'pending'; });
   var openToReview = own(A.reviews()).filter(function (r) { return r.status === 'pending'; }).length;

@@ -32,5 +32,6 @@
         <env name="AGENTS_DRIVER" value="fake" force="true"/>
         <env name="QUEUE_AUTOSTART_PHP" value="" force="true"/>
         <env name="SQL_SANDBOX_PHP" value="" force="true"/>
+        <env name="USD_RUB_LIVE" value="false" force="true"/>
     </php>
 </phpunit>

@@ -27,7 +27,8 @@
       var cell = function (col, label) {
         return '<td><input class="num" type="number" min="0" max="50" data-r="' + i + '" data-c="' + col + '" value="' + r[col] + '" aria-label="' + M.types[r[0]] + ', ' + label + '"></td>';
       };
-      return '<tr><td>' + M.types[r[0]] + '</td>' + cell(2, 'лёгкие') + cell(3, 'средние') + cell(4, 'сложные') + '<td class="right">' + r[1] + '</td></tr>';
+      // SQL-задания пока экспериментальные: учебная база одна и небольшая
+      return '<tr><td>' + M.types[r[0]] + (r[0] === 'sql' ? ' <span class="chip chip--beta" title="Ещё дорабатывается: перед тестом проверьте эталоны SQL-вопросов">Экспериментально</span>' : '') + '</td>' + cell(2, 'лёгкие') + cell(3, 'средние') + cell(4, 'сложные') + '<td class="right">' + r[1] + '</td></tr>';
     }).join('');
   }
 

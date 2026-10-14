@@ -16,6 +16,10 @@
   // Главное действие зависит от состояния теста; всё остальное — в меню
   function primary(t) {
     var q = encodeURIComponent(t.id);
+    if (t.mine === false) {
+      if (t.submitted) return '<a href="analytics?test=' + q + '" class="btn btn--xs">Результаты</a>';
+      return t.count ? '<a href="preview?test=' + q + '" class="btn btn--xs">Пройти самому</a>' : '';
+    }
     if (t.status === 'draft' && !t.count) return '<a href="bank?status=approved" class="btn btn--xs">Добавить вопросы</a>';
     if (t.status === 'draft' || (t.status === 'closed' && !t.submitted)) return '<button type="button" class="btn btn--xs" data-status="running" data-id="' + esc(t.id) + '">Открыть приём</button>';
     if (t.submitted) return '<a href="analytics?test=' + q + '" class="btn btn--xs">Результаты</a>';
@@ -26,11 +30,12 @@
     var items = [
       t.count && main.indexOf('preview?') < 0 ? { label: 'Пройти самому', href: 'preview?test=' + q } : null,
       t.status !== 'draft' && main.indexOf('analytics?') < 0 ? { label: 'Результаты и аналитика', href: 'analytics?test=' + q } : null,
-      { label: t.status === 'training' ? 'Срок и группы' : 'Срок, группы и прокторинг', attrs: 'data-settings="' + id + '"' },
-      t.graded ? { label: t.weight != null ? 'Баллы в Модеус: ' + A.num(t.weight) : 'Задать баллы в Модеус', attrs: 'data-weight="' + id + '"' } : null,
-      t.status === 'running' ? { label: 'Закрыть приём', attrs: 'data-status="closed" data-id="' + id + '"' } : null,
-      t.status === 'closed' && main.indexOf('data-status') < 0 ? { label: 'Открыть приём снова', attrs: 'data-status="running" data-id="' + id + '"' } : null,
-      { label: 'Переименовать', attrs: 'data-rename="' + id + '"' },
+      // Менять тест — срок, группы, приём, название — может только автор
+      t.mine !== false ? { label: t.status === 'training' ? 'Срок и группы' : 'Срок, группы и прокторинг', attrs: 'data-settings="' + id + '"' } : null,
+      t.mine !== false && t.graded ? { label: t.weight != null ? 'Баллы в Модеус: ' + A.num(t.weight) : 'Задать баллы в Модеус', attrs: 'data-weight="' + id + '"' } : null,
+      t.mine !== false && t.status === 'running' ? { label: 'Закрыть приём', attrs: 'data-status="closed" data-id="' + id + '"' } : null,
+      t.mine !== false && t.status === 'closed' && main.indexOf('data-status') < 0 ? { label: 'Открыть приём снова', attrs: 'data-status="running" data-id="' + id + '"' } : null,
+      t.mine !== false ? { label: 'Переименовать', attrs: 'data-rename="' + id + '"' } : null,
       // Удаляет только автор теста: вместе с тестом пропадают попытки студентов
       t.mine ? '-' : null,
       t.mine ? { label: 'Удалить', attrs: 'data-delete="' + id + '"', danger: true } : null
