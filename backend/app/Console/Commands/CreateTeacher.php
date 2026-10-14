@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\User;
+use App\Support\PersonName;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
 
@@ -16,6 +17,11 @@ class CreateTeacher extends Command
     protected $signature = 'teacher:create {email} {name} {--password= : свой пароль вместо случайного}';
 
     protected $description = 'Создать аккаунт преподавателя и выдать временный пароль';
+
+    /** Какую роль получает аккаунт (admin:create наследует команду с другой ролью). */
+    protected string $role = User::ROLE_TEACHER;
+
+    protected string $label = 'Преподаватель';
 
     public function handle(): int
     {
@@ -35,21 +41,16 @@ class CreateTeacher extends Command
             return self::FAILURE;
         }
         // «Бакановская Людмила Николаевна» → в шапке «Бакановская Л. Н.», обращение «Людмила Николаевна», аватар «БЛ»
-        $parts = preg_split('/\s+/u', $data['name']);
-        [$last, $first, $middle] = [$parts[0], $parts[1] ?? '', $parts[2] ?? ''];
-        $user = User::create([
+        $user = User::create(PersonName::fromFull($data['name']) + [
             'email' => $data['email'],
-            'name' => trim($last.($first ? ' '.mb_substr($first, 0, 1).'.' : '').($middle ? ' '.mb_substr($middle, 0, 1).'.' : '')),
-            'full_name' => trim($first.' '.$middle) ?: $last,
-            'initials' => mb_strtoupper(mb_substr($last, 0, 1).($first ? mb_substr($first, 0, 1) : mb_substr($last, 1, 1))),
-            'role' => User::ROLE_TEACHER,
+            'role' => $this->role,
             'password' => $password,
         ]);
 
-        $this->info('Преподаватель создан: '.$user->name.' <'.$user->email.'>');
+        $this->info($this->label.' создан: '.$user->name.' <'.$user->email.'>');
         if (! $this->option('password')) {
             $this->line('Временный пароль: '.$password);
-            $this->line('Передайте его преподавателю лично; сменить пароль можно в личном кабинете.');
+            $this->line('Сменить его можно в личном кабинете.');
         }
 
         return self::SUCCESS;

@@ -15,9 +15,11 @@ class User extends Authenticatable
 
     public const ROLE_TEACHER = 'teacher';
     public const ROLE_STUDENT = 'student';
+    /** Администратор: выдаёт преподавателям ссылки-приглашения, управляет их доступом. Заводится из консоли. */
+    public const ROLE_ADMIN = 'admin';
 
     protected $fillable = [
-        'name', 'full_name', 'initials', 'avatar_path', 'role', 'group_id', 'email', 'password',
+        'name', 'full_name', 'initials', 'avatar_path', 'role', 'group_id', 'email', 'password', 'teacher_invite_id',
     ];
 
     protected $hidden = [
@@ -27,12 +29,24 @@ class User extends Authenticatable
 
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'disabled_at' => 'datetime',
         'password' => 'hashed',
     ];
 
     public function isTeacher(): bool
     {
         return $this->role === self::ROLE_TEACHER;
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === self::ROLE_ADMIN;
+    }
+
+    /** По какой ссылке-приглашению зарегистрирован преподаватель. */
+    public function teacherInvite(): BelongsTo
+    {
+        return $this->belongsTo(TeacherInvite::class);
     }
 
     /** Адрес аватара или null; версия в адресе меняется при замене картинки (кэш браузера). */

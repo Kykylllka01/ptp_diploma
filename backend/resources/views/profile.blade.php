@@ -1,14 +1,14 @@
 @extends('layouts.app')
 
 @section('header')
-    @include($user->isTeacher() ? 'partials.header-teacher' : 'partials.header-student')
+    @include($user->isAdmin() ? 'partials.header-admin' : ($user->isTeacher() ? 'partials.header-teacher' : 'partials.header-student'))
 @endsection
 
 @section('content')
 <main class="page">
   <div class="page-head">
     <div>
-      <div class="lbl">{{ $user->isTeacher() ? 'Преподаватель' : 'Студент' }} · {{ $course->title }}</div>
+      <div class="lbl">{{ $user->isAdmin() ? 'Администратор' : (($user->isTeacher() ? 'Преподаватель' : 'Студент').' · '.$course->title) }}</div>
       <h1 class="page-title">Личный кабинет</h1>
     </div>
   </div>
@@ -54,7 +54,7 @@
           </div>
           <div class="grid-fields">
             <label class="field">Почта для входа<input class="input" value="{{ $user->email }}" disabled></label>
-            @unless ($user->isTeacher())
+            @unless ($user->isTeacher() || $user->isAdmin())
               <label class="field">Группа<input class="input" value="{{ $user->group?->name ?: '—' }}" disabled></label>
             @endunless
           </div>
@@ -77,7 +77,13 @@
     </div>
 
     <aside class="split__side stack" style="flex-basis: 380px">
-      @if ($user->isTeacher())
+      @if ($user->isAdmin())
+        <section class="card card--pad">
+          <h2 class="card-title">Администрирование</h2>
+          <p class="muted small" style="margin: 8px 0 0">Ссылки-приглашения для преподавателей и их аккаунты.</p>
+          <a href="{{ route('admin.index') }}" class="btn btn--sm" style="margin-top: 14px">К преподавателям</a>
+        </section>
+      @elseif ($user->isTeacher())
         <section class="card card--pad">
           <h2 class="card-title">Курс «{{ $course->title }}»</h2>
           <div class="stack-sm" style="margin-top: 14px">

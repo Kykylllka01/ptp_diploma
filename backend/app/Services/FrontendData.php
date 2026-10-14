@@ -11,6 +11,7 @@ use App\Models\Material;
 use App\Models\ProctorEvent;
 use App\Models\Question;
 use App\Models\Review;
+use App\Models\TeacherInvite;
 use App\Models\Test;
 use App\Models\User;
 use App\Support\CurrentUser;
@@ -243,6 +244,68 @@ class FrontendData
                 'minute' => $attempt->started_at ? max(0, (int) floor($attempt->started_at->diffInSeconds($e->left_at) / 60)) : null,
                 'seconds' => $e->seconds(),
             ])->all(),
+        ];
+    }
+
+    /** Админ-панель: ссылки-приглашения, преподаватели с их материалами и тестами, сводка. */
+    public function admin(): array
+    {
+        $invites = TeacherInvite::with('teachers:id,name,teacher_invite_id')->latest('id')->get();
+        $teachers = User::where('role', User::ROLE_TEACHER)->with('teacherInvite:id,note')->orderBy('name')->get();
+        $count = fn (string $model) => $model::whereNotNull('user_id')->selectRaw('user_id, count(*) as n')->groupBy('user_id')->pluck('n', 'user_id');
+        $this->adminCounts = ['materials' => $count(Material::class), 'questions' => $count(Question::class), 'tests' => $count(Test::class)];
+
+        return [
+            'admin' => $this->user(CurrentUser::user()),
+            'invites' => $invites->map(fn ($i) => $this->invite($i))->all(),
+            'teachers' => $teachers->map(fn ($u) => $this->adminTeacher($u))->all(),
+            'stats' => [
+                'teachers' => $teachers->count(),
+                'students' => User::where('role', User::ROLE_STUDENT)->count(),
+                'groups' => Group::count(),
+                'tests' => Test::where('status', '!=', 'draft')->count(),
+            ],
+        ];
+    }
+
+    /** @var array<string, \Illuminate\Support\Collection> */
+    private array $adminCounts = [];
+
+    public function invite(TeacherInvite $i): array
+    {
+        return [
+            'id' => $i->id,
+            'note' => $i->note,
+            'url' => $i->url(),
+            'uses' => $i->uses,
+            'max' => $i->max_uses,
+            'status' => $i->status(),
+            'expires' => $i->expires_at?->format('d.m.Y'),
+            'created' => $i->created_at?->format('d.m.Y'),
+            'createdTs' => $i->created_at?->getTimestamp(),
+            'teachers' => $i->teachers->pluck('name')->all(),
+        ];
+    }
+
+    public function adminTeacher(User $u): array
+    {
+        $n = fn (string $k) => (int) (($this->adminCounts[$k] ?? null)?->get($u->id) ?? match ($k) {
+            'materials' => Material::where('user_id', $u->id)->count(),
+            'questions' => Question::where('user_id', $u->id)->count(),
+            default => Test::where('user_id', $u->id)->count(),
+        });
+
+        return [
+            'id' => $u->id,
+            'name' => $u->name,
+            'email' => $u->email,
+            'since' => $u->created_at?->format('d.m.Y'),
+            // По какой ссылке пришёл; null — заведён из консоли
+            'invite' => $u->teacher_invite_id ? ($u->teacherInvite?->note ?: 'по ссылке') : null,
+            'materials' => $n('materials'),
+            'questions' => $n('questions'),
+            'tests' => $n('tests'),
+            'disabled' => $u->disabled_at !== null,
         ];
     }
 

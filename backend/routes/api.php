@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AttemptController;
 use App\Http\Controllers\Api\GenerationRunController;
 use App\Http\Controllers\Api\GroupController;
@@ -53,6 +54,14 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::delete('groups/{group}', [GroupController::class, 'destroy']);
         Route::patch('students/{user}/group', [GroupController::class, 'moveStudent']);
         Route::post('students/{user}/password', [GroupController::class, 'resetPassword'])->middleware('throttle:20,1,student-password');
+    });
+
+    // Администратор
+    Route::middleware('role:admin')->prefix('admin')->group(function () {
+        Route::post('invites', [AdminController::class, 'storeInvite']);
+        Route::delete('invites/{invite}', [AdminController::class, 'revokeInvite']);
+        Route::post('teachers/{user}/password', [AdminController::class, 'teacherPassword'])->middleware('throttle:20,1,admin-password');
+        Route::patch('teachers/{user}', [AdminController::class, 'teacherAccess']);
     });
 
     // Студент

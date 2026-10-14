@@ -18,11 +18,17 @@ Route::middleware('guest')->group(function () {
 
 // Страница приглашения открывается и гостю (форма регистрации), и вошедшему (подсказка, что делать)
 Route::get('join/{code}', [JoinController::class, 'show'])->name('join')->middleware('throttle:600,1,join-show');
+// Регистрация преподавателя по ссылке от администратора (вошедшему — подсказка выйти)
+Route::get('teacher-invite/{token}', [\App\Http\Controllers\TeacherInviteController::class, 'show'])->name('teacher-invite')->middleware('throttle:600,1,teacher-invite');
+Route::post('teacher-invite/{token}', [\App\Http\Controllers\TeacherInviteController::class, 'register'])->middleware('throttle:join');
 Route::post('join/{code}/accept', [JoinController::class, 'accept'])->name('join.accept')->middleware(['auth', 'role:student', 'throttle:10,1,join-accept']);
 
 Route::middleware('auth')->group(function () {
     Route::get('/', [AuthController::class, 'home'])->name('home');
     Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+
+    // Администратор: приглашения преподавателей и их аккаунты
+    Route::get('admin', [\App\Http\Controllers\AdminController::class, 'index'])->name('admin.index')->middleware('role:admin');
 
     Route::prefix('teacher')->name('teacher.')->middleware('role:teacher')->controller(TeacherController::class)->group(function () {
         Route::get('dashboard', 'dashboard')->name('dashboard');
