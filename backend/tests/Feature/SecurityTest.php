@@ -334,4 +334,25 @@ class SecurityTest extends TestCase
         $this->assertStringNotContainsString('</script><script>alert(1)', $html);
         $this->assertStringContainsString('</script>', $html);
     }
+
+    // ------------------------------------------------- Заголовки безопасности и HTTPS (аудит 14.10.2026)
+
+    public function test_pages_send_security_headers(): void
+    {
+        $this->get('/login')->assertOk()
+            ->assertHeader('X-Frame-Options', 'DENY')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+        $this->assertStringContainsString("frame-ancestors 'none'", $this->get('/login')->headers->get('Content-Security-Policy'));
+    }
+
+    public function test_http_is_redirected_to_https_site_address_in_production(): void
+    {
+        $this->app->detectEnvironment(fn () => 'production');
+        config(['app.url' => 'https://tests.example.ru']);
+
+        // Адрес перехода — из настроек, а не из заголовка Host, который присылает клиент
+        $this->get('http://evil.example/login?x=1')->assertRedirect('https://tests.example.ru/login?x=1')->assertStatus(301);
+        $this->get('https://tests.example.ru/login')->assertOk()->assertHeader('Strict-Transport-Security', 'max-age=31536000');
+    }
 }

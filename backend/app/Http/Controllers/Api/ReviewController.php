@@ -14,6 +14,9 @@ class ReviewController extends Controller
     /** Подтверждение оценки развёрнутого ответа преподавателем. */
     public function update(Request $request, Review $review, AttemptService $attempts, FrontendData $data)
     {
+        $test = $review->answer?->attempt?->test;
+        abort_unless($test && (int) $test->course_id === (int) CurrentUser::course()->id, 404);
+        abort_unless($test->isOwnedBy(CurrentUser::teacher()), 403, 'Оценку подтверждает автор теста: '.($test->author?->name ?? 'другой преподаватель'));
         $criteria = $review->question->criteria ?: [['Ответ', $review->question->points]];
         $max = array_sum(array_column($criteria, 1));
         // По баллу на каждый критерий и не больше его максимума — иначе студент увидит «5 / 2»

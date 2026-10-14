@@ -101,7 +101,8 @@
     A.$('#comment').value = r.comment || '';
     saved = state();
     A.$('#q-label').textContent += r.testTitle ? ' · ' + r.testTitle : '';
-    A.$('#confirm').textContent = r.status === 'confirmed' ? 'Сохранить изменения' : 'Подтвердить и далее';
+    A.$('#confirm').textContent = r.mine === false ? 'Подтверждает автор теста' : r.status === 'confirmed' ? 'Сохранить изменения' : 'Подтвердить и далее';
+    A.$('#confirm').disabled = r.mine === false;
     renderTotal();
     renderQueue();
   }

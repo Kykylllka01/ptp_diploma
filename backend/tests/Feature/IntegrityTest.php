@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Answer;
 use App\Models\Attempt;
 use App\Models\Review;
+use App\Models\User;
 use App\Services\AttemptService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\MakesCourseData;
@@ -176,5 +177,27 @@ class IntegrityTest extends TestCase
         $answer = Answer::firstOrFail();
         $this->postJson("/api/answers/{$answer->id}/appeal", ['text' => 'Прошу пересмотреть пример'])->assertOk();
         $this->postJson("/api/answers/{$answer->id}/appeal", ['text' => 'И ещё раз прошу'])->assertStatus(409);
+    }
+
+    public function test_answered_question_keeps_its_key_and_only_test_author_confirms_scores(): void
+    {
+        $q = $this->open();
+        $this->makeTest('m1', [$q], ['user_id' => $this->teacher()->id]);
+        $this->actingAs($this->student())->get('/student/test?test=m1')->assertOk();
+        $attempt = Attempt::firstOrFail();
+        $this->postJson("/api/attempts/{$attempt->id}/submit", ['answers' => ['Q-9' => 'Атомарные значения в каждой ячейке']])->assertOk();
+        $review = Review::firstOrFail();
+
+        // На вопрос ответили: эталон и критерии менять нельзя, текст — можно
+        $this->actingAs($this->teacher());
+        $this->patchJson('/api/questions/Q-9', ['criteria' => [['Определение', 3]]])->assertStatus(409);
+        $this->patchJson('/api/questions/Q-9', ['reference' => 'Другой эталон'])->assertStatus(409);
+        $this->postJson('/api/questions/Q-9/regenerate')->assertStatus(409);
+        $this->patchJson('/api/questions/Q-9', ['text' => 'Что такое первая нормальная форма?', 'criteria' => [['Определение', 2], ['Пример', 1]]])->assertOk();
+
+        // Оценку подтверждает автор теста, а не любой преподаватель курса
+        $colleague = User::create(['name' => 'Петрова А. С.', 'email' => 'petrova@utmn.local', 'password' => 'colleague123', 'role' => User::ROLE_TEACHER]);
+        $this->actingAs($colleague)->patchJson("/api/reviews/{$review->id}", ['scores' => [2, 1]])->assertForbidden();
+        $this->actingAs($this->teacher())->patchJson("/api/reviews/{$review->id}", ['scores' => [2, 1]])->assertOk();
     }
 }

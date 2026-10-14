@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attempt;
-use App\Models\LlmCall;
 use App\Models\Material;
 use App\Models\Question;
 use App\Models\Review;
@@ -28,7 +27,6 @@ class ProfileController extends Controller
         if ($user->isAdmin()) {
             // У администратора в кабинете только имя и пароль
             $stats = [];
-            $llm = null;
             $appData = [];
         } elseif ($user->isTeacher()) {
             $stats = [
@@ -39,15 +37,9 @@ class ProfileController extends Controller
                 ['Сданных попыток', Attempt::whereHas('test', fn ($t) => $t->where('course_id', $course->id))->where('status', '!=', 'in_progress')->count()],
                 ['Ответов ждут проверки', Review::where('status', 'pending')->count()],
             ];
-            $llm = [
-                'calls' => LlmCall::count(),
-                'tokens' => (int) LlmCall::sum('tokens_in') + (int) LlmCall::sum('tokens_out'),
-                'byAgent' => LlmCall::selectRaw('agent, count(*) as n, sum(tokens_in + tokens_out) as t')->groupBy('agent')->get(),
-            ];
             $appData = $this->data->teacher([]);
         } else {
             $stats = [];
-            $llm = null;
             $appData = $this->data->student();
         }
 
@@ -60,7 +52,6 @@ class ProfileController extends Controller
             'user' => $user,
             'course' => $course,
             'stats' => $stats,
-            'llm' => $llm,
             'attempts' => $attempts,
             'appData' => $appData,
         ]);

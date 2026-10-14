@@ -163,6 +163,7 @@ fieldset { min-width: 0; }
 .between { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .grid-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
 .grid-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.grid-fields--end { align-items: end; }
 
 /* ---------- Карточки ---------- */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
@@ -236,6 +237,9 @@ a.card:hover { border-color: var(--tsu-blue); color: var(--text); }
 .chip--red { background: var(--red-bg); color: var(--red-text); }
 .chip--dark { background: var(--navy-2); color: #fff; }
 .chip--sm { height: 22px; }
+/* Экспериментальная функция: работает, но ещё дорабатывается */
+.chip--beta { background: #EFE8FB; color: #5B3BA8; font-size: 12px; height: 20px; padding: 0 8px; vertical-align: 2px; }
+.beta-note { color: #5B3BA8; }
 button.chip { cursor: pointer; }
 button.chip--dark.is-on { background: #fff; color: var(--navy); }
 
@@ -254,6 +258,11 @@ button.chip--dark.is-on { background: #fff; color: var(--navy); }
 .filetype--err { background: var(--red-bg); color: var(--red-text); }
 
 /* ---------- Формы ---------- */
+.pw-wrap { position: relative; display: block; }
+.pw-wrap > .input { width: 100%; padding-right: 48px; }
+.pw-toggle { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; }
+.pw-toggle:hover { color: var(--tsu-blue); background: var(--blue-soft); }
+.pw-toggle:focus-visible { outline: 2px solid var(--tsu-blue); outline-offset: -2px; }
 .field { display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: 500; }
 .field__hint { color: var(--muted); font-weight: 400; }
 .input, .select { min-height: 44px; border: 1px solid var(--border-input); border-radius: var(--radius-sm); padding: 0 12px; font: 15px var(--font); background: #fff; color: var(--text); width: 100%; }
@@ -529,6 +538,9 @@ mark.good { background: #DDF1E5; }
 .bar-row--link:focus-visible { outline: 2px solid var(--tsu-blue); outline-offset: -2px; }
 .bar-row--link > svg { color: #B9BFCB; transition: transform .12s, color .12s; }
 .bar-row--link:hover > svg { color: var(--tsu-blue); transform: translateX(2px); }
+.bar-row__status { flex: none; display: inline-flex; }
+.bar-row__label:has(.bar-row__status) { flex-wrap: nowrap; }
+.bar-row__label:has(.bar-row__status) > span:last-child { min-width: 0; }
 .bar-row__label { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; overflow-wrap: anywhere; }
 .bar-row__track { height: 8px; border-radius: 4px; background: var(--divider); overflow: hidden; }
 .bar-row__fill { display: block; height: 100%; border-radius: 4px; background: var(--tsu-blue); }

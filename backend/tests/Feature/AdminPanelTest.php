@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\LlmCall;
 use App\Models\TeacherInvite;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -158,5 +159,21 @@ class AdminPanelTest extends TestCase
         $this->actingAs($admin)->patchJson('/api/admin/teachers/'.$teacher->id, ['disabled' => false])->assertOk()->assertJsonPath('disabled', false);
         $this->guest();
         $this->post('/login', ['email' => $teacher->email, 'password' => $r['password']])->assertRedirect(route('home'));
+    }
+
+    public function test_llm_spending_is_shown_in_admin_panel_in_rubles_not_in_teacher_profile(): void
+    {
+        config(['agents.usd_rub' => ['live' => false, 'rate' => 100]]);
+        LlmCall::create(['agent' => 'writer', 'model' => 'deepseek-flash', 'prompt_version' => 'v1', 'tokens_in' => 1000, 'tokens_out' => 500, 'cost_usd' => 0.25, 'status' => 'ok']);
+        LlmCall::create(['agent' => 'grader', 'model' => 'deepseek-flash', 'prompt_version' => 'v1', 'tokens_in' => 200, 'tokens_out' => 100, 'cost_usd' => 0.05, 'status' => 'ok']);
+
+        $llm = $this->actingAs($this->admin())->get('/admin')->assertOk()->viewData('appData')['llm'];
+        $this->assertSame(2, $llm['calls']);
+        $this->assertSame(1800, $llm['tokens']);
+        $this->assertEquals(30.0, $llm['rub']);              // ($0,25 + $0,05) × 100 ₽
+        $this->assertSame('Составитель', $llm['agents'][0]['agent']);
+        $this->assertEquals(25.0, $llm['agents'][0]['rub']);
+
+        $this->actingAs($this->teacher())->get('/profile')->assertOk()->assertDontSee('Нейросеть');
     }
 }

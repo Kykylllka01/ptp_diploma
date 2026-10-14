@@ -67,6 +67,8 @@ class GenerationRunController extends Controller
     /** «Остановить»: конвейер завершится после текущего шага, готовые вопросы останутся в банке. */
     public function cancel(GenerationRun $run)
     {
+        $this->ownCourse($run);
+        abort_unless($run->user_id === null || $run->user_id === CurrentUser::teacher()->id, 403, 'Остановить запуск может только тот, кто его начал');
         if (in_array($run->status, ['queued', 'running'], true)) {
             $run->update(['status' => 'cancelling']);
             $run->log('analyst', 'преподаватель остановил запуск, агенты закончат текущий шаг');
@@ -78,6 +80,7 @@ class GenerationRunController extends Controller
     /** Состояние конвейера для экрана «Работа агентов» (опрос раз в пару секунд). */
     public function show(GenerationRun $run)
     {
+        $this->ownCourse($run);
         return $this->data->run($run);
     }
 }

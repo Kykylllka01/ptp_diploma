@@ -126,6 +126,7 @@ class TestController extends Controller
     /** Открыть или закрыть приём ответов, переименовать. */
     public function update(Request $request, Test $test)
     {
+        $this->onlyAuthor($test, 'Менять тест');
         $data = $request->validate([
             'status' => ['sometimes', Rule::in(['running', 'closed', 'training', 'draft'])],
             'title' => 'sometimes|string|max:255',
@@ -175,6 +176,7 @@ class TestController extends Controller
     /** Отметка «баллы перенесены в Модеус» для группы (0 — студенты без группы): дата или снять. */
     public function transferred(Request $request, Test $test)
     {
+        $this->onlyAuthor($test, 'Отмечать перенос баллов');
         $data = $request->validate(['group' => 'required|integer|min:0', 'done' => 'required|boolean']);
         // 0 — студенты без группы; иначе группа этого же курса
         abort_if($data['group'] && ! Group::where('id', $data['group'])->where('course_id', $test->course_id)->exists(), 422, 'Нет такой группы');
@@ -209,6 +211,7 @@ class TestController extends Controller
     /** Добавить вопросы из банка в тест (массовое действие в банке). */
     public function attachQuestions(Request $request, Test $test)
     {
+        $this->onlyAuthor($test, 'Добавлять вопросы в тест');
         $data = $request->validate(['ids' => 'required|array|min:1|max:500', 'ids.*' => 'string|max:20']);
         // Состав теста, по которому уже есть попытки, не меняем: иначе пересчитываются сданные результаты
         if ($test->attempts()->exists()) {
