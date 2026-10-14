@@ -321,4 +321,17 @@ class SecurityTest extends TestCase
 
         return $attempt->fresh();
     }
+
+    // ------------------------------------------------- Данные страницы встраиваются без раздувания и без выхода из <script>
+
+    public function test_page_data_keeps_cyrillic_and_cannot_close_script_tag(): void
+    {
+        $this->singleQuestion('XSS', 0, ['text' => 'Нормализация </script><script>alert(1)</script>']);
+
+        $html = $this->actingAs($this->teacher())->get('/teacher/bank')->assertOk()->getContent();
+
+        $this->assertStringContainsString('Нормализация', $html);
+        $this->assertStringNotContainsString('</script><script>alert(1)', $html);
+        $this->assertStringContainsString('</script>', $html);
+    }
 }

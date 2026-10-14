@@ -19,3 +19,15 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Сжатие страниц, данных и скриптов: вся группа сидит на одном Wi-Fi
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>
+
+# Собранные Vite файлы содержат хеш в имени — браузер может хранить их год
+<IfModule mod_headers.c>
+    <If "%{REQUEST_URI} =~ m#^/build/assets/#">
+        Header always set Cache-Control "public, max-age=31536000, immutable"
+    </If>
+</IfModule>
