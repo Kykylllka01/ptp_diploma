@@ -36,6 +36,13 @@ class AuthController extends Controller
             RateLimiter::hit($failures, 60);
             throw ValidationException::withMessages(['email' => 'Неверная почта или пароль']);
         }
+        // Доступ закрыт администратором. Ответ — как на неверный пароль: иначе по отличию можно подбирать пароль
+        // к закрытому аккаунту. Открытые сессии такого аккаунта заканчиваются с понятным сообщением (EndSessionAfterPasswordChange)
+        if (Auth::user()->disabled_at !== null) {
+            Auth::logout();
+            RateLimiter::hit($failures, 60);
+            throw ValidationException::withMessages(['email' => 'Неверная почта или пароль']);
+        }
 
         $request->session()->regenerate();
 
@@ -54,8 +61,10 @@ class AuthController extends Controller
     /** Главная: каждой роли — свой первый экран. */
     public function home(Request $request)
     {
-        return $request->user()->isTeacher()
-            ? redirect()->route('teacher.dashboard')
-            : redirect()->route('student.tests');
+        return match (true) {
+            $request->user()->isAdmin() => redirect()->route('admin.index'),
+            $request->user()->isTeacher() => redirect()->route('teacher.dashboard'),
+            default => redirect()->route('student.tests'),
+        };
     }
 }

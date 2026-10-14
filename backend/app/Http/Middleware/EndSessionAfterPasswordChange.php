@@ -12,12 +12,23 @@ use Symfony\Component\HttpFoundation\Response;
  * В сессии хранится отпечаток пароля пользователя; при следующем запросе со старым отпечатком — выход.
  * В отличие от AuthenticateSession, отпечаток свой у каждого пользователя: сессия, где сначала был один
  * пользователь, а затем вошёл другой, не считается «чужой».
+ * Так же заканчиваются сессии аккаунта, которому администратор закрыл доступ.
  */
 class EndSessionAfterPasswordChange
 {
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
+        // Администратор закрыл доступ — уже открытые сессии тоже заканчиваются
+        if ($user && $user->disabled_at !== null && $request->hasSession()) {
+            Auth::guard()->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return $request->expectsJson()
+                ? response()->json(['message' => 'Доступ к аккаунту закрыт администратором'], 401)
+                : redirect()->route('login')->withErrors(['email' => 'Доступ к аккаунту закрыт администратором']);
+        }
         if ($user && $request->hasSession()) {
             $stored = $request->session()->get('password_print.'.$user->getAuthIdentifier());
             if ($stored !== null && ! hash_equals($stored, $this->print($user->getAuthPassword()))) {

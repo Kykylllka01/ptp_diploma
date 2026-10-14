@@ -25,7 +25,12 @@ class ProfileController extends Controller
         $user = CurrentUser::user();
         $course = CurrentUser::course();
 
-        if ($user->isTeacher()) {
+        if ($user->isAdmin()) {
+            // У администратора в кабинете только имя и пароль
+            $stats = [];
+            $llm = null;
+            $appData = [];
+        } elseif ($user->isTeacher()) {
             $stats = [
                 ['Материалов', Material::where('course_id', $course->id)->count()],
                 ['Вопросов в банке', Question::where('course_id', $course->id)->count()],
@@ -46,7 +51,7 @@ class ProfileController extends Controller
             $appData = $this->data->student();
         }
 
-        $attempts = $user->isTeacher() ? collect() : Attempt::with('test')->where('user_id', $user->id)
+        $attempts = $user->isTeacher() || $user->isAdmin() ? collect() : Attempt::with('test')->where('user_id', $user->id)
             ->where('status', '!=', 'in_progress')->latest('submitted_at')->get();
 
         return view('profile', [

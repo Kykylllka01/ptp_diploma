@@ -81,8 +81,10 @@ class PilotCheck extends Command
             $teachers = User::where('role', User::ROLE_TEACHER)->count();
             $students = User::where('role', User::ROLE_STUDENT)->count();
             $groups = Group::count();
-            $this->check('Пользователи', $teachers > 0, 'нет ни одного преподавателя — php artisan teacher:create', 'fail',
+            $admins = User::where('role', User::ROLE_ADMIN)->count();
+            $this->check('Пользователи', $teachers > 0, 'нет ни одного преподавателя — выдайте ссылку в админ-панели (/admin) или php artisan teacher:create', 'fail',
                 $teachers.' преп., '.$students.' студ., '.$groups.' групп');
+            $this->check('Администратор', $admins > 0, 'не создан — php artisan admin:create почта "Фамилия Имя": он выдаёт преподавателям ссылки', 'warn', (string) $admins);
         } catch (Throwable) {
         }
 
