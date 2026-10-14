@@ -125,7 +125,14 @@
   function updateBulk() {
     var n = Object.keys(selected).length;
     A.$('#bulk').hidden = !n;
-    A.$('#bulk-count').textContent = 'Выбрано ' + n;
+    var list = filtered(), on = list.filter(function (q) { return selected[q.id]; }).length;
+    A.$('#bulk-count').textContent = 'Выбрано ' + n + (n > 1 && on === list.length && list.length > f.limit ? ' — все по фильтрам' : '');
+    // «Выбрать все» — все вопросы под текущие вкладку, фильтры и поиск, а не только показанная страница
+    var box = A.$('#select-all');
+    A.$('#select-all-wrap').hidden = !list.length;
+    box.checked = !!list.length && on === list.length;
+    box.indeterminate = on > 0 && on < list.length;
+    A.$('#select-all-label').textContent = 'Выбрать все' + (list.length > 1 ? ' (' + list.length + ')' : '');
   }
 
   function renderAll() { renderTabs(); renderFilters(); renderList(); }
@@ -177,10 +184,16 @@
     A.keepFocus(function () { renderFilters(); renderList(); });
   });
 
-  A.$('#search').addEventListener('input', function (e) { f.q = e.target.value; f.limit = PAGE; renderList(); });
+  // Поиск, как и фильтры, снимает выбор: удаление или одобрение не должно задеть скрытые вопросы
+  A.$('#search').addEventListener('input', function (e) { f.q = e.target.value; f.limit = PAGE; selected = {}; renderList(); });
+  A.$('#select-all').addEventListener('change', function (e) {
+    selected = {};
+    if (e.target.checked) filtered().forEach(function (q) { selected[q.id] = true; });
+    A.keepFocus(renderList);
+  });
   A.$('#more').addEventListener('click', function () { f.limit += PAGE; renderList(); });
   A.$('#f-reset').addEventListener('click', function () {
-    f.types = []; f.diff = []; f.topics = []; f.source = ''; f.q = ''; A.$('#search').value = '';
+    f.types = []; f.diff = []; f.topics = []; f.source = ''; f.q = ''; A.$('#search').value = ''; selected = {};
     renderFilters(); renderList();
   });
 
@@ -208,6 +221,26 @@
         A.toast((act === 'approve' ? 'Одобрено: ' : 'Отклонено: ') + n + ' ' + word);
         selected = {};
         renderAll();
+      });
+    } else if (act === 'delete') {
+      A.confirm({
+        title: 'Удалить ' + n + ' ' + word + '?',
+        text: 'Вопросы исчезнут из банка, вернуть их нельзя. Не удалятся вопросы других преподавателей, а также те, что уже есть в тесте или на которые отвечали студенты, — их можно отклонить.',
+        ok: 'Удалить', danger: true
+      }).then(function (yes) {
+        if (!yes) return;
+        A.api('POST', 'questions/bulk', { ids: ids, action: 'delete' }).then(function (r) {
+          var gone = {};
+          r.deleted.forEach(function (id) { gone[id] = true; });
+          M.questions = A.questions().filter(function (q) { return !gone[q.id]; });
+          var kept = [];
+          if (r.used) kept.push(r.used + ' в тестах или с ответами студентов');
+          if (r.foreign) kept.push(r.foreign + ' других преподавателей');
+          A.toast('Удалено: ' + r.deleted.length + ' ' + A.plural(r.deleted.length, 'вопрос', 'вопроса', 'вопросов') +
+            (kept.length ? ' · не удалены: ' + kept.join(', ') : ''), !r.deleted.length);
+          selected = {};
+          renderAll();
+        });
       });
     } else if (act === 'export') {
       // Адрес с сотнями ids упрётся в лимит длины URL — выгружаем частями

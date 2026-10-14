@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Course;
 use App\Models\Material;
 use App\Models\Question;
 use App\Models\Test;
@@ -116,5 +117,34 @@ class MultiTeacherTest extends TestCase
     {
         $page = $this->actingAs($this->teacher())->get('/teacher/tests')->assertOk()->viewData('appData');
         $this->assertSame(1, $page['teacherCount']);
+    }
+
+    public function test_bulk_delete_removes_only_own_unused_questions_of_this_course(): void
+    {
+        $me = $this->teacher();
+        $this->singleQuestion('Q-1', 0, ['user_id' => $me->id]);
+        $this->singleQuestion('Q-2', 0, ['user_id' => $me->id]);
+        $this->makeTest('t1', [$this->singleQuestion('Q-3', 0, ['user_id' => $me->id])]);    // уже в тесте
+        $this->singleQuestion('Q-4', 0, ['user_id' => $this->colleague()->id]);             // чужой
+        $other = Course::create(['title' => 'Другой курс']);
+        $this->singleQuestion('Q-5', 0, ['user_id' => $me->id, 'course_id' => $other->id]); // другой курс
+
+        $r = $this->actingAs($me)->postJson('/api/questions/bulk', ['ids' => ['Q-1', 'Q-2', 'Q-3', 'Q-4', 'Q-5'], 'action' => 'delete'])
+            ->assertOk()->json();
+
+        $this->assertEqualsCanonicalizing(['Q-1', 'Q-2'], $r['deleted']);
+        $this->assertSame(1, $r['used']);
+        $this->assertSame(1, $r['foreign']);
+        $this->assertEqualsCanonicalizing(['Q-3', 'Q-4', 'Q-5'], Question::pluck('code')->all());
+    }
+
+    public function test_bulk_approve_does_not_touch_other_courses(): void
+    {
+        $other = Course::create(['title' => 'Другой курс']);
+        $q = $this->singleQuestion('Q-9', 0, ['course_id' => $other->id, 'status' => 'pending']);
+
+        $this->actingAs($this->teacher())->postJson('/api/questions/bulk', ['ids' => ['Q-9'], 'action' => 'approve'])
+            ->assertOk()->assertJson(['updated' => 0]);
+        $this->assertSame('pending', $q->fresh()->status);
     }
 }
