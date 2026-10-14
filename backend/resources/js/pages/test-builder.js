@@ -60,19 +60,33 @@
     A.$('#d-easy').style.width = pct(easy); A.$('#d-med').style.width = pct(med); A.$('#d-hard').style.width = pct(hard);
     A.$('#l-easy').textContent = 'Лёгкие ' + easy; A.$('#l-med').textContent = 'Средние ' + med; A.$('#l-hard').textContent = 'Сложные ' + hard;
 
-    // Предупреждение: в ячейке матрицы просят больше вопросов, чем одобрено в банке по выбранным темам
-    var names = { easy: 'лёгких', medium: 'средних', hard: 'сложных' }, short = null;
+    // В ячейке матрицы просят больше вопросов, чем одобрено в банке по выбранным темам: тест соберётся меньше.
+    // got — сколько вопросов будет на самом деле, spare — запас сверх матрицы для разных вариантов
+    var names = { easy: 'лёгких', medium: 'средних', hard: 'сложных' }, short = [], got = 0, spare = 0;
     rows.forEach(function (r) {
       LEVELS.forEach(function (level, k) {
-        var have = available(r[0], level);
-        if (!short && r[2 + k] > have) short = [M.types[r[0]], names[level], have, r[2 + k]];
+        var have = available(r[0], level), need = r[2 + k];
+        if (!need) return;
+        got += Math.min(need, have);
+        spare += Math.max(0, have - need);
+        if (need > have) short.push('«' + esc(M.types[r[0]]) + '», ' + names[level] + ': ' + (have ? 'есть ' + have : 'нет') + ' из ' + need);
       });
     });
+    // Вручную вопросы выбираются в банке — варианта по матрице нет
+    var individual = on('#sw-individual') && (A.$('input[name=mode]:checked') || {}).value !== 'manual';
     var box = A.$('#shortage');
-    box.hidden = !short;
-    if (short) {
-      box.innerHTML = '«' + esc(short[0]) + '», ' + short[1] + ': в банке ' + (short[2] ? 'только ' + short[2] : 'нет ни одного') +
-        ', а нужно ' + short[3] + '. Тест соберётся из того, что есть. <a href="upload">Догенерировать</a>';
+    box.hidden = !short.length;
+    if (short.length) {
+      box.innerHTML = '<b>Соберётся ' + got + ' из ' + total + ' ' + A.plural(total, 'вопроса', 'вопросов', 'вопросов') + '</b>' +
+        (individual ? ' в варианте каждого студента' : '') + ' — в банке по выбранным темам не хватает: ' +
+        short.join('; ') + '. Уменьшите числа в матрице или <a href="upload">догенерируйте вопросы</a>.';
+    }
+    var hint = A.$('#individual-note');
+    hint.hidden = !individual || !got;
+    if (individual && got) {
+      hint.innerHTML = spare
+        ? 'У каждого студента ' + got + ' ' + A.plural(got, 'вопрос', 'вопроса', 'вопросов') + ' из пула в ' + (got + spare) + ': варианты будут различаться'
+        : '<span class="t-amber">Запасных вопросов нет: в банке ровно столько, сколько в матрице, — варианты у всех студентов совпадут.</span> Уменьшите числа в матрице или догенерируйте вопросы.';
     }
   }
 
@@ -140,7 +154,7 @@
       A.$('#mode-note').innerHTML = r.value === 'manual' ? n + ' <a href="bank?status=approved">Открыть банк</a>' : n;
       // Вручную матрица не нужна: вопросы выбираются в банке, а тест сохраняется черновиком
       A.$('#composition').hidden = r.value === 'manual';
-      publishLabel();
+      publishLabel(); summary();
     });
   });
   function publishLabel() {
@@ -152,6 +166,8 @@
     if (proctor.disabled) proctor.setAttribute('aria-pressed', 'false');
   }
   A.$('#training').addEventListener('click', function () { setTimeout(publishLabel); });
+  // Свой вариант каждому: итог и запас пересчитываются под переключатель
+  A.$('#sw-individual').addEventListener('click', function () { setTimeout(summary); });
 
   A.$('#builder').addEventListener('submit', function (e) {
     e.preventDefault();
@@ -185,7 +201,9 @@
     }).then(function (r) {
       var msg = mode === 'manual'
         ? 'Тест «' + title + '» создан. Отметьте вопросы в банке и нажмите «Добавить в тест» — после этого он откроется студентам'
-        : 'Тест «' + title + '» опубликован: подобрано ' + r.picked + ' из ' + r.requested + ' ' + A.plural(r.requested, 'вопроса', 'вопросов', 'вопросов');
+        : 'Тест «' + title + '» опубликован: ' + (r.test.individual
+          ? 'в варианте каждого студента ' + r.picked + ' из ' + r.requested + ' ' + A.plural(r.requested, 'вопроса', 'вопросов', 'вопросов') + ', пул — ' + r.pool
+          : 'подобрано ' + r.picked + ' из ' + r.requested + ' ' + A.plural(r.requested, 'вопроса', 'вопросов', 'вопросов'));
       A.toast(msg);
       setTimeout(function () { location.href = 'tests'; }, 1500);
     }, function () { if (submitBtn) submitBtn.disabled = false; });

@@ -86,4 +86,29 @@ class VariantsTest extends TestCase
         $this->assertSame(8, $row['pool']);
         $this->assertTrue($row['individual']);
     }
+
+    public function test_variant_size_counts_only_what_the_bank_can_fill(): void
+    {
+        // Матрица просит 5 средних и 2 сложных, а в банке 3 средних и ни одного сложного: в варианте 3
+        foreach (range(1, 3) as $i) {
+            $this->singleQuestion('Q-'.$i);
+        }
+        $this->question('T-1', ['type' => 'tf', 'text' => 'Не в матрице', 'options' => [['text' => 'Верно', 'correct' => true], ['text' => 'Неверно', 'correct' => false]]]);
+        $r = $this->actingAs($this->teacher())->postJson('/api/tests', [
+            'title' => 'Нехватка', 'mode' => 'rules', 'publish' => true, 'topics' => [],
+            'matrix' => [['single', 1, 0, 5, 2, 0.7], ['tf', 1, 0, 0, 0, 0.5]],
+            'settings' => ['individual' => true],
+        ])->assertOk()->json();
+
+        $this->assertSame(7, $r['requested']);
+        $this->assertSame(3, $r['picked']);
+        $this->assertSame(3, $r['pool']);   // тип без вопросов в матрице в пул не попадает
+
+        $test = Test::where('code', $r['test']['id'])->firstOrFail();
+        $row = collect($this->get('/teacher/tests')->viewData('appData')['tests'])->firstWhere('id', $test->code);
+        $this->assertSame(3, $row['count']);
+
+        $this->actingAs($this->student())->get('/student/test?test='.$test->code)->assertOk();
+        $this->assertCount(3, Attempt::firstOrFail()->question_ids);
+    }
 }
