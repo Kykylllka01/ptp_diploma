@@ -69,10 +69,10 @@ class MaterialController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            // Проверяем расширение, а не MIME: DOCX и PPTX часто определяются как application/zip
+            // Проверяем расширение, а не MIME: DOCX, PPTX и OpenDocument часто определяются как application/zip
             'file' => ['required_without_all:url,text', 'file', 'max:51200', function ($attr, $file, $fail) {
-                if (! in_array(strtolower($file->getClientOriginalExtension()), ['pdf', 'docx', 'pptx', 'txt'], true)) {
-                    $fail('Поддерживаются только файлы PDF, DOCX, PPTX и TXT.');
+                if (! in_array(strtolower($file->getClientOriginalExtension()), ['pdf', 'docx', 'doc', 'odt', 'rtf', 'pptx', 'ppt', 'odp', 'txt', 'md'], true)) {
+                    $fail('Поддерживаются только файлы PDF, DOCX, DOC, ODT, RTF, PPTX, PPT, ODP, TXT и MD.');
                 }
             }],
             'url' => 'required_without_all:file,text|nullable|url:http,https|max:1000',

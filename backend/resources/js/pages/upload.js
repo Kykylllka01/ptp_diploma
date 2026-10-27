@@ -8,7 +8,7 @@
 
   function kindOf(name) {
     var ext = (name.split('.').pop() || '').toUpperCase();
-    return ['PDF', 'DOCX', 'PPTX', 'TXT', 'MP4'].indexOf(ext) >= 0 ? ext : 'FILE';
+    return ['PDF', 'DOCX', 'DOC', 'ODT', 'RTF', 'PPTX', 'PPT', 'ODP', 'TXT', 'MD', 'MP4'].indexOf(ext) >= 0 ? ext : 'FILE';
   }
   function sizeOf(bytes) { return bytes < 1048576 ? Math.max(1, Math.round(bytes / 1024)) + ' КБ' : (bytes / 1048576).toFixed(1).replace('.', ',') + ' МБ'; }
 
@@ -184,18 +184,20 @@
   }
 
   // Файл другого типа или больше 50 МБ даже не начинает загружаться: сервер его всё равно не примет
-  var ALLOWED = ['PDF', 'DOCX', 'PPTX', 'TXT'], MAX_BYTES = 50 * 1048576;
+  var ALLOWED = ['PDF', 'DOCX', 'DOC', 'ODT', 'RTF', 'PPTX', 'PPT', 'ODP', 'TXT', 'MD'], MAX_BYTES = 50 * 1048576;
   function addFiles(list) {
-    var wrongType = [], tooBig = [];
+    var wrongType = [], tooBig = [], djvu = [];
     Array.prototype.forEach.call(list, function (file) {
       var ext = (file.name.indexOf('.') >= 0 ? file.name.split('.').pop() : '').toUpperCase();
-      if (ALLOWED.indexOf(ext) < 0) wrongType.push(file.name);
+      if (ext === 'DJVU' || ext === 'DJV') djvu.push(file.name);
+      else if (ALLOWED.indexOf(ext) < 0) wrongType.push(file.name);
       else if (file.size > MAX_BYTES) tooBig.push(file.name);
       else upload(file);
     });
     var names = function (a) { return a.length > 3 ? a.slice(0, 3).join(', ') + ' и ещё ' + (a.length - 3) : a.join(', '); };
     var msg = [];
-    if (wrongType.length) msg.push((wrongType.length > 1 ? 'Не загружены' : 'Не загружен') + ': ' + names(wrongType) + '. Подходят только PDF, DOCX, PPTX и TXT');
+    if (wrongType.length) msg.push((wrongType.length > 1 ? 'Не загружены' : 'Не загружен') + ': ' + names(wrongType) + '. Подходят только PDF, DOCX, DOC, ODT, RTF, PPTX, PPT, ODP, TXT и MD');
+    if (djvu.length) msg.push('DjVu не поддерживается: ' + names(djvu) + '. Переведите его в PDF онлайн-конвертером или печатью в «Microsoft Print to PDF» из программы просмотра DjVu');
     if (tooBig.length) msg.push((tooBig.length > 1 ? 'Больше 50 МБ' : 'Файл больше 50 МБ') + ': ' + names(tooBig));
     if (msg.length) A.toast(msg.join('. '), true);
   }

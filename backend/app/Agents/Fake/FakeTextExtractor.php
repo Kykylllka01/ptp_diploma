@@ -30,8 +30,8 @@ class FakeTextExtractor implements TextExtractor
 
         $meta = match ($material->kind) {
             'PDF' => $ocr ? 'OCR' : 'PDF-документ',
-            'PPTX' => 'презентация',
-            'DOCX' => 'документ',
+            'PPTX', 'PPT', 'ODP' => 'презентация',
+            'DOCX', 'DOC', 'ODT', 'RTF' => 'документ',
             'URL' => 'веб-страница',
             'MP4' => 'видео',
             default => null,

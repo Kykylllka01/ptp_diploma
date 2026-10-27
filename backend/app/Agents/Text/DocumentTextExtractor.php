@@ -11,8 +11,9 @@ use Throwable;
 use ZipArchive;
 
 /**
- * Извлечение текста без нейросети: PDF — smalot/pdfparser, DOCX и PPTX — чтение XML
- * внутри архива, веб-страница — загрузка и очистка от разметки. В текст вставляются
+ * Извлечение текста без нейросети: PDF — smalot/pdfparser, DOCX, PPTX, ODT и ODP — чтение XML
+ * внутри архива, DOC, PPT и RTF — свои разборщики (MsDocReader, PptReader, RtfReader),
+ * веб-страница — загрузка и очистка от разметки. В текст вставляются
  * метки [с. N] и [слайд N], по ним Аналитик указывает место цитаты.
  * Сканы без текстового слоя помечаются has_text = false: OCR пока не подключён.
  */
@@ -25,10 +26,15 @@ class DocumentTextExtractor implements TextExtractor
     {
         try {
             return match ($material->kind) {
-                'TXT' => $this->txt($material),
                 'PDF' => $this->pdf($material, $ocr),
+                'TXT', 'MD' => $this->txt($material),
                 'DOCX' => $this->docx($material),
+                'DOC' => $this->doc($material),
+                'ODT' => $this->odt($material),
+                'RTF' => $this->rtf($material),
                 'PPTX' => $this->pptx($material),
+                'PPT' => $this->ppt($material),
+                'ODP' => $this->odp($material),
                 'URL' => $this->url($material),
                 'MP4' => ['text' => '', 'has_text' => false, 'meta' => 'видео: текст из видео пока не извлекается'],
                 default => ['text' => '', 'has_text' => false, 'meta' => 'формат не поддерживается'],
@@ -95,21 +101,105 @@ class DocumentTextExtractor implements TextExtractor
     }
 
     /**
+     * Документ Word 97–2003. Знаки шрифта Symbol в .doc лежат в области U+F020–U+F0FF
+     * (стрелка «→» — U+F0AE): переводим их по той же таблице, что и в DOCX.
+     */
+    private function doc(Material $m): array
+    {
+        $text = $this->symbolPua((new MsDocReader())->text($this->path($m)));
+
+        return $this->result($this->clean($text), 'документ Word 97–2003');
+    }
+
+    private function rtf(Material $m): array
+    {
+        $text = $this->symbolPua((new RtfReader())->text($this->path($m)));
+
+        return $this->result($this->clean($text), 'документ RTF');
+    }
+
+    /** Документ OpenDocument (LibreOffice, «Р7-Офис», «МойОфис»): content.xml внутри архива. */
+    private function odt(Material $m): array
+    {
+        $xml = $this->zipEntry($this->path($m), 'content.xml');
+        $body = preg_match('#<office:body>(.*)</office:body>#s', $xml, $b) ? $b[1] : $xml;
+        $text = $this->clean($this->odfText($body));
+        $pages = preg_match('/meta:page-count="(\d+)"/', $this->zipEntry($this->path($m), 'meta.xml', false), $p) ? (int) $p[1] : 0;
+
+        return $this->result($text, $pages ? $pages.' стр.' : 'документ OpenDocument');
+    }
+
+    /** Презентация OpenDocument: слайды — draw:page, заметки докладчика — presentation:notes. */
+    private function odp(Material $m): array
+    {
+        $xml = $this->zipEntry($this->path($m), 'content.xml');
+        preg_match_all('#<draw:page\b.*?</draw:page>#s', $xml, $pages);
+        $out = [];
+        foreach ($pages[0] as $i => $page) {
+            $notes = preg_match('#<presentation:notes\b.*?</presentation:notes>#s', $page, $n) ? $this->clean($this->odfText($n[0])) : '';
+            $text = $this->clean($this->odfText(preg_replace('#<presentation:notes\b.*?</presentation:notes>#s', '', $page)));
+            $out[] = '[слайд '.($i + 1).']'."\n".$text.($notes !== '' ? "\n".'Заметки: '.$notes : '');
+        }
+        $count = count($out);
+
+        return $this->result(implode("\n\n", $out), $count.' '.$this->plural($count, 'слайд', 'слайда', 'слайдов'));
+    }
+
+    private function odfText(string $xml): string
+    {
+        // Комментарии рецензентов — не часть текста
+        $xml = preg_replace('#<office:annotation\b.*?</office:annotation>#s', '', $xml);
+        $xml = preg_replace_callback('#<text:s(?:\s+text:c="(\d+)")?\s*/>#', fn ($s) => str_repeat(' ', (int) ($s[1] ?? 1) ?: 1), $xml);
+        $xml = preg_replace(
+            ['#<text:tab\s*/>#', '#<text:line-break\s*/>#', '#</text:(p|h)>#', '#</table:table-cell>#', '#</table:table-row>#'],
+            ["\t", "\n", "\n\n", "\t", "\n"],
+            $xml
+        );
+
+        return $this->symbolPua(html_entity_decode(strip_tags($xml), ENT_QUOTES | ENT_XML1, 'UTF-8'));
+    }
+
+    private function ppt(Material $m): array
+    {
+        $out = [];
+        foreach ((new PptReader())->slides($this->path($m)) as $i => $s) {
+            $text = $this->clean($this->symbolPua($s['text']));
+            $notes = $this->clean($this->symbolPua($s['notes']));
+            $out[] = '[слайд '.($i + 1).']'."\n".$text.($notes !== '' ? "\n".'Заметки: '.$notes : '');
+        }
+        $count = count($out);
+
+        return $this->result(implode("\n\n", $out), $count.' '.$this->plural($count, 'слайд', 'слайда', 'слайдов'));
+    }
+
+    /** Знаки шрифта Symbol в старых форматах лежат в области U+F020–U+F0FF («→» — U+F0AE). */
+    private function symbolPua(string $text): string
+    {
+        return preg_replace_callback('/[\x{F020}-\x{F0FF}]/u', function ($c) {
+            $ch = mb_chr(mb_ord($c[0]) - 0xF000, 'UTF-8');
+
+            return self::SYMBOL[$ch] ?? $ch;
+        }, $text) ?? $text;
+    }
+
+    /**
      * Знаки шрифта Symbol (стрелки функциональных зависимостей, ≤, ≠ и т. п.) Word хранит
      * как обычные буквы Latin-1: «®» вместо «→». Переводим их в Unicode.
-     * Символ может быть записан и как <w:sym w:char="F0AE"/>.
      */
+    private const SYMBOL = [
+        "\u{AE}" => '→', "\u{AC}" => '←', "\u{AD}" => '↑', "\u{AF}" => '↓', "\u{AB}" => '↔',
+        "\u{DE}" => '⇒', "\u{DC}" => '⇐', "\u{DB}" => '⇔', "\u{B4}" => '×', "\u{B1}" => '±',
+        "\u{A3}" => '≤', "\u{B3}" => '≥', "\u{B9}" => '≠', "\u{BB}" => '≈', "\u{CE}" => '∈',
+        "\u{CF}" => '∉', "\u{C7}" => '∩', "\u{C8}" => '∪', "\u{CC}" => '⊂', "\u{CD}" => '⊆',
+        "\u{C9}" => '⊃', "\u{CA}" => '⊇', "\u{C6}" => '∅', "\u{D9}" => '∧', "\u{DA}" => '∨',
+        "\u{D8}" => '¬', "\u{A5}" => '∞', "\u{22}" => '∀', "\u{24}" => '∃', "\u{B7}" => '•',
+        'a' => 'α', 'b' => 'β', 'g' => 'γ', 'd' => 'δ', 'p' => 'π', 's' => 'σ', 'l' => 'λ', 'S' => 'Σ', 'P' => 'Π',
+    ];
+
+    /** Символ шрифта Symbol может быть записан и как <w:sym w:char="F0AE"/>. */
     private function symbolFont(string $xml): string
     {
-        $map = [
-            "\u{AE}" => '→', "\u{AC}" => '←', "\u{AD}" => '↑', "\u{AF}" => '↓', "\u{AB}" => '↔',
-            "\u{DE}" => '⇒', "\u{DC}" => '⇐', "\u{DB}" => '⇔', "\u{B4}" => '×', "\u{B1}" => '±',
-            "\u{A3}" => '≤', "\u{B3}" => '≥', "\u{B9}" => '≠', "\u{BB}" => '≈', "\u{CE}" => '∈',
-            "\u{CF}" => '∉', "\u{C7}" => '∩', "\u{C8}" => '∪', "\u{CC}" => '⊂', "\u{CD}" => '⊆',
-            "\u{C9}" => '⊃', "\u{CA}" => '⊇', "\u{C6}" => '∅', "\u{D9}" => '∧', "\u{DA}" => '∨',
-            "\u{D8}" => '¬', "\u{A5}" => '∞', "\u{22}" => '∀', "\u{24}" => '∃', "\u{B7}" => '•',
-            'a' => 'α', 'b' => 'β', 'g' => 'γ', 'd' => 'δ', 'p' => 'π', 's' => 'σ', 'l' => 'λ', 'S' => 'Σ', 'P' => 'Π',
-        ];
+        $map = self::SYMBOL;
         $xml = preg_replace_callback('/<w:sym\b[^>]*w:char="F0([0-9A-Fa-f]{2})"[^>]*\/>/', function ($m) use ($map) {
             $ch = mb_chr(hexdec($m[1]), 'UTF-8');
 

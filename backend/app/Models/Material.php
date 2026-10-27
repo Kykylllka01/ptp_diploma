@@ -10,7 +10,7 @@ class Material extends Model
 {
     use Concerns\HasAuthor;
 
-    public const KINDS = ['PDF', 'DOCX', 'PPTX', 'TXT', 'MP4', 'URL'];
+    public const KINDS = ['PDF', 'DOCX', 'DOC', 'ODT', 'RTF', 'PPTX', 'PPT', 'ODP', 'TXT', 'MD', 'MP4', 'URL'];
 
     protected $fillable = [
         'course_id', 'user_id', 'title', 'kind', 'meta', 'file_path', 'url', 'size_bytes',

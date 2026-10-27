@@ -145,18 +145,18 @@ class UxPolishTest extends TestCase
         $this->assertMatchesRegularExpression('/\.docx"?$/', $disposition);
     }
 
-    public function test_only_pdf_docx_pptx_txt_files_are_accepted(): void
+    public function test_only_pdf_docx_doc_pptx_txt_files_are_accepted(): void
     {
         Storage::fake('local');
         $this->actingAs($this->teacher());
-        foreach (['Лекция.mp4', 'setup.exe', 'Конспект.doc', 'фото.png', 'без расширения'] as $name) {
+        foreach (['Лекция.mp4', 'setup.exe', 'фото.png', 'без расширения'] as $name) {
             $this->post('/api/materials', ['file' => UploadedFile::fake()->create($name, 12)], ['Accept' => 'application/json'])
-                ->assertUnprocessable()->assertJsonPath('errors.file.0', 'Поддерживаются только файлы PDF, DOCX, PPTX и TXT.');
+                ->assertUnprocessable()->assertJsonPath('errors.file.0', 'Поддерживаются только файлы PDF, DOCX, DOC, ODT, RTF, PPTX, PPT, ODP, TXT и MD.');
         }
-        foreach (['a.pdf', 'b.DOCX', 'c.pptx', 'd.txt'] as $name) {
+        foreach (['a.pdf', 'b.DOCX', 'Конспект.doc', 'c.pptx', 'd.txt', 'e.odt', 'f.rtf', 'g.ppt', 'h.odp', 'i.md'] as $name) {
             $this->post('/api/materials', ['file' => UploadedFile::fake()->create($name, 12)], ['Accept' => 'application/json'])->assertOk();
         }
-        $this->assertSame(4, \App\Models\Material::count());
+        $this->assertSame(10, \App\Models\Material::count());
     }
 
     public function test_error_pages_are_in_russian(): void

@@ -40,7 +40,7 @@ class Text
     /** Есть ли цитата в источнике (без учёта регистра, пробелов, кавычек и многоточий по краям). */
     public static function contains(string $source, string $quote): bool
     {
-        $q = trim(self::norm($quote), " .…\"'");
+        $q = self::trimEdges(self::norm($quote), ' .…"\'');
         if (mb_strlen($q) < 8) {
             return false;
         }
@@ -55,13 +55,25 @@ class Text
     }
 
     /**
+     * trim() по символам, а не по байтам. Обычный trim с «…» в списке отрезает байты
+     * 0x80 и 0xA6 у последней буквы («р», «Ц»), строка становится невалидным UTF-8,
+     * и preg_* дальше возвращают false.
+     */
+    public static function trimEdges(string $text, string $chars): string
+    {
+        $set = preg_quote($chars, '/');
+
+        return preg_replace('/^['.$set.']+|['.$set.']+$/u', '', $text) ?? trim($text);
+    }
+
+    /**
      * Фрагмент источника вокруг цитаты: HTML-экранированный, цитата в <mark>.
      * Если цитата не найдена дословно, возвращается сама цитата в <mark>.
      */
     public static function excerpt(string $source, string $quote, int $around = 220): string
     {
         $flat = trim(preg_replace('/\s+/u', ' ', $source));
-        $q = trim(preg_replace('/\s+/u', ' ', $quote), " .…\"«»");
+        $q = self::trimEdges(preg_replace('/\s+/u', ' ', $quote), ' .…"«»');
         $pos = $q !== '' ? mb_stripos($flat, $q) : false;
         if ($pos === false) {
             return '<mark>'.e($q).'</mark>';

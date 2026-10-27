@@ -5,7 +5,7 @@ namespace App\Agents\Contracts;
 use App\Models\Material;
 
 /**
- * Извлечение текста из материала: PDF/DOCX/PPTX, веб-страница, OCR для сканов.
+ * Извлечение текста из материала: PDF, Word, OpenDocument, RTF, PowerPoint, веб-страница, OCR для сканов.
  */
 interface TextExtractor
 {
