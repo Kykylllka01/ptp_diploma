@@ -694,7 +694,7 @@
 
   /* ---------- Иконка файла ----------
      Лист с загнутым углом и цветной плашкой типа: PDF красная, DOCX синяя, PPTX оранжевая… */
-  var FILE_TONES = { PDF: '#D93025', DOCX: '#2B579A', PPTX: '#C4471F', TXT: '#5A6070', MP4: '#7B3FC4', URL: '#0072BC' };
+  var FILE_TONES = { PDF: '#D93025', DOCX: '#2B579A', DOC: '#2B579A', ODT: '#2B579A', RTF: '#2B579A', PPT: '#C4471F', ODP: '#C4471F', MD: '#5A6070', PPTX: '#C4471F', TXT: '#5A6070', MP4: '#7B3FC4', URL: '#0072BC' };
   function fileIcon(kind, size) {
     var k = String(kind || 'FILE').toUpperCase().slice(0, 4), c = FILE_TONES[k] || '#5A6070', s = size || 40;
     var w = k.length > 3 ? 25 : 20;

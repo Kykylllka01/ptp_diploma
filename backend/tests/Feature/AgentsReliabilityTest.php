@@ -7,6 +7,7 @@ use App\Agents\Contracts\CriticAgent;
 use App\Agents\Llm\AgentLlm;
 use App\Agents\Llm\HttpLlmClient;
 use App\Agents\Llm\LlmGraderAgent;
+use App\Agents\Support\Text;
 use App\Jobs\RunGenerationPipeline;
 use App\Models\GenerationRun;
 use App\Models\LlmCall;
@@ -315,5 +316,13 @@ class AgentsReliabilityTest extends TestCase
         [$r] = $this->grader([self::run2(0, 'ok', 1, 'ok'), self::run2(0, 'ok', 1, 'ok'), self::run2(0, 'ok', 1, 'ok')]);
 
         $this->assertLessThan(100, $r['confidence']);
+    }
+
+    public function test_quote_ending_in_r_or_ts_does_not_break_utf8(): void
+    {
+        // trim() с «…» отрезал байт 0x80 у «р» и 0xA6 у «Ц» — Аналитик падал с array_map(): false given
+        $this->assertFalse(Text::contains('другое', 'длинный текст про другой пример'));
+        $this->assertTrue(Text::contains('Это длинный текст про пример.', '«текст про пример…»'));
+        $this->assertSame('Цитата Ц', Text::trimEdges('…«Цитата Ц»…', ' .…"«»'));
     }
 }

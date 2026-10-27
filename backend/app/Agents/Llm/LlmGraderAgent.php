@@ -3,6 +3,7 @@
 namespace App\Agents\Llm;
 
 use App\Agents\Contracts\GraderAgent;
+use App\Agents\Support\Text;
 use App\Models\Question;
 use App\Models\Review;
 
@@ -220,7 +221,7 @@ class LlmGraderAgent implements GraderAgent
         $ranges = [];
         foreach (array_unique($evidence) as $e) {
             // Модель видела ответ с ‹ › вместо < > (см. message) — цитату ищем в исходном ответе
-            $e = trim(strtr($e, ['‹' => '<', '›' => '>']), " .…\"«»");
+            $e = Text::trimEdges(strtr($e, ['‹' => '<', '›' => '>']), ' .…"«»');
             if (mb_strlen($e) < 4) {
                 continue;
             }

@@ -64,7 +64,7 @@
   var request = 0;
 
   var STATE = { uploaded: ['Загружен', 'gray'], processing: ['В обработке', 'blue'], ready: ['Текст извлечён', 'green'], review: ['Вопросы ждут проверки', 'amber'], error: ['Ошибка чтения', 'red'] };
-  var KIND = { PDF: 'PDF', DOCX: 'Документ Word', PPTX: 'Презентация PowerPoint', TXT: 'Текст', MP4: 'Видео' };
+  var KIND = { PDF: 'PDF', DOCX: 'Документ Word', DOC: 'Документ Word', ODT: 'Документ OpenDocument', RTF: 'Документ RTF', PPT: 'Презентация PowerPoint', ODP: 'Презентация OpenDocument', MD: 'Текст', PPTX: 'Презентация PowerPoint', TXT: 'Текст', MP4: 'Видео' };
   var RUN = { queued: ['В очереди', 'gray'], running: ['Идёт', 'blue'], paused: ['Пауза', 'gray'], done: ['Готово', 'green'], failed: ['Ошибка', 'red'], cancelled: ['Остановлен', 'gray'] };
 
   function tile(value, label, tone) {
