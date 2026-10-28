@@ -49,7 +49,8 @@
           <label class="field">Открыт с<input class="input" type="datetime-local" id="opens-at" value="{{ now()->format('Y-m-d\TH:i') }}"></label>
           <label class="field">Закрывается<input class="input" type="datetime-local" id="deadline-at" value="{{ now()->addDays(10)->format('Y-m-d') }}T23:59"></label>
           <label class="field">Время на попытку<select class="select" id="minutes"><option value="15">15 минут</option><option value="20">20 минут</option><option value="25">25 минут</option><option value="30">30 минут</option><option value="45" selected>45 минут</option><option value="60">60 минут</option><option value="90">90 минут</option><option value="0">Без ограничения</option></select></label>
-          <label class="field">Попыток<select class="select" id="attempts"><option value="1">1</option><option value="2">2</option><option value="99">Без ограничений</option></select></label>
+          <label class="field">Попыток<select class="select" id="attempts"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option><option value="99">Без ограничений</option><option value="own">Своё число…</option></select></label>
+          <label class="field" id="attempts-own-field" hidden>Сколько попыток<input class="input" type="number" id="attempts-own" min="1" max="98" step="1" value="4" inputmode="numeric"></label>
           <label class="field"><span>Баллов за тест <span class="field__hint">в Модеус</span></span>
             <input class="input" type="number" id="weight" min="0" max="100" step="0.5" inputmode="decimal" placeholder="например, 20">
           </label>
