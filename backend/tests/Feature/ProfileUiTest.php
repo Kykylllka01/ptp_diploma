@@ -71,7 +71,7 @@ class ProfileUiTest extends TestCase
         $this->assertSame(2, $d['fragments']);
         $this->assertArrayNotHasKey('excerpt', $d);   // вместо куска текста — сам файл
         $this->assertNull($d['fileUrl']);               // у этого материала файла нет
-        $this->assertSame(['total' => 2, 'pending' => 2, 'approved' => 0, 'rejected' => 0, 'clean' => 1, 'flagged' => 1, 'byType' => ['single' => 2]], $d['questions']);
+        $this->assertSame(['total' => 2, 'pending' => 2, 'approved' => 0, 'rejected' => 0, 'clean' => 1, 'flagged' => 1, 'byType' => ['single' => 2], 'removable' => 2], $d['questions']);
 
         $this->actingAs($this->student())->getJson('/api/materials/'.$m->id)->assertForbidden();
     }

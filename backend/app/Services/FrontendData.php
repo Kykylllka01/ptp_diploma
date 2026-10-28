@@ -180,12 +180,13 @@ class FrontendData
     {
         $attempt->load(['test.questions', 'answers.question', 'answers.review']);
         // Разбор с ответами — только когда пересдавать уже нельзя, иначе он подсказывает ответы для следующей попытки.
-        // Преподаватель видит разбор и ключи всегда.
-        $reviewAllowed = $forTeacher || $attempt->test->setting('show_review', true);
+        // Преподаватель видит разбор и ключи всегда. Режим «answers» — свои ответы и баллы без правильных ответов.
+        $mode = $forTeacher ? 'full' : $attempt->test->reviewMode();
+        $reviewAllowed = $mode !== 'none';
         $showReview = $forTeacher || ($reviewAllowed && $attempt->test->reviewOpenFor($attempt->user));
         // Вопрос из банка может стоять и в другом, ещё идущем тесте — его ключ остаётся скрытым
         $secret = $showReview && ! $forTeacher ? Test::secretQuestionIdsFor($attempt->user, $attempt->test) : [];
-        $keyFor = fn (Question $q) => $showReview && ! in_array($q->id, $secret, true);
+        $keyFor = fn (Question $q) => $showReview && $mode === 'full' && ! in_array($q->id, $secret, true);
         $answers = $attempt->answers->keyBy(fn ($a) => $a->question->code);
 
         $results = [];
@@ -209,7 +210,8 @@ class FrontendData
             'attempt' => [
                 'testId' => $attempt->test->code,
                 'questions' => $attempt->questionList()
-                    ->map(fn ($q) => $this->studentQuestion($q, $keyFor($q)) + ['keyHidden' => $showReview && ! $keyFor($q)])
+                    ->map(fn ($q) => $this->studentQuestion($q, $keyFor($q)) + ['keyHidden' => $showReview && ! $keyFor($q)
+                        ? ($mode === 'answers' ? 'never' : 'later') : false])
                     ->values()->all(),
             ],
             'result' => [
@@ -222,11 +224,12 @@ class FrontendData
                 'answers' => (object) $values,
                 'results' => (object) $results,
                 'showReview' => $showReview,
+                'reviewMode' => $mode,
                 'status' => $attempt->status,
                 'points' => $attempt->test->points($attempt->exactPercent()),
                 'weight' => $attempt->test->weight(),
                 'reviewNote' => $reviewAllowed && ! $showReview
-                    ? 'Разбор с правильными ответами откроется, когда закончатся попытки или тест закроется.'
+                    ? ($mode === 'answers' ? 'Разбор ваших ответов откроется' : 'Разбор с правильными ответами откроется').', когда закончатся попытки или тест закроется.'
                     : null,
                 // Журнал прокторинга — только преподавателю
                 'proctor' => $forTeacher ? $this->proctor($attempt) : null,
@@ -460,7 +463,8 @@ class FrontendData
      */
     private function testsForList(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Support\Collection
     {
-        $tests = $query->with(['groups', 'author:id,name'])->withCount(['questions', 'questions as open_count' => fn ($q) => $q->where('type', 'open')])->get();
+        $tests = $query->with(['groups', 'author:id,name'])->withCount(['questions', 'questions as open_count' => fn ($q) => $q->where('type', 'open')])
+            ->withExists('attempts as started')->get();
         if ($tests->isEmpty()) {
             return $tests;
         }
@@ -541,9 +545,13 @@ class FrontendData
             'group' => $t->groupLabel(),
             'groups' => $t->forAll() ? [] : $t->groups->pluck('id')->all(),
             'submitted' => $submitted,
+            // Тест уже начинали: состав и порядок вопросов заморожены, иначе пересчитываются сданные результаты
+            'started' => (bool) ($t->started ?? $t->attempts()->exists()),
             'settings' => [
                 'shuffle' => $t->setting('shuffle', true),
-                'showReview' => $t->setting('show_review', true),
+                'showReview' => $t->reviewMode() !== 'none',
+                'review' => $t->reviewMode(),
+                'opensLocal' => $t->opens_at?->format('Y-m-d\TH:i'),
                 'autoGrade' => $t->setting('auto_grade'),
             ],
             'about' => $t->about,

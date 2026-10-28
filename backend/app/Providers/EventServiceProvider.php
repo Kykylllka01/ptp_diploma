@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\OneSessionPerAccount;
+use App\Models\User;
+use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Auth\Listeners\SendEmailVerificationNotification;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
@@ -25,7 +28,12 @@ class EventServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Один вход на учётную запись: каждый вход выдаёт новый ключ сессии (OneSessionPerAccount)
+        Event::listen(Login::class, function (Login $e) {
+            if ($e->user instanceof User) {
+                OneSessionPerAccount::started($e->user);
+            }
+        });
     }
 
     /**

@@ -274,12 +274,13 @@
         renderAll();
       });
     } else {
-      // Черновик теста, куда складываются вопросы из банка
-      var drafts = (M.tests || []).filter(function (t) { return t.status === 'draft' && t.mine !== false; }).reverse();
-      if (!drafts.length) { A.toast('Вопросы добавляются в черновик теста. Соберите тест в режиме «Вручную» — он сохранится черновиком', true); return; }
+      // Свой тест, который ещё никто не начинал: черновик или уже открытый — после первых попыток состав заморожен
+      var STATUS = { draft: 'черновик', running: 'идёт', training: 'тренировка', closed: 'приём закрыт' };
+      var drafts = (M.tests || []).filter(function (t) { return t.mine !== false && !t.started; }).reverse();
+      if (!drafts.length) { A.toast('Вопросы добавляются в тест, который ещё никто не начинал. Соберите тест в режиме «Вручную» — он сохранится черновиком', true); return; }
       A.choose({
         title: 'Добавить в тест', text: 'Выбрано ' + n + ' ' + word + '. Неодобренные вопросы в тест не попадут.', ok: 'Добавить',
-        options: drafts.map(function (t) { return { value: t.id, label: t.title, hint: 'черновик · вопросов: ' + t.count }; })
+        options: drafts.map(function (t) { return { value: t.id, label: t.title, hint: (STATUS[t.status] || t.status) + ' · вопросов: ' + t.count }; })
       }).then(function (code) {
         if (!code) return;
         var draft = drafts.filter(function (t) { return t.id === code; })[0];

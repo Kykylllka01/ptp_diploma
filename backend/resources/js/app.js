@@ -724,8 +724,35 @@
   }
 
   // Исходные данные вопроса (схема отношения, зависимости, строки таблицы) — над формулировкой
+  // Строки «KodS | Name | Dol» подряд (от двух) показываются таблицей, первая — шапка; остальное — как написано
   function context(text) {
-    return text ? '<pre class="q-context">' + esc(text) + '</pre>' : '';
+    if (!text) return '';
+    var isRow = function (l) { return /\S\s*\|\s*\S/.test(l); };
+    var isRule = function (l) { return /\|/.test(l) && /^[\s|:\-]+$/.test(l) && /-{2,}/.test(l); };   // «---|---» из Markdown
+    var cells = function (l) { return l.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(function (c) { return c.trim(); }); };
+    var blocks = [], lines = String(text).replace(/\r/g, '').split('\n');
+    for (var i = 0; i < lines.length;) {
+      if (isRow(lines[i])) {
+        var rows = [];
+        while (i < lines.length && (isRow(lines[i]) || isRule(lines[i]))) { if (!isRule(lines[i])) rows.push(cells(lines[i])); i++; }
+        blocks.push(rows.length >= 2 ? { table: rows } : { text: rows[0].join(' | ') });
+        continue;
+      }
+      var plain = [];
+      while (i < lines.length && !isRow(lines[i])) plain.push(lines[i++]);
+      if (plain.join('').trim()) blocks.push({ text: plain.join('\n').replace(/^\n+|\n+$/g, '') });
+    }
+    return blocks.map(function (b) {
+      if (b.text != null) return '<pre class="q-context">' + esc(b.text) + '</pre>';
+      var width = Math.max.apply(null, b.table.map(function (r) { return r.length; }));
+      var row = function (r, tag) {
+        var out = '';
+        for (var k = 0; k < width; k++) out += '<' + tag + '>' + esc(r[k] || '') + '</' + tag + '>';
+        return '<tr>' + out + '</tr>';
+      };
+      return '<div class="q-context q-context--table"><table><thead>' + row(b.table[0], 'th') + '</thead><tbody>' +
+        b.table.slice(1).map(function (r) { return row(r, 'td'); }).join('') + '</tbody></table></div>';
+    }).join('');
   }
 
   // Строки сданных попыток студента (M.studentDone): «Мои тесты» и «Результаты»

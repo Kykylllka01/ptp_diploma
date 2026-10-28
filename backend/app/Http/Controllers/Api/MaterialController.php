@@ -11,6 +11,7 @@ use App\Models\Question;
 use App\Services\FrontendData;
 use App\Support\CurrentUser;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class MaterialController extends Controller
@@ -52,6 +53,8 @@ class MaterialController extends Controller
                 'clean' => $questions->filter(fn ($q) => ($q->critic['score'] ?? null) !== null && ! $q->flag_text)->count(),
                 'flagged' => $questions->filter(fn ($q) => $q->flag_text)->count(),
                 'byType' => $questions->countBy('type')->all(),
+                // Сколько удалится вместе с материалом; остальные (в тестах, с ответами, чужие) останутся в банке
+                'removable' => $material->isOwnedBy(CurrentUser::teacher()) ? $this->unusedQuestions($material)->count() : 0,
             ],
             'runs' => $runs->map(fn ($r) => [
                 'id' => $r->id,
@@ -119,15 +122,32 @@ class MaterialController extends Controller
         if (! $material->isOwnedBy(CurrentUser::teacher())) {
             abort(403, 'Удалить материал может только тот, кто его загрузил: '.$material->author?->name);
         }
-        if ($material->questions()->exists()) {
-            return response()->json(['message' => 'По материалу уже есть вопросы в банке, удалить нельзя'], 422);
-        }
+        // Вместе с материалом уходят его вопросы, которые нигде не использованы. Стоящие в тестах, отвеченные
+        // студентами или чужие остаются в банке (без ссылки на материал), чтобы не сломать тесты и результаты
+        [$deleted, $kept] = DB::transaction(function () use ($material) {
+            $deleted = Question::whereKey($this->unusedQuestions($material))->delete();
+            $kept = $material->questions()->count();
+            $material->delete();
+
+            return [$deleted, $kept];
+        });
         if ($material->file_path) {
             Storage::delete($material->file_path);
         }
-        $material->delete();
 
-        return response()->noContent();
+        return ['deleted' => $deleted, 'kept' => $kept];
+    }
+
+    /** id вопросов материала, которые можно удалить вместе с ним: свои, не в тесте и без ответов студентов. */
+    private function unusedQuestions(Material $material): \Illuminate\Support\Collection
+    {
+        $me = CurrentUser::teacher()->id;
+
+        return $material->questions()
+            ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $me))
+            ->whereDoesntHave('tests')
+            ->whereNotExists(fn ($q) => $q->selectRaw('1')->from('answers')->whereColumn('answers.question_id', 'questions.id'))
+            ->pluck('id');
     }
 
     private function extract(Material $material, bool $ocr = false): void

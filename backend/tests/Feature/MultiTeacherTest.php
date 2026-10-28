@@ -114,7 +114,7 @@ class MultiTeacherTest extends TestCase
 
         $this->actingAs($colleague);
         $this->deleteJson('/api/tests/'.$t['id'])->assertNoContent();
-        $this->deleteJson('/api/materials/'.$m['id'])->assertNoContent();
+        $this->deleteJson('/api/materials/'.$m['id'])->assertOk();
         $this->deleteJson('/api/questions/'.$q['id'])->assertNoContent();
     }
 

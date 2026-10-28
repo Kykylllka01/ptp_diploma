@@ -241,7 +241,7 @@ class SecurityTest extends TestCase
         $data = $this->get('/student/result?attempt='.$first->id)->assertOk()->viewData('appData');
         $this->assertTrue($data['result']['showReview']);
         $this->assertArrayNotHasKey('correct', $data['attempt']['questions'][0]);
-        $this->assertTrue($data['attempt']['questions'][0]['keyHidden']);
+        $this->assertSame('later', $data['attempt']['questions'][0]['keyHidden']);   // откроется после другого теста
         $this->postJson('/api/questions/Q-1/check', ['answer' => [1], 'attempt' => $first->id])->assertForbidden();
     }
 

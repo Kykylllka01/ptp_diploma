@@ -176,6 +176,17 @@ class Test extends Model
         return (bool) ($this->settings[$key] ?? $default);
     }
 
+    /** Варианты разбора после сдачи: с правильными ответами, только свои ответы и баллы, без разбора. */
+    public const REVIEW_MODES = ['full', 'answers', 'none'];
+
+    /** Разбор после сдачи; у тестов, собранных до выбора из трёх, — по старому переключателю show_review. */
+    public function reviewMode(): string
+    {
+        $mode = $this->settings['review'] ?? null;
+
+        return in_array($mode, self::REVIEW_MODES, true) ? $mode : ($this->setting('show_review', true) ? 'full' : 'none');
+    }
+
     public function getRouteKeyName(): string
     {
         return 'code';

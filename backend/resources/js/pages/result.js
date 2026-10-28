@@ -81,7 +81,8 @@
   var weakest = tlist.slice().sort(function (a, b) { return a[1] - b[1]; })[0];
   var wrong = Q.filter(function (q) { var r = att.results[q.id]; return r.final && r.score < r.max; });
   var weakQ = weakest && wrong.filter(function (q) { return q.topic === weakest[0]; })[0];
-  var canPractice = !T && att.showReview && wrong.some(function (q) { return q.type !== 'open'; });
+  var withKeys = att.showReview && att.reviewMode !== 'answers';
+  var canPractice = !T && withKeys && wrong.some(function (q) { return q.type !== 'open'; });
   A.$('#advice').textContent = !weakest ? 'Подробного разбора по этому тесту нет.' : T
     ? (weakest[1] < 100 ? 'Больше всего ошибок в теме «' + weakest[0] + '» (' + weakest[1] + '%). Ошибок всего: ' + wrong.length + '.' : 'Ошибок нет.')
     : weakest[1] < 100
@@ -90,7 +91,7 @@
     : 'Ошибок нет — отличный результат.';
   // Работа над ошибками: вопросы с выбором ответа, сопоставление и SQL (развёрнутые проверяет преподаватель)
   var practice = wrong.filter(function (q) { return q.type !== 'open'; });
-  A.$('#train-btn').hidden = T || !practice.length || !att.showReview;
+  A.$('#train-btn').hidden = T || !practice.length || !withKeys;
   A.$('#train-btn').href = 'test?mode=training&attempt=' + att.attemptId;
   A.$('#train-btn').textContent = 'Работа над ошибками · ' + practice.length + ' ' + A.plural(practice.length, 'вопрос', 'вопроса', 'вопросов');
 
@@ -124,10 +125,20 @@
         '<p style="margin: 10px 0 12px; font-size: 17px; font-weight: 500">' + esc(q.text) + '</p>';
       var body;
       if (q.keyHidden) {
-        // Этот вопрос есть в другом, ещё идущем тесте — правильный ответ пока не показываем
-        var mineText = Array.isArray(a) ? (q.options ? a.map(function (k) { return q.options[k]; }).join('; ') : 'ответ дан') : a;
-        body = '<div class="ans ans--neutral" style="white-space: pre-wrap; font-size: 14px"><span><b class="strong">' + YOUR + ':</b> ' + esc(mineText || 'нет ответа') + '</span></div>' +
-          '<p class="muted" style="margin: 12px 0 0">Правильный ответ откроется позже: этот вопрос есть в тесте, который ещё идёт.</p>';
+        // Правильный ответ скрыт: вопрос есть в другом, ещё идущем тесте (later) или преподаватель показывает только ответы и баллы (never)
+        var mineText = Array.isArray(a)
+          ? (q.options ? a.map(function (k) { return q.options[k]; }).join('; ') : q.terms ? q.terms.map(function (t, k) { return t + ' — ' + (a[k] >= 0 ? q.definitions[a[k]] : 'нет ответа'); }).join('; ') : 'ответ дан')
+          : a;
+        body = '<div class="ans ans--neutral' + (q.type === 'sql' ? ' mono' : '') + '" style="white-space: pre-wrap; font-size: 14px"><span><b class="strong">' + YOUR + ':</b> ' + esc(mineText || 'нет ответа') + '</span></div>' +
+          // Оценку развёрнутого ответа по критериям видно и без эталона; оспорить её тоже можно
+          (q.type === 'open' ? '<div class="stack-sm" style="margin-top: 12px; font-size: 15px">' + (r.criteria || []).map(function (c) {
+            var tone = !r.final ? 'gray' : c[0] === c[1] ? 'green' : c[0] === 0 ? 'red' : 'amber';
+            return '<div style="display: flex; gap: 12px; align-items: flex-start">' + A.chip((r.final ? c[0] : '—') + ' / ' + c[1], tone, '') + '<span>' + esc(c[2]) + '</span></div>';
+          }).join('') + '</div>' +
+            (r.canAppeal ? '<div class="row-wrap" style="margin-top: 14px; gap: 10px">' + (r.appeal ? '<span class="chip chip--amber">Апелляция отправлена</span>' : '<button type="button" class="btn btn--sm" data-appeal="' + q.id + '">Оспорить оценку</button>') + '</div>' : '') : '') +
+          '<p class="muted" style="margin: 12px 0 0">' + (q.keyHidden === 'never'
+            ? 'Правильные ответы в этом тесте не показываются — видны ваши ответы и баллы.'
+            : 'Правильный ответ откроется позже: этот вопрос есть в тесте, который ещё идёт.') + '</p>';
       } else if (q.type === 'match') {
         var given = a || [];
         body = '<div class="stack-sm" style="gap: 8px">' + q.terms.map(function (t, k) {

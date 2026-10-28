@@ -117,29 +117,36 @@
       '<div class="actions" style="gap: 10px">' +
         (q.total ? '<a class="btn btn--primary" href="bank?status=' + (q.pending ? 'pending' : 'all') + '&source=' + d.id + '">Вопросы в банке</a>' : '') +
         (d.chars ? '<a class="btn btn--ai-soft" href="upload?material=' + d.id + '#new-set">' + (q.total ? 'Сгенерировать ещё' : 'Сгенерировать вопросы') + '</a>' : '') +
-        // Удалить может автор материала, пока по нему нет вопросов (их сначала удаляют в банке)
-        (d.mine && !q.total ? '<button type="button" class="btn btn--danger" data-delete-material="' + d.id + '">Удалить материал</button>' : '') +
-      '</div>' +
-      (d.mine && q.total ? '<p class="muted small" style="margin: 0">Материал с вопросами в банке удалить нельзя: сначала удалите его вопросы в <a href="bank?status=all&source=' + d.id + '">банке</a>.</p>' : '');
+        // Удалить может автор материала; вместе с ним уходят вопросы, которые нигде не использованы
+        (d.mine ? '<button type="button" class="btn btn--danger" data-delete-material="' + d.id + '" data-total="' + q.total + '" data-removable="' + (q.removable || 0) + '">Удалить материал</button>' : '') +
+      '</div>';
   }
 
   A.$('#mm-body').addEventListener('click', function (e) {
     var b = e.target.closest('[data-delete-material]');
     if (!b) return;
-    var id = +b.getAttribute('data-delete-material');
+    var id = +b.getAttribute('data-delete-material'), total = +b.getAttribute('data-total'), removable = +b.getAttribute('data-removable');
     var m = M.materials.filter(function (x) { return x.id === id; })[0];
-    A.confirm({ title: 'Удалить материал?', text: '«' + (m ? m.title : 'Материал') + '» будет удалён вместе с файлом.', ok: 'Удалить', danger: true }).then(function (yes) {
+    var kept = total - removable;
+    var text = '«' + (m ? m.title : 'Материал') + '» будет удалён вместе с файлом' +
+      (removable ? ' и ' + removable + ' ' + A.plural(removable, 'вопросом', 'вопросами', 'вопросами') + ' из банка, ' +
+        A.plural(removable, 'который нигде не использован', 'которые нигде не использованы', 'которые нигде не использованы') : '') + '.' +
+      (kept ? ' ' + kept + ' ' + A.plural(kept, 'вопрос останется', 'вопроса останутся', 'вопросов останутся') + ' в банке: они стоят в тестах, на них отвечали студенты или их составил другой преподаватель.' : '');
+    A.confirm({ title: 'Удалить материал?', text: text, ok: 'Удалить', danger: true }).then(function (yes) {
       if (!yes) return;
-      A.api('DELETE', 'materials/' + id).then(function () {
-        modal.close();
-        M.materials = M.materials.filter(function (x) { return x.id !== id; });
-        materials = materials.filter(function (x) { return x.id !== id; });
-        renderStats();
-        renderMaterials();
-        A.toast('Материал удалён');
+      A.api('DELETE', 'materials/' + id).then(function (r) {
+        // Вопросы и счётчики на обзоре проще взять заново, чем пересчитывать: сообщение покажем после перезагрузки
+        try { sessionStorage.setItem('dashboard-flash', 'Материал удалён' + (r && r.deleted ? ' вместе с ' + r.deleted + ' ' + A.plural(r.deleted, 'вопросом', 'вопросами', 'вопросами') : '') +
+          (r && r.kept ? '; в банке оставлено ' + r.kept : '')); } catch (err) { /* без хранилища — без сообщения */ }
+        location.reload();
       });
     });
   });
+  // Сообщение о действии до перезагрузки страницы
+  try {
+    var flash = sessionStorage.getItem('dashboard-flash');
+    if (flash) { sessionStorage.removeItem('dashboard-flash'); A.toast(flash); }
+  } catch (err) { /* хранилище недоступно */ }
 
   A.$('#materials').addEventListener('click', function (e) {
     var row = e.target.closest('[data-material]');

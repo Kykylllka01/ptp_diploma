@@ -378,6 +378,8 @@ class QuestionController extends Controller
             $attempt = Attempt::where('user_id', $student->id)->where('status', '!=', 'in_progress')->find($data['attempt']);
             abort_unless($attempt && $attempt->answers()->where('question_id', $question->id)->exists(), 403, 'Вопроса нет в этой попытке');
             abort_unless($attempt->test->reviewOpenFor($student), 403, 'Проверка откроется, когда закончатся попытки или тест закроется');
+            // Разбор без правильных ответов: проверка ответа на вопрос из этой попытки их бы показала
+            abort_unless($attempt->test->reviewMode() === 'full', 403, 'В этом тесте правильные ответы не показываются');
         } else {
             $test = Test::visibleTo($student)->where('status', 'training')->where('code', $data['test'] ?? '')->first();
             abort_unless($test && $test->questions()->whereKey($question->id)->exists(), 403, 'Проверка доступна только в тренировке');

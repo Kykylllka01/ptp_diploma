@@ -16,7 +16,7 @@ use Illuminate\Validation\Rule;
 
 class TestController extends Controller
 {
-    public function __construct(private FrontendData $data)
+    public function __construct(private FrontendData $data, private ExaminerAgent $examiner)
     {
     }
 
@@ -47,6 +47,7 @@ class TestController extends Controller
             'settings' => 'nullable|array',
             'settings.shuffle' => 'boolean',
             'settings.show_review' => 'boolean',
+            'settings.review' => [Rule::in(Test::REVIEW_MODES)],
             'settings.auto_grade' => 'boolean',
             'settings.individual' => 'boolean',
             'settings.proctoring' => 'boolean',
@@ -98,7 +99,9 @@ class TestController extends Controller
                     'topics' => $data['topics'] ?? [],
                     'publish_as' => ! empty($data['training']) ? 'training' : (! empty($data['publish']) ? 'running' : null),
                     'shuffle' => (bool) ($data['settings']['shuffle'] ?? true),
-                    'show_review' => (bool) ($data['settings']['show_review'] ?? true),
+                    // Разбор: с ответами, только свои ответы и баллы или без разбора; show_review — для старых проверок
+                    'review' => $review = $data['settings']['review'] ?? (($data['settings']['show_review'] ?? true) ? 'full' : 'none'),
+                    'show_review' => $review !== 'none',
                     'auto_grade' => (bool) ($data['settings']['auto_grade'] ?? false),
                     'individual' => $individual,
                     'variant' => $individual ? $variant : null,
@@ -137,7 +140,25 @@ class TestController extends Controller
             'groups.*' => ['integer', Rule::exists('student_groups', 'id')->where('course_id', $test->course_id)],
             'weight' => 'sometimes|nullable|numeric|min:0|max:100',
             'proctoring' => 'sometimes|boolean',
+            'minutes' => 'sometimes|integer|min:0|max:600',
+            'attempts' => 'sometimes|integer|min:1|max:99',
+            'opens_at' => 'sometimes|nullable|date',
+            'shuffle' => 'sometimes|boolean',
+            'review' => ['sometimes', Rule::in(Test::REVIEW_MODES)],
         ], ['deadline_at.after' => 'Срок сдачи уже прошёл — выберите время в будущем']);
+        $opens = array_key_exists('opens_at', $data) ? $data['opens_at'] : $test->opens_at;
+        $deadline = array_key_exists('deadline_at', $data) ? $data['deadline_at'] : $test->deadline_at;
+        if ($opens && $deadline && strtotime((string) $deadline) <= strtotime((string) $opens)) {
+            return response()->json(['message' => 'Срок сдачи должен быть позже открытия теста'], 422);
+        }
+        // Порядок вопросов перемешивается по номеру попытки: переключать его посреди теста — менять порядок у тех, кто уже начал
+        if (array_key_exists('shuffle', $data) && (bool) $data['shuffle'] !== $test->setting('shuffle', true) && $test->attempts()->exists()) {
+            return response()->json(['message' => 'Тест уже проходили — перемешивание менять нельзя'], 409);
+        }
+        if (array_key_exists('attempts', $data)) {
+            $data['attempts_allowed'] = $data['attempts'];
+            unset($data['attempts']);
+        }
         // Повторное открытие после срока: продлеваем на неделю, иначе тест сразу снова закроется
         if (($data['status'] ?? null) === 'running' && $test->deadline_at?->isPast() && ! array_key_exists('deadline_at', $data)) {
             $data['deadline_at'] = now()->addWeek()->setTime(23, 59);
@@ -149,7 +170,7 @@ class TestController extends Controller
             return response()->json(['message' => 'В тесте нет вопросов — добавьте их из банка, потом открывайте приём'], 422);
         }
         DB::transaction(function () use ($test, $data) {
-            if (array_key_exists('weight', $data) || array_key_exists('proctoring', $data)) {
+            if (array_intersect_key($data, array_flip(['weight', 'proctoring', 'shuffle', 'review']))) {
                 // Настройки перечитываются под блокировкой: правка из другой вкладки не затрётся
                 $settings = Test::lockForUpdate()->findOrFail($test->id)->settings ?? [];
                 if (array_key_exists('weight', $data)) {
@@ -158,8 +179,15 @@ class TestController extends Controller
                 if (array_key_exists('proctoring', $data)) {
                     $settings['proctoring'] = (bool) $data['proctoring'];
                 }
+                if (array_key_exists('shuffle', $data)) {
+                    $settings['shuffle'] = (bool) $data['shuffle'];
+                }
+                if (array_key_exists('review', $data)) {
+                    $settings['review'] = $data['review'];
+                    $settings['show_review'] = $data['review'] !== 'none';
+                }
                 $test->settings = $settings;
-                unset($data['weight'], $data['proctoring']);
+                unset($data['weight'], $data['proctoring'], $data['shuffle'], $data['review']);
             }
             if (array_key_exists('groups', $data)) {
                 $groups = array_values(array_unique($data['groups'] ?? []));
@@ -234,7 +262,48 @@ class TestController extends Controller
             $test->update(['status' => $publishAs]);
         }
 
+        $this->refreshVariant($test);
+
         return ['added' => $added, 'skipped' => $skipped, 'test' => $this->data->test($test->loadCount('questions'))];
+    }
+
+    /** Вопросы теста по порядку — для правки состава на странице «Тесты». */
+    public function questions(Test $test)
+    {
+        $this->ownCourse($test);
+
+        return ['questions' => $test->questions()->get(['questions.id', 'code', 'type', 'difficulty', 'points', 'text'])
+            ->map(fn ($q) => ['id' => $q->code, 'type' => $q->type, 'difficulty' => $q->difficulty, 'points' => $q->points, 'text' => $q->text])->all()];
+    }
+
+    /** Убрать вопросы из теста — пока его никто не начинал. Сами вопросы остаются в банке. */
+    public function detachQuestions(Request $request, Test $test)
+    {
+        $this->onlyAuthor($test, 'Убирать вопросы из теста');
+        $data = $request->validate(['ids' => 'required|array|min:1|max:500', 'ids.*' => 'string|max:20']);
+        if ($test->attempts()->exists()) {
+            return response()->json(['message' => 'Тест уже проходили — состав менять нельзя. Соберите новый тест'], 409);
+        }
+        $ids = Question::whereIn('code', $data['ids'])->pluck('id');
+        // Открытый тест без вопросов студенту не показать: последний вопрос из него не убираем
+        if (in_array($test->status, ['running', 'training'], true) && $test->questions()->whereNotIn('questions.id', $ids)->doesntExist()) {
+            return response()->json(['message' => 'В открытом тесте должен остаться хотя бы один вопрос'], 422);
+        }
+        $removed = $test->questions()->detach($ids);
+        $this->refreshVariant($test);
+
+        return ['removed' => $removed, 'test' => $this->data->test($test->loadCount('questions'))];
+    }
+
+    /** У теста «свой вариант каждому» после правки пула пересчитываем, сколько вопросов достанется студенту. */
+    private function refreshVariant(Test $test): void
+    {
+        if (! $test->isIndividual()) {
+            return;
+        }
+        $test->load('questions');
+        $variant = $this->examiner->assemble($test->questions, $test->settings['matrix'] ?? [], $test->settings['topics'] ?? [])->count();
+        $test->update(['settings' => ['variant' => $variant] + ($test->settings ?? [])]);
     }
 
     /**

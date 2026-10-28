@@ -305,14 +305,17 @@
     var d = e.target.closest('[data-delete-material]');
     if (!d) return;
     var m = library.filter(function (x) { return x.id === +d.getAttribute('data-delete-material'); })[0];
-    if (m.questionCount) { A.toast('По материалу уже есть вопросы в банке — удалить его нельзя', true); return; }
-    A.confirm({ title: 'Удалить материал?', text: '«' + m.title + '» будет удалён вместе с файлом.', ok: 'Удалить', danger: true }).then(function (yes) {
+    A.confirm({ title: 'Удалить материал?', danger: true, ok: 'Удалить',
+      text: '«' + m.title + '» будет удалён вместе с файлом' + (m.questionCount
+        ? ' и вопросами по нему, которые нигде не использованы. Вопросы из тестов, с ответами студентов и составленные другими преподавателями останутся в банке.'
+        : '.') }).then(function (yes) {
       if (!yes) return;
-      A.api('DELETE', 'materials/' + m.id).then(function () {
+      A.api('DELETE', 'materials/' + m.id).then(function (r) {
         library = library.filter(function (x) { return x.id !== m.id; });
         files = files.filter(function (f) { return f.id !== m.id; });
         render();
-        A.toast('Материал удалён');
+        A.toast('Материал удалён' + (r && r.deleted ? ' вместе с ' + r.deleted + ' ' + A.plural(r.deleted, 'вопросом', 'вопросами', 'вопросами') : '') +
+          (r && r.kept ? '; в банке оставлено ' + r.kept : ''));
       });
     });
   });

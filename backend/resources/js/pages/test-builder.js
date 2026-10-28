@@ -211,7 +211,7 @@
       weight: A.$('#weight').value === '' ? null : +A.$('#weight').value,
       training: training,
       publish: true,
-      settings: { shuffle: on('#sw-shuffle'), show_review: on('#sw-review'), auto_grade: on('#sw-auto'), individual: on('#sw-individual'), proctoring: !training && on('#sw-proctoring') }
+      settings: { shuffle: on('#sw-shuffle'), review: A.$('#review').value, auto_grade: on('#sw-auto'), individual: on('#sw-individual'), proctoring: !training && on('#sw-proctoring') }
     }).then(function (r) {
       var msg = mode === 'manual'
         ? 'Тест «' + title + '» создан. Отметьте вопросы в банке и нажмите «Добавить в тест» — после этого он откроется студентам'
