@@ -161,6 +161,12 @@ class FrontendData
             'proctoring' => $attempt !== null && $test->isProctored(),
             'proctorCount' => $attempt !== null && $test->isProctored() ? $attempt->proctorEvents()->count() : 0,
             'startedAt' => $attempt?->started_at?->getTimestampMs() ?? now()->getTimestampMs(),
+            // Конец попытки по часам сервера: время на попытку или срок сдачи теста, что раньше
+            'endsAt' => $attempt?->endsAt()?->getTimestampMs(),
+            // Время закрытия приёма по часам сервера: часовой пояс устройства студента может отличаться
+            'deadlineTime' => $test->deadline_at?->format('H:i'),
+            'cutByDeadline' => $attempt !== null && (int) $test->minutes > 0
+                && (bool) $test->deadline_at?->lt($attempt->started_at->copy()->addMinutes((int) $test->minutes)),
             'serverNow' => now()->getTimestampMs(),
             'answers' => (object) $answers,
             'flags' => (object) array_fill_keys($attempt?->flags ?? [], true),
@@ -496,7 +502,9 @@ class FrontendData
         $deadline = match (true) {
             $t->status === 'running' && $t->opens_at !== null && $t->opens_at->isFuture() => 'Откроется '.$t->opens_at->translatedFormat('j F в H:i'),
             $t->status === 'running' && $t->deadline_at !== null && $t->deadline_at->isPast() => 'Срок сдачи прошёл',
-            $t->status === 'running' && $t->deadline_at !== null => 'До '.$t->deadline_at->translatedFormat('j F').' · осталось '.$this->daysLeft($t->deadline_at),
+            // Время срока важно в последний день: тест может закрыться раньше, чем кончится время попытки
+            $t->status === 'running' && $t->deadline_at?->isToday() => 'Сегодня до '.$t->deadline_at->format('H:i'),
+            $t->status === 'running' && $t->deadline_at !== null => 'До '.$t->deadline_at->translatedFormat('j F в H:i').' · осталось '.$this->daysLeft($t->deadline_at),
             $t->status === 'draft' && $t->opens_at !== null => 'Откроется '.$t->opens_at->translatedFormat('j F'),
             $t->status === 'draft' => 'Ещё не опубликован',
             default => '',
@@ -516,6 +524,8 @@ class FrontendData
             'deadlineTs' => $t->deadline_at?->getTimestamp(),
             // Для поля datetime-local: время в поясе сервера, чтобы правка срока не сдвигалась из-за пояса браузера
             'deadlineLocal' => $t->deadline_at?->format('Y-m-d\TH:i'),
+            // Время срока по часам сервера — для подписей, где нет даты
+            'deadlineTime' => $t->deadline_at?->format('H:i'),
             'createdTs' => $t->created_at?->getTimestamp(),
             'deadline' => $deadline,
             'minutes' => $t->minutes,

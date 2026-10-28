@@ -24,34 +24,38 @@
     : qs.length ? 'Все новые вопросы проверены. Можно собирать тест.'
     : 'Банк вопросов пуст. Загрузите лекцию, и агенты составят по ней вопросы.';
 
-  A.$('#stats').innerHTML =
-    '<div class="card stat"><div class="lbl">Вопросов в банке</div><div class="stat__value">' + qs.length + '</div><div class="stat__hint">' + (materials.length ? 'по ' + materials.length + ' ' + A.plural(materials.length, 'материалу', 'материалам', 'материалам') : 'материалов пока нет') + '</div></div>' +
-    '<a href="bank" class="card stat' + (pending.length ? ' card--warn' : '') + '"><div class="lbl">Ждут одобрения</div><div class="stat__value">' + pending.length + '</div><div class="stat__hint">Открыть очередь →</div></a>' +
-    '<div class="card stat"><div class="lbl">Активных тестов</div><div class="stat__value">' + running + '</div><div class="stat__hint">' + (M.participants ? M.participants + ' ' + A.plural(M.participants, 'участник', 'участника', 'участников') : 'участников пока нет') + '</div></div>' +
-    '<a href="review" class="card stat"><div class="lbl">Развёрнутые ответы</div><div class="stat__value">' + openToReview + '</div><div class="stat__hint">агент оценил, нужна ваша подпись</div></a>';
+  function renderStats() {
+    A.$('#stats').innerHTML =
+      '<div class="card stat"><div class="lbl">Вопросов в банке</div><div class="stat__value">' + qs.length + '</div><div class="stat__hint">' + (materials.length ? 'по ' + materials.length + ' ' + A.plural(materials.length, 'материалу', 'материалам', 'материалам') : 'материалов пока нет') + '</div></div>' +
+      '<a href="bank" class="card stat' + (pending.length ? ' card--warn' : '') + '"><div class="lbl">Ждут одобрения</div><div class="stat__value">' + pending.length + '</div><div class="stat__hint">Открыть очередь →</div></a>' +
+      '<div class="card stat"><div class="lbl">Активных тестов</div><div class="stat__value">' + running + '</div><div class="stat__hint">' + (M.participants ? M.participants + ' ' + A.plural(M.participants, 'участник', 'участника', 'участников') : 'участников пока нет') + '</div></div>' +
+      '<a href="review" class="card stat"><div class="lbl">Развёрнутые ответы</div><div class="stat__value">' + openToReview + '</div><div class="stat__hint">агент оценил, нужна ваша подпись</div></a>';
+  }
+  renderStats();
 
   // Последние материалы; все — на странице «Материалы» с поиском и фильтрами
-  if (materials.length > SHOWN) {
-    A.$('#all-materials').hidden = false;
+  function renderMaterials() {
+    A.$('#all-materials').hidden = materials.length <= SHOWN;
     A.$('#all-materials').textContent = 'Все материалы (' + materials.length + ') →';
+    A.$('#materials').innerHTML = materials.slice(0, SHOWN).map(function (m) {
+      var mine = qs.filter(function (q) { return q.materialId === m.id; });
+      var p = mine.filter(function (q) { return q.status === 'pending'; }).length;
+      // Статус материала, а не только вопросов: в обработке, ошибка, без вопросов
+      var status = m.status === 'processing' ? A.chip('В обработке', 'blue')
+        : m.status === 'error' ? A.chip('Ошибка чтения', 'red')
+        : p ? A.chip(p + ' ' + A.plural(p, 'ждёт', 'ждут', 'ждут') + ' одобрения', 'amber')
+        : mine.length ? A.chip('Готово', 'green') : A.chip('Вопросов нет');
+      // Вся строка — кнопка: по клику открывается карточка материала
+      return '<button type="button" class="list-row list-row--btn" data-material="' + m.id + '" aria-haspopup="dialog">' +
+        A.fileIcon(m.kind, 40) +
+        '<span class="list-row__main"><span class="strong">' + esc(m.title) + '</span><span class="list-row__meta">' + esc([m.meta, 'загружено ' + m.date].filter(Boolean).join(' · ')) + '</span></span>' +
+        status +
+        '<span class="muted small" style="width: 90px; text-align: right">' + mine.length + ' ' + A.plural(mine.length, 'вопрос', 'вопроса', 'вопросов') + '</span>' +
+        '<svg class="list-row__go" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>' +
+      '</button>';
+    }).join('') || '<div class="empty">Материалов пока нет. <a href="upload">Загрузите лекцию</a> — агенты составят по ней вопросы.</div>';
   }
-  A.$('#materials').innerHTML = materials.slice(0, SHOWN).map(function (m) {
-    var mine = qs.filter(function (q) { return q.materialId === m.id; });
-    var p = mine.filter(function (q) { return q.status === 'pending'; }).length;
-    // Статус материала, а не только вопросов: в обработке, ошибка, без вопросов
-    var status = m.status === 'processing' ? A.chip('В обработке', 'blue')
-      : m.status === 'error' ? A.chip('Ошибка чтения', 'red')
-      : p ? A.chip(p + ' ' + A.plural(p, 'ждёт', 'ждут', 'ждут') + ' одобрения', 'amber')
-      : mine.length ? A.chip('Готово', 'green') : A.chip('Вопросов нет');
-    // Вся строка — кнопка: по клику открывается карточка материала
-    return '<button type="button" class="list-row list-row--btn" data-material="' + m.id + '" aria-haspopup="dialog">' +
-      A.fileIcon(m.kind, 40) +
-      '<span class="list-row__main"><span class="strong">' + esc(m.title) + '</span><span class="list-row__meta">' + esc([m.meta, 'загружено ' + m.date].filter(Boolean).join(' · ')) + '</span></span>' +
-      status +
-      '<span class="muted small" style="width: 90px; text-align: right">' + mine.length + ' ' + A.plural(mine.length, 'вопрос', 'вопроса', 'вопросов') + '</span>' +
-      '<svg class="list-row__go" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>' +
-    '</button>';
-  }).join('') || '<div class="empty">Материалов пока нет. <a href="upload">Загрузите лекцию</a> — агенты составят по ней вопросы.</div>';
+  renderMaterials();
 
   // ---------- Карточка материала ----------
   var modal = A.$('#material-modal');
@@ -113,8 +117,29 @@
       '<div class="actions" style="gap: 10px">' +
         (q.total ? '<a class="btn btn--primary" href="bank?status=' + (q.pending ? 'pending' : 'all') + '&source=' + d.id + '">Вопросы в банке</a>' : '') +
         (d.chars ? '<a class="btn btn--ai-soft" href="upload?material=' + d.id + '#new-set">' + (q.total ? 'Сгенерировать ещё' : 'Сгенерировать вопросы') + '</a>' : '') +
-      '</div>';
+        // Удалить может автор материала, пока по нему нет вопросов (их сначала удаляют в банке)
+        (d.mine && !q.total ? '<button type="button" class="btn btn--danger" data-delete-material="' + d.id + '">Удалить материал</button>' : '') +
+      '</div>' +
+      (d.mine && q.total ? '<p class="muted small" style="margin: 0">Материал с вопросами в банке удалить нельзя: сначала удалите его вопросы в <a href="bank?status=all&source=' + d.id + '">банке</a>.</p>' : '');
   }
+
+  A.$('#mm-body').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-delete-material]');
+    if (!b) return;
+    var id = +b.getAttribute('data-delete-material');
+    var m = M.materials.filter(function (x) { return x.id === id; })[0];
+    A.confirm({ title: 'Удалить материал?', text: '«' + (m ? m.title : 'Материал') + '» будет удалён вместе с файлом.', ok: 'Удалить', danger: true }).then(function (yes) {
+      if (!yes) return;
+      A.api('DELETE', 'materials/' + id).then(function () {
+        modal.close();
+        M.materials = M.materials.filter(function (x) { return x.id !== id; });
+        materials = materials.filter(function (x) { return x.id !== id; });
+        renderStats();
+        renderMaterials();
+        A.toast('Материал удалён');
+      });
+    });
+  });
 
   A.$('#materials').addEventListener('click', function (e) {
     var row = e.target.closest('[data-material]');

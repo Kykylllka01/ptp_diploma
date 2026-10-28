@@ -79,8 +79,13 @@ class SqlSandbox
         do {
             for ($i = 0; $i < $max; $i++) {
                 $lock = Cache::lock('sql-sandbox-slot-'.$i, (int) ceil($timeout) + 10);
-                if ($lock->get()) {
-                    return $lock;
+                try {
+                    if ($lock->get()) {
+                        return $lock;
+                    }
+                } catch (Throwable) {
+                    // Файл блокировки как раз открывает или удаляет другой процесс (на Windows — «Permission denied»):
+                    // место считаем занятым и пробуем следующее, а не роняем сдачу целиком
                 }
             }
             usleep(100_000);

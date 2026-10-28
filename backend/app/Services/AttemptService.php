@@ -17,6 +17,9 @@ use Illuminate\Support\Facades\DB;
 /** Попытки прохождения теста: старт, автосохранение, сдача и пересчёт после проверки преподавателем. */
 class AttemptService
 {
+    /** Дольше сдача не оценивается: процесс оборвался, попытку нужно сдать заново. */
+    private const STUCK_GRADING_MINUTES = 10;
+
     public function __construct(private GradingService $grading, private ExaminerAgent $examiner)
     {
     }
@@ -71,12 +74,22 @@ class AttemptService
      */
     public function finalizeOverdue(?Test $test = null, ?User $user = null): int
     {
-        $done = 0;
-        Attempt::with('test')->where('status', 'in_progress')
+        $scope = fn ($q) => $q
             ->when($test, fn ($q) => $q->where('test_id', $test->id))
-            ->when($user, fn ($q) => $q->where('user_id', $user->id))
+            ->when($user, fn ($q) => $q->where('user_id', $user->id));
+        // Сдача оборвалась посреди оценки (хостинг снял процесс по лимиту времени или памяти): транзакция
+        // оценки откатилась, а отметка «оценивается» осталась. Такая попытка не видна ни в журнале, ни в
+        // аналитике и сама не досдаётся — возвращаем её и сдаём заново с сохранёнными ответами.
+        $stuck = Attempt::where('status', 'grading')->tap($scope)
+            ->where('updated_at', '<', now()->subMinutes(self::STUCK_GRADING_MINUTES))->pluck('id');
+        if ($stuck->isNotEmpty()) {
+            Attempt::whereKey($stuck)->where('status', 'grading')->update(['status' => 'in_progress']);
+        }
+
+        $done = 0;
+        Attempt::with('test')->where('status', 'in_progress')->tap($scope)
             ->get()
-            ->filter(fn (Attempt $a) => $a->isOverdue())
+            ->filter(fn (Attempt $a) => $stuck->contains($a->id) || $a->isOverdue())
             ->each(function (Attempt $a) use (&$done) {
                 try {
                     $this->submit($a);

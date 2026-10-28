@@ -17,7 +17,7 @@ use Throwable;
 
 /**
  * Конвейер генерации вопросов: Аналитик → Составитель → Критик → Каталогизатор.
- * Прогресс пишется в generation_runs и agent_logs, экран «Работа агентов» читает его опросом.
+ * Запуск идёт частями (step): прогресс пишется в generation_runs и agent_logs, экран «Работа агентов» читает его опросом.
  */
 class GenerationPipeline
 {
@@ -29,175 +29,53 @@ class GenerationPipeline
     ) {
     }
 
+    /** Весь запуск за один вызов — для синхронной очереди и agents:bench. */
     public function run(GenerationRun $run): void
     {
-        if ($run->fresh()->status === 'cancelling') {
+        while ($this->step($run)) {
+            // следующая часть
+        }
+    }
+
+    /**
+     * Одна часть запуска: разбор одного материала, одна порция вопросов (Составитель → Критик →
+     * Каталогизатор) или завершение. Части короткие — несколько минут, — а прогресс между ними
+     * хранится в $run->state, поэтому большой запуск не упирается в предел времени задачи очереди:
+     * его продолжают следующие задачи, а уже готовые вопросы сразу размечены Каталогизатором.
+     *
+     * @return bool осталась ли работа на следующую часть
+     */
+    public function step(GenerationRun $run): bool
+    {
+        $run->refresh();
+        if (in_array($run->status, ['done', 'cancelled', 'failed'], true)) {
+            return false;
+        }
+        // Остановили, пока запуск ждал в очереди
+        if ($run->status === 'cancelling' && $run->state === null) {
             $run->update(['status' => 'cancelled', 'finished_at' => now()]);
 
-            return;
+            return false;
         }
-        $run->update(['status' => 'running', 'started_at' => now()]);
-        $this->initStates($run);
         AgentLlm::context(['generation_run_id' => $run->id]);
 
         try {
-            // Материалы без текста (сканы, пустые файлы) агентам нечего дать — их не считаем в план
-            $materials = Material::whereIn('id', $run->params['material_ids'] ?? [])->where('has_text', true)->get();
-            $courseTopics = $run->course->topics ?? [];
-            $count = (int) ($run->params['count'] ?? config('agents.default_count'));
-            $perMaterial = max(1, (int) ceil($count / max(1, $materials->count())));
-            $run->update(['total' => $perMaterial * $materials->count()]);
-
-            // 1. Аналитик. Сбой на одном материале не останавливает остальные
-            Agent::report('analyst', 'work', 'Разбирает материалы');
-            $analyses = [];
-            $topicsTotal = 0;
-            $concepts = 0;
-            foreach ($materials as $m) {
-                $this->guard($run);
-                $m->update(['status' => 'processing']);
-                try {
-                    $analyses[$m->id] = $this->analyze($m, $courseTopics, $run);
-                    $this->succeeded();
-                } catch (RunCancelled $e) {
-                    throw $e;
-                } catch (Throwable $e) {
-                    $this->failedStep($run, 'analyst', '«'.$m->title.'» не разобран', $e);
-                    continue;
-                }
-                $topicsTotal += count($analyses[$m->id]['topics']);
-                $concepts += $analyses[$m->id]['concepts'];
-                $run->log('analyst', '«'.$m->title.'»: '.$analyses[$m->id]['concepts'].' понятий, '.$analyses[$m->id]['examples'].' примеров'
-                    .(! empty($analyses[$m->id]['note']) ? ' ('.$analyses[$m->id]['note'].')' : ''));
-                $run->setAgentState('analyst', ['work', 'Работает', 'Разобрано материалов: '.count($analyses).' из '.$materials->count()]);
+            if ($run->state === null) {
+                $this->start($run);
             }
-            if (! $analyses) {
-                throw new \RuntimeException('Аналитик не смог разобрать ни один материал'.($this->lastError ? ': '.$this->lastError : ''));
-            }
-            $run->log('analyst', 'выделено тем: '.$topicsTotal);
-            $run->setAgentState('analyst', [count($analyses) < $materials->count() ? 'warn' : 'done', 'Готово', $topicsTotal.' '.self::plural($topicsTotal, 'тема', 'темы', 'тем').' · '.$concepts.' '.self::plural($concepts, 'понятие', 'понятия', 'понятий')]);
-            Agent::report('analyst', 'done', 'Выделил '.$concepts.' ключевых понятий');
-
-            // 2–3. Составитель и Критик
-            $run->setAgentState('writer', ['work', 'Работает', 'Генерирует вопросы']);
-            $run->setAgentState('critic', ['work', 'Работает', 'Проверяет вопросы']);
-            $created = collect();
-            foreach ($materials as $m) {
-                if (! isset($analyses[$m->id])) {
-                    continue;
-                }
-                $this->guard($run);
-                try {
-                    $drafts = $this->writer->generate($m, $analyses[$m->id], $this->paramsFor($m, $run), $perMaterial);
-                    $this->succeeded();
-                } catch (RunCancelled $e) {
-                    throw $e;
-                } catch (Throwable $e) {
-                    $this->failedStep($run, 'writer', 'вопросы по «'.$m->title.'» не составлены', $e);
-                    continue;
-                }
-                $run->log('writer', '«'.$m->title.'» → '.count($drafts).' из '.$perMaterial.' '.self::plural($perMaterial, 'вопроса', 'вопросов', 'вопросов')
-                    .(count($drafts) ? '' : ': в материале не нашлось понятий для вопросов'));
-                foreach ($drafts as $draft) {
-                    $this->guard($run);
-                    $run->increment('written');
-                    $verdict = null;
-                    $failure = null;
-                    try {
-                        $verdict = $this->critic->review($draft);
-
-                        // Доработка по замечаниям: ошибка по существу или не пройдена формальная проверка.
-                        // Не больше config('agents.rewrite_rounds') кругов, дальше решает преподаватель
-                        for ($round = 0; $round < (int) config('agents.rewrite_rounds', 1)
-                            && $verdict['verdict'] === 'dispute'
-                            && (($verdict['flag']['level'] ?? '') === 'red' || ! empty($verdict['formal'])); $round++) {
-                            $run->log('critic', mb_substr($draft['text'], 0, 60).'… → на доработку: '.mb_strtolower($verdict['flag']['text'] ?? 'замечания'));
-                            $draft = $this->writer->rewrite($draft, $verdict['checks']);
-                            $verdict = $this->critic->review($draft);
-                        }
-                        $this->succeeded();
-                    } catch (RunCancelled $e) {
-                        throw $e;
-                    } catch (Throwable $e) {
-                        // Сбой модели — не «плохой вопрос»: черновик уже оплачен, сохраняем его спорным,
-                        // решает преподаватель. Если упала доработка, остаётся последний вердикт Критика
-                        $failure = $e;
-                        $verdict = $verdict
-                            ? ['verdict' => 'dispute'] + $verdict
-                            : ['verdict' => 'dispute', 'score' => null, 'checks' => [],
-                                'flag' => ['text' => 'Критик не смог проверить вопрос — проверьте сами', 'level' => 'amber']];
-                    }
-                    $run->increment('checked');
-                    $run->setAgentState('critic', ['work', 'Работает', 'Проверено '.$run->checked.' из '.$run->written]);
-
-                    if ($verdict['verdict'] === 'reject') {
-                        $run->increment('rejected');
-                        $run->log('critic', 'вопрос отклонён: '.mb_substr($draft['text'], 0, 60).'…');
-                        continue;
-                    }
-                    if ($verdict['verdict'] === 'dispute') {
-                        $run->increment('disputed');
-                    }
-
-                    $q = $this->store($run, $m, $draft, $verdict);
-                    $created->push($q);
-                    if ($verdict['verdict'] === 'dispute') {
-                        $run->log('critic', $q->code.' спорный → к преподавателю');
-                    }
-                    // Подряд идущие сбои (нет баланса, сеть) останавливают запуск — но уже после сохранения черновика
-                    if ($failure) {
-                        $this->failedStep($run, 'critic', $q->code.' не проверен, сохранён для проверки преподавателем', $failure);
-                    }
-                }
-            }
-            $run->refresh();
-            $run->setAgentState('writer', ['done', 'Готово', $run->written.' вопросов']);
-            $run->setAgentState('critic', ['done', 'Готово', $run->checked.' проверено · '.$run->rejected.' отклонено · '.$run->disputed.' спорных']);
-            Agent::report('writer', 'done', 'Сгенерировал '.$run->written.' вопросов');
-            Agent::report('critic', $run->disputed ? 'warn' : 'done', 'Отклонил '.$run->rejected.', пометил спорные: '.$run->disputed);
-
+            $this->errors = (int) ($run->state['errors'] ?? 0);
+            $this->inARow = (int) ($run->state['in_a_row'] ?? 0);
+            $this->lastError = $run->state['last_error'] ?? null;
             $this->guard($run);
 
-            // 4. Каталогизатор
-            $run->setAgentState('catalog', ['work', 'Работает', 'Сверяет с банком…']);
-            // Сверяем с банком, а не друг с другом: черновики одного запуска похожи по построению
-            $bank = Question::where('course_id', $run->course_id)
-                ->where(fn ($q) => $q->whereNull('generation_run_id')->orWhere('generation_run_id', '!=', $run->id))
-                ->get();
-            $similar = 0;
-            $notChecked = 0;
-            foreach ($created as $q) {
-                try {
-                    $info = $this->catalog->catalog($q, $bank);
-                } catch (Throwable $e) {
-                    report($e);
-                    $notChecked++;
-                    $run->log('catalog', $q->code.': не удалось сверить с банком');
-                    continue;
-                }
-                $q->tags = $info['tags'];
-                $q->difficulty = $info['difficulty'];
-                if (! empty($info['similar'])) {
-                    $similar++;
-                    $q->flag_text = 'Похож на '.$info['similar']['code'];
-                    $q->flag_level = 'red';
-                    $q->addHistory('Каталогизатор нашёл похожий '.$info['similar']['code']);
-                    $run->log('catalog', $q->code.' похож на '.$info['similar']['code'].' ('.$info['similar']['percent'].'%)');
-                }
-                $q->save();
-            }
-            $run->log('catalog', $notChecked ? 'не сверено с банком: '.$notChecked : 'проставлены теги и сложность');
-            $run->update(['catalog_progress' => 100]);
-            $run->setAgentState('catalog', [$notChecked ? 'warn' : 'done', 'Готово', 'Теги проставлены · похожих: '.$similar.($notChecked ? ' · не сверено: '.$notChecked : '')]);
-
-            self::releaseMaterials($run);
-            if ($this->errors) {
-                $run->log('analyst', 'запуск завершён с ошибками модели: '.$this->errors.' — подробности выше');
-            }
-            // Только если запуск всё ещё наш: failed, записанный задачей очереди, не перезаписываем
-            GenerationRun::whereKey($run->id)->where('status', 'running')->update(['status' => 'done', 'finished_at' => now()]);
+            return match ($run->state['phase']) {
+                'analyze' => $this->analyzeNext($run),
+                'write' => $this->writeNext($run),
+                default => $this->finish($run),
+            };
         } catch (RunAborted) {
             // Статус и причину уже записал markFailed
+            return false;
         } catch (RunCancelled) {
             // Остановлено преподавателем: уже сохранённые вопросы остаются в банке
             $states = $run->fresh()->agent_states ?? [];
@@ -209,6 +87,8 @@ class GenerationPipeline
             $run->update(['status' => 'cancelled', 'finished_at' => now(), 'agent_states' => $states]);
             $run->log('analyst', 'запуск остановлен преподавателем');
             self::releaseMaterials($run);
+
+            return false;
         } catch (Throwable $e) {
             self::markFailed($run, $e->getMessage());
             throw $e;
@@ -216,6 +96,280 @@ class GenerationPipeline
             // Обработчик очереди живёт долго: следующая задача не должна писать вызовы в этот запуск
             AgentLlm::context([]);
         }
+    }
+
+    /** Начало запуска: план по материалам и пустой прогресс. */
+    private function start(GenerationRun $run): void
+    {
+        $run->update(['status' => 'running', 'started_at' => now()]);
+        $this->initStates($run);
+        // Материалы без текста (сканы, пустые файлы) агентам нечего дать — их не считаем в план
+        $materials = Material::whereIn('id', $run->params['material_ids'] ?? [])->where('has_text', true)->orderBy('id')->pluck('id')->all();
+        $count = (int) ($run->params['count'] ?? config('agents.default_count'));
+        $perMaterial = max(1, (int) ceil($count / max(1, count($materials))));
+        $run->update(['total' => $perMaterial * count($materials)]);
+        Agent::report('analyst', 'work', 'Разбирает материалы');
+
+        $this->put($run, [
+            'phase' => 'analyze',
+            'materials' => $materials,
+            'per_material' => $perMaterial,
+            'next' => 0,             // какой материал разбирать следующим
+            'analyses' => [],        // id материала → разбор Аналитика
+            'topics' => 0,
+            'concepts' => 0,
+            'material' => 0,         // какой материал сейчас у Составителя
+            'plan' => null,          // порции Составителя по этому материалу
+            'params' => null,        // параметры Составителя по этому материалу
+            'portion' => 0,
+            'drafts' => 0,           // сколько черновиков дал этот материал
+            'catalogued' => 0,
+            'similar' => 0,
+            'not_checked' => 0,
+        ]);
+    }
+
+    /** 1. Аналитик: один материал за часть. Сбой на одном материале не останавливает остальные. */
+    private function analyzeNext(GenerationRun $run): bool
+    {
+        $s = $run->state;
+        $total = count($s['materials']);
+        if ($m = Material::find($s['materials'][$s['next']] ?? 0)) {
+            $m->update(['status' => 'processing']);
+            try {
+                $analysis = $this->analyze($m, $run->course->topics ?? [], $run);
+                $this->succeeded();
+                $s['analyses'][$m->id] = $analysis;
+                $s['topics'] += count($analysis['topics']);
+                $s['concepts'] += $analysis['concepts'];
+                $run->log('analyst', '«'.$m->title.'»: '.$analysis['concepts'].' понятий, '.$analysis['examples'].' примеров'
+                    .(! empty($analysis['note']) ? ' ('.$analysis['note'].')' : ''));
+                $run->setAgentState('analyst', ['work', 'Работает', 'Разобрано материалов: '.count($s['analyses']).' из '.$total]);
+            } catch (RunCancelled $e) {
+                throw $e;
+            } catch (Throwable $e) {
+                $this->failedStep($run, 'analyst', '«'.$m->title.'» не разобран', $e);
+            }
+        }
+        $s['next']++;
+        if ($s['next'] < $total) {
+            $this->put($run, $s);
+
+            return true;
+        }
+
+        if (! $s['analyses']) {
+            throw new \RuntimeException('Аналитик не смог разобрать ни один материал'.($this->lastError ? ': '.$this->lastError : ''));
+        }
+        $run->log('analyst', 'выделено тем: '.$s['topics']);
+        $run->setAgentState('analyst', [count($s['analyses']) < $total ? 'warn' : 'done', 'Готово', $s['topics'].' '.self::plural($s['topics'], 'тема', 'темы', 'тем').' · '.$s['concepts'].' '.self::plural($s['concepts'], 'понятие', 'понятия', 'понятий')]);
+        Agent::report('analyst', 'done', 'Выделил '.$s['concepts'].' ключевых понятий');
+        $run->setAgentState('writer', ['work', 'Работает', 'Генерирует вопросы']);
+        $run->setAgentState('critic', ['work', 'Работает', 'Проверяет вопросы']);
+        $run->setAgentState('catalog', ['work', 'Работает', 'Сверяет новые вопросы с банком']);
+        $this->put($run, ['phase' => 'write'] + $s);
+
+        return true;
+    }
+
+    /**
+     * 2–4. Одна порция материала: Составитель пишет черновики, Критик проверяет (с доработкой),
+     * Каталогизатор сразу проставляет теги и сверяет с банком — оборванный запуск не оставит неразмеченных вопросов.
+     */
+    private function writeNext(GenerationRun $run): bool
+    {
+        $s = $run->state;
+        if (! $this->toMaterial($s)) {
+            $this->put($run, ['phase' => 'finish'] + $s);
+
+            return true;
+        }
+        $m = Material::findOrFail($s['materials'][$s['material']]);
+        $analysis = $s['analyses'][$m->id];
+
+        if ($s['plan'] === null) {
+            $s['params'] = $this->paramsFor($m, $run);
+            $s['plan'] = $this->writer->plan($analysis, $s['params'], $s['per_material']);
+            $s['portion'] = 0;
+            $s['drafts'] = 0;
+        }
+
+        if ($s['plan']) {
+            $drafts = [];
+            try {
+                $drafts = $this->writer->write($m, $analysis, $s['params'], $s['plan'][$s['portion']]);
+                $this->succeeded();
+            } catch (RunCancelled $e) {
+                throw $e;
+            } catch (Throwable $e) {
+                $this->failedStep($run, 'writer', 'вопросы по «'.$m->title.'» не составлены'
+                    .(count($s['plan']) > 1 ? ' (порция '.($s['portion'] + 1).' из '.count($s['plan']).')' : ''), $e);
+            }
+            $s['drafts'] += count($drafts);
+            $created = $this->review($run, $m, $drafts);
+            $this->catalogue($run, $created, $s);
+            $s['portion']++;
+        }
+
+        if ($s['portion'] >= count($s['plan'])) {
+            $run->log('writer', '«'.$m->title.'» → '.$s['drafts'].' из '.$s['per_material'].' '.self::plural($s['per_material'], 'вопроса', 'вопросов', 'вопросов')
+                .($s['drafts'] ? '' : ': в материале не нашлось понятий для вопросов'));
+            $s['material']++;
+            $s['plan'] = null;
+            $s['params'] = null;
+            // Материалы кончились — следующая часть сразу подводит итоги
+            if (! $this->toMaterial($s)) {
+                $s['phase'] = 'finish';
+            }
+        }
+        $this->put($run, $s);
+
+        return true;
+    }
+
+    /** Курсор Составителя — на следующий материал, который есть что писать: неразобранный или удалённый по ходу запуска пропускаем. */
+    private function toMaterial(array &$s): bool
+    {
+        $ids = $s['materials'];
+        while ($s['material'] < count($ids) && (! isset($s['analyses'][$ids[$s['material']]]) || ! Material::whereKey($ids[$s['material']])->exists())) {
+            $s['material']++;
+        }
+
+        return $s['material'] < count($ids);
+    }
+
+    /**
+     * Критик по черновикам порции, с доработкой по замечаниям.
+     *
+     * @return Question[] сохранённые вопросы (принятые и спорные)
+     */
+    private function review(GenerationRun $run, Material $m, array $drafts): array
+    {
+        $created = [];
+        foreach ($drafts as $draft) {
+            $this->guard($run);
+            $run->increment('written');
+            $verdict = null;
+            $failure = null;
+            try {
+                $verdict = $this->critic->review($draft);
+
+                // Доработка по замечаниям: ошибка по существу или не пройдена формальная проверка.
+                // Не больше config('agents.rewrite_rounds') кругов, дальше решает преподаватель
+                for ($round = 0; $round < (int) config('agents.rewrite_rounds', 1)
+                    && $verdict['verdict'] === 'dispute'
+                    && (($verdict['flag']['level'] ?? '') === 'red' || ! empty($verdict['formal'])); $round++) {
+                    $run->log('critic', mb_substr($draft['text'], 0, 60).'… → на доработку: '.mb_strtolower($verdict['flag']['text'] ?? 'замечания'));
+                    $draft = $this->writer->rewrite($draft, $verdict['checks']);
+                    $verdict = $this->critic->review($draft);
+                }
+                $this->succeeded();
+            } catch (RunCancelled $e) {
+                throw $e;
+            } catch (Throwable $e) {
+                // Сбой модели — не «плохой вопрос»: черновик уже оплачен, сохраняем его спорным,
+                // решает преподаватель. Если упала доработка, остаётся последний вердикт Критика
+                $failure = $e;
+                $verdict = $verdict
+                    ? ['verdict' => 'dispute'] + $verdict
+                    : ['verdict' => 'dispute', 'score' => null, 'checks' => [],
+                        'flag' => ['text' => 'Критик не смог проверить вопрос — проверьте сами', 'level' => 'amber']];
+            }
+            $run->increment('checked');
+            $run->setAgentState('critic', ['work', 'Работает', 'Проверено '.$run->checked.' из '.$run->written]);
+
+            if ($verdict['verdict'] === 'reject') {
+                $run->increment('rejected');
+                $run->log('critic', 'вопрос отклонён: '.mb_substr($draft['text'], 0, 60).'…');
+                continue;
+            }
+            if ($verdict['verdict'] === 'dispute') {
+                $run->increment('disputed');
+            }
+
+            $q = $this->store($run, $m, $draft, $verdict);
+            $created[] = $q;
+            if ($verdict['verdict'] === 'dispute') {
+                $run->log('critic', $q->code.' спорный → к преподавателю');
+            }
+            // Подряд идущие сбои (нет баланса, сеть) останавливают запуск — но уже после сохранения черновика
+            if ($failure) {
+                $this->failedStep($run, 'critic', $q->code.' не проверен, сохранён для проверки преподавателем', $failure);
+            }
+        }
+        $run->setAgentState('writer', ['work', 'Работает', 'Составлено вопросов: '.$run->written.' из '.$run->total]);
+
+        return $created;
+    }
+
+    /**
+     * Каталогизатор по вопросам порции: теги, сложность, похожие в банке. Сверяем с банком,
+     * а не друг с другом: черновики одного запуска похожи по построению.
+     *
+     * @param  Question[]  $created
+     */
+    private function catalogue(GenerationRun $run, array $created, array &$s): void
+    {
+        if (! $created) {
+            return;
+        }
+        $bank = Question::where('course_id', $run->course_id)
+            ->where(fn ($q) => $q->whereNull('generation_run_id')->orWhere('generation_run_id', '!=', $run->id))
+            ->get();
+        foreach ($created as $q) {
+            $s['catalogued']++;
+            try {
+                $info = $this->catalog->catalog($q, $bank);
+            } catch (Throwable $e) {
+                report($e);
+                $s['not_checked']++;
+                $run->log('catalog', $q->code.': не удалось сверить с банком');
+                continue;
+            }
+            $q->tags = $info['tags'];
+            $q->difficulty = $info['difficulty'];
+            if (! empty($info['similar'])) {
+                $s['similar']++;
+                $q->flag_text = 'Похож на '.$info['similar']['code'];
+                $q->flag_level = 'red';
+                $q->addHistory('Каталогизатор нашёл похожий '.$info['similar']['code']);
+                $run->log('catalog', $q->code.' похож на '.$info['similar']['code'].' ('.$info['similar']['percent'].'%)');
+            }
+            $q->save();
+        }
+        $run->catalog_progress = $run->total ? min(99, (int) round($s['catalogued'] / $run->total * 100)) : 0;
+        $run->setAgentState('catalog', ['work', 'Работает', 'Сверено с банком: '.$s['catalogued'].' · похожих: '.$s['similar']]);
+    }
+
+    /** Все порции готовы: итоги агентов, материалы — из «в обработке», запуск — готов. */
+    private function finish(GenerationRun $run): bool
+    {
+        $s = $run->state;
+        $run->setAgentState('writer', ['done', 'Готово', $run->written.' вопросов']);
+        $run->setAgentState('critic', ['done', 'Готово', $run->checked.' проверено · '.$run->rejected.' отклонено · '.$run->disputed.' спорных']);
+        Agent::report('writer', 'done', 'Сгенерировал '.$run->written.' вопросов');
+        Agent::report('critic', $run->disputed ? 'warn' : 'done', 'Отклонил '.$run->rejected.', пометил спорные: '.$run->disputed);
+
+        $run->log('catalog', $s['not_checked'] ? 'не сверено с банком: '.$s['not_checked'] : 'проставлены теги и сложность');
+        $run->catalog_progress = 100;
+        $run->setAgentState('catalog', [$s['not_checked'] ? 'warn' : 'done', 'Готово', 'Теги проставлены · похожих: '.$s['similar'].($s['not_checked'] ? ' · не сверено: '.$s['not_checked'] : '')]);
+
+        self::releaseMaterials($run);
+        if ($this->errors) {
+            $run->log('analyst', 'запуск завершён с ошибками модели: '.$this->errors.' — подробности выше');
+        }
+        // Только если запуск всё ещё наш: failed, записанный задачей очереди, не перезаписываем
+        GenerationRun::whereKey($run->id)->where('status', 'running')->update(['status' => 'done', 'finished_at' => now()]);
+
+        return false;
+    }
+
+    /** Сохранить прогресс запуска вместе со счётчиками сбоев модели — их читает следующая часть. */
+    private function put(GenerationRun $run, array $state): void
+    {
+        $run->state = array_replace($run->state ?? [], $state,
+            ['errors' => $this->errors, 'in_a_row' => $this->inARow, 'last_error' => $this->lastError]);
+        $run->save();
     }
 
     /**

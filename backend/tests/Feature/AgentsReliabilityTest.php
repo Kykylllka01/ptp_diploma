@@ -13,7 +13,10 @@ use App\Models\GenerationRun;
 use App\Models\LlmCall;
 use App\Models\Material;
 use App\Models\Question;
+use App\Services\GenerationPipeline;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Queue\Jobs\FakeJob;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Tests\Concerns\MakesCourseData;
@@ -124,6 +127,102 @@ class AgentsReliabilityTest extends TestCase
         $this->assertSame('done', $run->status);
         $this->assertGreaterThan(0, Question::where('generation_run_id', $run->id)->count());
         $this->assertTrue($run->logs()->where('message', 'like', '%не разобран%')->exists());
+    }
+
+    /**
+     * Выполнить задачи генерации, поставленные в поддельную очередь, как настоящий обработчик:
+     * каждая задача берёт одну часть (part_seconds = 0) и ставит продолжение.
+     *
+     * @return int сколько задач выполнено
+     */
+    private function workQueue(?callable $afterEach = null): int
+    {
+        config(['agents.part_seconds' => 0]);
+        $done = 0;
+        while ($job = Queue::pushed(RunGenerationPipeline::class)->get($done)) {
+            $job->setJob(new FakeJob);
+            $job->handle(app(GenerationPipeline::class));
+            $done++;
+            if ($afterEach) {
+                $afterEach($done);
+            }
+        }
+
+        return $done;
+    }
+
+    public function test_large_run_goes_in_short_parts_and_each_part_is_catalogued_at_once(): void
+    {
+        $material = $this->material();
+        Queue::fake();
+        $r = $this->postJson('/api/generation-runs', ['material_ids' => [$material['id']], 'types' => ['single', 'tf'], 'count' => 20, 'difficulty' => 'mixed'])->assertOk()->json();
+        $run = GenerationRun::findOrFail($r['id']);
+
+        $untagged = [];
+        $jobs = $this->workQueue(function () use ($run, &$untagged) {
+            // После каждой части все уже сохранённые вопросы размечены Каталогизатором
+            $untagged[] = Question::where('generation_run_id', $run->id)->get()->filter(fn ($q) => empty($q->tags))->count();
+        });
+
+        $run->refresh();
+        $this->assertSame('done', $run->status);
+        // Разбор материала, 4 порции по 6 вопросов (6+6+6+2) и завершение — каждая часть своей задачей
+        $this->assertSame(6, $jobs);
+        $this->assertSame(20, $run->written);
+        // Отклонённые Критиком не сохраняются, остальные — в банке
+        $this->assertSame(20 - $run->rejected, Question::where('generation_run_id', $run->id)->count());
+        $this->assertSame([0], array_values(array_unique($untagged)));
+        $this->assertSame(100, $run->catalog_progress);
+        $this->assertSame('done', $run->agent_states['catalog'][0]);
+        $this->assertSame(1, $run->logs()->where('message', 'like', '%понятий%примеров%')->count());   // материал разобран один раз
+        $this->assertTrue($run->logs()->where('message', 'like', '%→ 20 из 20%')->exists());
+        $this->assertNotSame('processing', Material::find($material['id'])->status);
+        $this->assertArrayNotHasKey('state', $this->getJson('/api/generation-runs/'.$run->id)->assertOk()->json());
+    }
+
+    public function test_run_stopped_between_parts_keeps_questions_already_made(): void
+    {
+        $material = $this->material();
+        Queue::fake();
+        $r = $this->postJson('/api/generation-runs', ['material_ids' => [$material['id']], 'types' => ['single'], 'count' => 18, 'difficulty' => 'mixed'])->assertOk()->json();
+        $run = GenerationRun::findOrFail($r['id']);
+
+        // После разбора и первой порции преподаватель нажимает «Остановить»
+        $this->workQueue(function (int $done) use ($run) {
+            if ($done === 2) {
+                $this->postJson('/api/generation-runs/'.$run->id.'/cancel')->assertOk();
+            }
+        });
+
+        $run->refresh();
+        $this->assertSame('cancelled', $run->status);
+        $this->assertSame(6, $run->written);   // только первая порция
+        $this->assertSame(6 - $run->rejected, Question::where('generation_run_id', $run->id)->count());
+        $this->assertSame(0, Question::where('generation_run_id', $run->id)->get()->filter(fn ($q) => empty($q->tags))->count());
+        $this->assertNotSame('processing', Material::find($material['id'])->status);
+    }
+
+    public function test_killed_part_fails_the_run_but_keeps_finished_parts(): void
+    {
+        $material = $this->material();
+        Queue::fake();
+        $r = $this->postJson('/api/generation-runs', ['material_ids' => [$material['id']], 'types' => ['single'], 'count' => 12, 'difficulty' => 'mixed'])->assertOk()->json();
+        $run = GenerationRun::findOrFail($r['id']);
+        config(['agents.part_seconds' => 0]);
+        foreach ([0, 1] as $i) {   // разбор и первая порция
+            $job = Queue::pushed(RunGenerationPipeline::class)->get($i);
+            $job->setJob(new FakeJob);
+            $job->handle(app(GenerationPipeline::class));
+        }
+
+        // Следующую часть хостинг снял посреди работы: обработчик очереди признаёт задачу упавшей
+        Queue::pushed(RunGenerationPipeline::class)->get(2)->failed(new RuntimeException('Job has been attempted too many times'));
+
+        $run->refresh();
+        $this->assertSame('failed', $run->status);
+        $this->assertSame(6, $run->written);
+        $this->assertSame(6 - $run->rejected, Question::where('generation_run_id', $run->id)->count());
+        $this->assertSame(0, Question::where('generation_run_id', $run->id)->get()->filter(fn ($q) => empty($q->tags))->count());
     }
 
     public function test_killed_generation_job_marks_the_run_failed(): void

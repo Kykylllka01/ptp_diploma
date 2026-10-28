@@ -482,6 +482,8 @@ a.table__title:hover { color: var(--tsu-blue); text-decoration: underline; text-
 .ans-edit { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; }
 .ans-edit input[type=radio], .ans-edit input[type=checkbox] { width: 20px; height: 20px; margin: 0; accent-color: var(--green); flex: none; }
 .ans-edit input[type=text] { flex: 1; border: none; font: 15px var(--mono); background: transparent; min-width: 0; padding: 6px 0; }
+/* Варианты ответа — растущие по тексту поля: длинный вариант виден целиком, а не обрезан */
+.ans-edit textarea { flex: 1; border: none; font: 15px/1.45 var(--mono); background: transparent; min-width: 0; padding: 6px 0; resize: none; overflow: hidden; }
 .ans-edit.is-correct { border-color: var(--green); background: #F2FAF5; }
 .ans-edit.is-flag { border-color: var(--red-border); background: var(--red-soft); }
 .checks { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; font-size: 14px; line-height: 1.45; }

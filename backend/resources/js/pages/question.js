@@ -81,9 +81,10 @@
       A.$('#add-option').hidden = false;
       A.$('#options').innerHTML = draft.options.map(function (o, i) {
         return '<div class="ans-edit"><span class="mono muted">' + (i + 1) + '</span>' +
-          '<input type="text" data-opt="' + i + '" value="' + esc(o.text) + '" aria-label="Пара ' + (i + 1) + '">' +
+          '<textarea rows="1" data-opt="' + i + '" aria-label="Пара ' + (i + 1) + '">' + esc(o.text) + '</textarea>' +
           '<button type="button" class="btn btn--icon" data-del="' + i + '" aria-label="Удалить строку ' + (i + 1) + '">' + A.icons.x + '</button></div>';
       }).join('');
+      fitOptions();
       return;
     }
     if (!isChoice) return;
@@ -95,12 +96,21 @@
       return '<div class="ans-edit' + cls + '">' +
         '<input type="' + (multi ? 'checkbox' : 'radio') + '" name="correct" data-correct="' + i + '"' + (o.correct ? ' checked' : '') + ' aria-label="Вариант ' + LETTERS[i] + ' верный">' +
         '<span class="mono muted">' + LETTERS[i] + '</span>' +
-        '<input type="text" data-opt="' + i + '" value="' + esc(o.text) + '" aria-label="Текст варианта ' + LETTERS[i] + '">' +
+        '<textarea rows="1" data-opt="' + i + '" aria-label="Текст варианта ' + LETTERS[i] + '">' + esc(o.text) + '</textarea>' +
         (o.correct ? A.chip('Верный', 'green') : o.flag ? A.chip(o.flag, 'red') : '') +
         (draft.type !== 'tf' ? '<button type="button" class="btn btn--icon" data-del="' + i + '" aria-label="Удалить вариант ' + LETTERS[i] + '">' + A.icons.x + '</button>' : '') +
       '</div>';
     }).join('');
+    fitOptions();
   }
+
+  // Варианты бывают длиннее строки: поле растёт по тексту, чтобы вариант был виден целиком
+  function fit(t) {
+    t.style.height = 'auto';
+    t.style.height = t.scrollHeight + 'px';
+  }
+  function fitOptions() { A.$$('#options textarea').forEach(fit); }
+  window.addEventListener('resize', fitOptions);
 
   function renderTags() {
     A.$('#tags').innerHTML = (draft.tags || [draft.topic]).map(function (t, i) {
@@ -251,7 +261,15 @@
 
   A.$('#options').addEventListener('input', function (e) {
     var i = e.target.getAttribute('data-opt');
-    if (i !== null) draft.options[+i].text = e.target.value;
+    if (i === null) return;
+    // Вариант — одна строка: перенос из вставленного текста заменяем пробелом
+    if (/[\r\n]/.test(e.target.value)) e.target.value = e.target.value.replace(/\s*[\r\n]+\s*/g, ' ');
+    draft.options[+i].text = e.target.value;
+    fit(e.target);
+  });
+  // Enter не переносит строку в варианте
+  A.$('#options').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.matches('textarea[data-opt]')) e.preventDefault();
   });
   A.$('#options').addEventListener('change', function (e) {
     var i = e.target.getAttribute('data-correct');
@@ -271,7 +289,7 @@
     if (draft.options.length >= LETTERS.length) return;
     draft.options.push({ text: '' });
     renderOptions();
-    var inputs = A.$$('#options input[type=text]');
+    var inputs = A.$$('#options textarea');
     inputs[inputs.length - 1].focus();
   });
 
