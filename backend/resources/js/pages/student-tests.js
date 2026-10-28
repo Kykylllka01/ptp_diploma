@@ -23,8 +23,8 @@
       t.attempts >= 99 ? 'попыток без ограничения' : t.attempts + ' ' + A.plural(t.attempts, 'попытка', 'попытки', 'попыток')
     ];
     if (t.open) meta.push(t.open + ' ' + A.plural(t.open, 'вопрос', 'вопроса', 'вопросов') + ' с развёрнутым ответом');
-    // Тест с жёстким прокторингом: перед стартом — предупреждение (ссылки ловит обработчик ниже)
-    var pr = t.proctoring ? ' data-proctor="' + esc(t.id) + '"' : '';
+    // Перед стартом новой попытки — предупреждения о прокторинге и о скором сроке сдачи (ссылки ловит обработчик ниже)
+    var pr = ' data-start="' + esc(t.id) + '"';
     var action;
     if (!t.count) action = '<button class="btn" disabled style="align-self: flex-start">Вопросы ещё не добавлены</button>';
     else if (!open) action = '<button class="btn" disabled style="align-self: flex-start">Пока недоступен</button>';
@@ -32,7 +32,7 @@
       '<a href="test?test=' + encodeURIComponent(t.id) + '" class="btn btn--primary"' + pr + '>Пересдать · ' + my.left + ' ' + A.plural(my.left, 'попытка', 'попытки', 'попыток') + '</a>' +
       '<a href="result?attempt=' + my.attemptId + '" class="btn">Смотреть результат</a></div>';
     else if (submitted) action = '<a href="result?attempt=' + my.attemptId + '" class="btn" style="align-self: flex-start">Смотреть результат</a>';
-    else action = '<a href="test?test=' + encodeURIComponent(t.id) + '" class="btn btn--primary" style="align-self: flex-start"' + pr + '>' + (my ? 'Продолжить тест' : 'Начать тест') + '</a>';
+    else action = '<a href="test?test=' + encodeURIComponent(t.id) + '" class="btn btn--primary" style="align-self: flex-start"' + (my ? '' : pr) + '>' + (my ? 'Продолжить тест' : 'Начать тест') + '</a>';
     return '<article class="card test-card' + (open && !submitted ? ' is-main' : '') + '">' +
       // Срока может не быть — тогда без пустой красной плашки
       '<div class="between">' + (open ? (submitted ? A.chip('Сдан · можно пересдать', 'green') : deadlineChip(t)) +
@@ -44,21 +44,41 @@
       action + '</article>';
   }).join('') || '<div class="card card--pad empty" style="grid-column: 1 / -1">Сейчас проходить нечего: новых тестов нет. Когда преподаватель откроет тест, он появится здесь.</div>';
 
-  // Предупреждение до начала попытки: время пойдёт, как только откроется тест
-  A.$('#todo').addEventListener('click', function (e) {
-    var link = e.target.closest('[data-proctor]');
-    if (!link || e.ctrlKey || e.metaKey || e.shiftKey) return;
-    e.preventDefault();
-    A.confirm({
+  // Предупреждения до начала попытки: время пойдёт, как только откроется тест
+  function proctorWarning(t) {
+    return A.confirm({
       title: 'В тесте жёсткий прокторинг',
       text: 'Во время теста нельзя переключаться на другие вкладки, сворачивать браузер, переходить в другие окна и программы, закрывать или перезагружать страницу. ' +
         'Если уйти со страницы, вопросы и варианты ответа скроются, а уход запишется — преподаватель увидит, когда и на сколько вы уходили.',
       ok: 'Понятно, начать', cancel: 'Не сейчас'
     }).then(function (yes) {
-      if (!yes) return;
-      try { sessionStorage.setItem('proctor-ok-' + link.getAttribute('data-proctor'), '1'); } catch (err) { /* правила покажет сам тест */ }
-      location.href = link.href;
+      if (yes) { try { sessionStorage.setItem('proctor-ok-' + t.id, '1'); } catch (err) { /* правила покажет сам тест */ } }
+      return yes;
     });
+  }
+  // Приём закроется раньше, чем кончится время попытки: попытка закончится по сроку сдачи
+  function shortTimeWarning(t) {
+    var left = t.deadlineTs ? Math.floor((t.deadlineTs * 1000 - Date.now()) / 60000) : Infinity;
+    if (!(t.minutes > 0 && left < t.minutes)) return Promise.resolve(true);
+    return A.confirm({
+      title: 'Времени меньше, чем длится тест',
+      // Время — по часам сервера, как в плашке срока: пояс устройства студента может отличаться
+      text: 'На тест отводится ' + t.minutes + ' ' + A.plural(t.minutes, 'минута', 'минуты', 'минут') + ', но приём закрывается в ' +
+        t.deadlineTime + ' — через ' + Math.max(0, left) + ' ' + A.plural(Math.max(0, left), 'минуту', 'минуты', 'минут') +
+        '. В это время попытка завершится сама, засчитаются сохранённые ответы.',
+      ok: 'Всё равно начать', cancel: 'Не сейчас'
+    });
+  }
+  A.$('#todo').addEventListener('click', function (e) {
+    var link = e.target.closest('[data-start]');
+    if (!link || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    var t = M.tests.filter(function (x) { return x.id === link.getAttribute('data-start'); })[0];
+    var short = t && t.minutes > 0 && t.deadlineTs && t.deadlineTs * 1000 - Date.now() < t.minutes * 60000;
+    if (!t || (!t.proctoring && !short)) return;
+    e.preventDefault();
+    shortTimeWarning(t)
+      .then(function (yes) { return yes && (t.proctoring ? proctorWarning(t) : true); })
+      .then(function (yes) { if (yes) location.href = link.href; });
   });
 
   // Здесь — три последние сдачи; все — на странице «Результаты»

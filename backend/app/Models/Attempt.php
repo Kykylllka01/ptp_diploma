@@ -50,6 +50,19 @@ class Attempt extends Model
     }
 
     /**
+     * Когда попытка закончится: время на попытку или срок сдачи — что наступит раньше.
+     * null — ни времени, ни срока. Таймер студента идёт до этого момента.
+     */
+    public function endsAt(): ?\Illuminate\Support\Carbon
+    {
+        $test = $this->test;
+        $byTime = (int) $test->minutes > 0 && $this->started_at ? $this->started_at->copy()->addMinutes((int) $test->minutes) : null;
+        $deadline = $test->deadline_at?->copy();
+
+        return $byTime && $deadline ? ($deadline->lt($byTime) ? $deadline : $byTime) : ($byTime ?? $deadline);
+    }
+
+    /**
      * Ответы больше не принимаются: вышло время попытки или срок сдачи (с минутой запаса на сеть),
      * либо преподаватель закрыл приём. Такую попытку можно только сдать с тем, что уже сохранено.
      */

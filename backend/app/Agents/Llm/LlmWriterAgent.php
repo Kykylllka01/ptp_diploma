@@ -34,14 +34,14 @@ class LlmWriterAgent implements WriterAgent
     {
     }
 
-    public function generate(Material $material, array $analysis, array $params, int $count): array
+    /** План: тип и сложность каждого вопроса, распределение по фрагментам по кругу, порции до PER_CALL вопросов фрагмента. */
+    public function plan(array $analysis, array $params, int $count): array
     {
-        $chunks = array_values(array_filter($analysis['chunks'] ?? [], fn ($c) => ! empty($c['concepts'])));
+        $chunks = self::chunks($analysis);
         if (! $chunks || $count <= 0) {
             return [];
         }
 
-        // План: тип и сложность каждого вопроса, распределение по фрагментам по кругу
         $types = $params['types'] ?: ['single'];
         $mix = self::DIFFICULTY_MIX[$params['difficulty'] ?? 'mixed'] ?? self::DIFFICULTY_MIX['mixed'];
         $slots = [];
@@ -51,39 +51,58 @@ class LlmWriterAgent implements WriterAgent
             $slots[$i % count($chunks)][] = ['type' => $type, 'difficulty' => $difficulty, 'bloom' => $this->bloom($difficulty, $params['bloom'] ?? null)];
         }
 
-        $course = $material->course->title ?? 'Базы данных';
-        $drafts = [];
+        $portions = [];
         foreach ($slots as $ci => $chunkSlots) {
-            $chunk = $chunks[$ci];
             foreach (array_chunk($chunkSlots, self::PER_CALL) as $batch) {
-                $ctx = [
-                    'topic' => $chunk['topic'] === 'другое' ? $material->title : $chunk['topic'],
-                    'source' => $material->title.(str_starts_with($chunk['place'], 'фрагмент') ? '' : ', '.$chunk['place']),
-                    'source_text' => $chunk['text'],
-                ];
-                // Порядок под кэш DeepSeek: сначала то, что общее у всех порций фрагмента (источник,
-                // понятия), затем изменчивое (задание порции, банк — он растёт по ходу запуска)
-                $user = '<источник место="'.$ctx['source'].'">'."\n".$chunk['text']."\n".'</источник>'
-                    ."\n\n".$this->concepts($chunk)
-                    ."\n\n".$this->task($batch, $params)
-                    ."\n\n".$this->bank($material->course_id, $ctx['topic'])
-                    .$this->notes($params);
+                $portions[] = ['chunk' => $ci, 'slots' => $batch];
+            }
+        }
 
-                $json = $this->llm->json('writer', $user, ['course' => $course], fn ($j) => is_array($j['questions'] ?? null) ? null : 'нужно поле questions (массив)');
+        return $portions;
+    }
 
-                foreach (array_slice($json['questions'], 0, count($batch)) as $k => $q) {
-                    if (! in_array($q['type'] ?? '', $types, true)) {
-                        continue;
-                    }
-                    $slot = $batch[$k] ?? $batch[0];
-                    if ($draft = QuestionDraft::fromModel($q, $ctx + ['difficulty' => $slot['difficulty'], 'bloom' => $slot['bloom'][0]])) {
-                        $drafts[] = $draft;
-                    }
-                }
+    public function write(Material $material, array $analysis, array $params, array $portion): array
+    {
+        $chunk = self::chunks($analysis)[$portion['chunk'] ?? -1] ?? null;
+        $batch = $portion['slots'] ?? [];
+        if (! $chunk || ! $batch) {
+            return [];
+        }
+        $types = $params['types'] ?: ['single'];
+        $course = $material->course->title ?? 'Базы данных';
+        $ctx = [
+            'topic' => $chunk['topic'] === 'другое' ? $material->title : $chunk['topic'],
+            'source' => $material->title.(str_starts_with($chunk['place'], 'фрагмент') ? '' : ', '.$chunk['place']),
+            'source_text' => $chunk['text'],
+        ];
+        // Порядок под кэш DeepSeek: сначала то, что общее у всех порций фрагмента (источник,
+        // понятия), затем изменчивое (задание порции, банк — он растёт по ходу запуска)
+        $user = '<источник место="'.$ctx['source'].'">'."\n".$chunk['text']."\n".'</источник>'
+            ."\n\n".$this->concepts($chunk)
+            ."\n\n".$this->task($batch, $params)
+            ."\n\n".$this->bank($material->course_id, $ctx['topic'])
+            .$this->notes($params);
+
+        $json = $this->llm->json('writer', $user, ['course' => $course], fn ($j) => is_array($j['questions'] ?? null) ? null : 'нужно поле questions (массив)');
+
+        $drafts = [];
+        foreach (array_slice($json['questions'], 0, count($batch)) as $k => $q) {
+            if (! in_array($q['type'] ?? '', $types, true)) {
+                continue;
+            }
+            $slot = $batch[$k] ?? $batch[0];
+            if ($draft = QuestionDraft::fromModel($q, $ctx + ['difficulty' => $slot['difficulty'], 'bloom' => $slot['bloom'][0]])) {
+                $drafts[] = $draft;
             }
         }
 
         return $drafts;
+    }
+
+    /** Фрагменты, по которым есть что спрашивать: план и порции отбирают их одинаково. */
+    private static function chunks(array $analysis): array
+    {
+        return array_values(array_filter($analysis['chunks'] ?? [], fn ($c) => ! empty($c['concepts'])));
     }
 
     public function rewrite(array $draft, array $criticChecks): array

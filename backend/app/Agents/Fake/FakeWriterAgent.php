@@ -13,20 +13,26 @@ class FakeWriterAgent implements WriterAgent
 {
     private const POINTS = ['single' => 1, 'tf' => 1, 'multiple' => 2, 'match' => 2, 'sql' => 2, 'open' => 5];
 
-    public function generate(Material $material, array $analysis, array $params, int $count): array
+    /** Сколько вопросов в порции — как у настоящего Составителя. */
+    private const PER_CALL = 6;
+
+    public function plan(array $analysis, array $params, int $count): array
     {
         $types = $params['types'] ?: ['single'];
         $topics = $analysis['topics'] ?: ['Общие вопросы'];
         $diffs = ($params['difficulty'] ?? 'mixed') === 'mixed' ? ['easy', 'medium', 'medium', 'hard'] : [$params['difficulty']];
 
-        $out = [];
+        $slots = [];
         for ($i = 0; $i < $count; $i++) {
-            $type = $types[$i % count($types)];
-            $topic = $topics[$i % count($topics)];
-            $out[] = $this->draft($type, $topic, $diffs[$i % count($diffs)], $material, $analysis, $i + 1);
+            $slots[] = ['type' => $types[$i % count($types)], 'topic' => $topics[$i % count($topics)], 'difficulty' => $diffs[$i % count($diffs)], 'n' => $i + 1];
         }
 
-        return $out;
+        return array_map(fn ($batch) => ['slots' => $batch], array_chunk($slots, self::PER_CALL));
+    }
+
+    public function write(Material $material, array $analysis, array $params, array $portion): array
+    {
+        return array_map(fn ($s) => $this->draft($s['type'], $s['topic'], $s['difficulty'], $material, $analysis, $s['n']), $portion['slots']);
     }
 
     public function rewrite(array $draft, array $criticChecks): array

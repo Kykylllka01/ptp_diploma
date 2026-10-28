@@ -44,7 +44,9 @@
     answers: training ? {} : Object.assign({}, M.attempt.answers),
     flags: training ? {} : Object.assign({}, M.attempt.flags),
     current: training ? 0 : Math.min(M.attempt.current || 0, Q.length - 1),
-    startedAt: M.attempt.startedAt + clockSkew
+    startedAt: M.attempt.startedAt + clockSkew,
+    // Конец попытки в часах браузера: время на попытку или срок сдачи теста — что раньше
+    endsAt: M.attempt.endsAt ? M.attempt.endsAt + clockSkew : null
   };
 
   // Автосохранение с задержкой, чтобы не слать запрос на каждую букву
@@ -382,17 +384,23 @@
     A.$('#finish').textContent = 'Закончить тренировку';
     A.$('#autosave').textContent = 'Тренировка без оценки: после ответа нажмите «Проверить»';
   } else {
+    var secondsLeft = function () { return Math.floor((st.endsAt - Date.now()) / 1000); };
+    var two = function (n) { return (n < 10 ? '0' : '') + n; };
     var tick = function () {
-      var left = M.attempt.minutes * 60 - Math.floor((Date.now() - st.startedAt) / 1000);
+      var left = secondsLeft();
       if (left <= 0) { autoFinish(); return; }
-      var m = Math.floor(left / 60), s = left % 60;
-      timerEl.lastChild.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+      var h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), s = left % 60;
+      timerEl.lastChild.textContent = (h ? h + ':' + two(m) : two(m)) + ':' + two(s);
       timerEl.classList.toggle('is-low', left < 300);
       if (left <= 300 && !warned5) { warned5 = true; A.toast('Осталось 5 минут. Ответы сохраняются автоматически'); }
       if (left <= 60 && !warned1) { warned1 = true; A.toast('Осталась 1 минута — тест завершится сам', true); }
     };
-    var warned5 = M.attempt.minutes * 60 - Math.floor((Date.now() - st.startedAt) / 1000) <= 300, warned1 = false;
-    if (M.attempt.minutes > 0) {
+    // Таймер — когда у попытки есть время или срок сдачи наступит в ближайшие сутки; далёкий срок не отсчитываем
+    if (st.endsAt && (M.attempt.minutes > 0 || secondsLeft() < 86400)) {
+      var warned5 = secondsLeft() <= 300, warned1 = false;
+      if (M.attempt.cutByDeadline && secondsLeft() > 0) {
+        A.toast('Приём теста закрывается в ' + M.attempt.deadlineTime + ' — на попытку остаётся меньше ' + M.attempt.minutes + ' мин', true);
+      }
       tick();
       tickTimer = setInterval(tick, 1000);
     } else timerEl.hidden = true;
@@ -470,7 +478,7 @@
           '<li>Не переключайтесь на другие вкладки, не сворачивайте браузер и не переходите в другие окна и программы.</li>' +
           '<li>Не закрывайте и не перезагружайте страницу теста — это тоже считается уходом.</li>' +
           '<li>Если уйти со страницы, вопросы и варианты ответа скроются, а уход запишется: преподаватель увидит, когда и на сколько вы уходили.</li>' +
-          (M.attempt.minutes > 0 ? '<li>Время теста идёт, даже пока вопросы скрыты.</li>' : '') +
+          (M.attempt.endsAt ? '<li>Время теста идёт, даже пока вопросы скрыты.</li>' : '') +
         '</ul></div>' +
         '<button type="button" class="btn btn--primary" data-proctor-ok>Понятно, начать тест</button>');
     }

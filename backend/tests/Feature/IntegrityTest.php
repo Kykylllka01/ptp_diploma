@@ -82,6 +82,50 @@ class IntegrityTest extends TestCase
         $this->assertTrue(Attempt::firstOrFail()->isSubmitted());
     }
 
+    public function test_attempt_stuck_in_grading_is_submitted_again(): void
+    {
+        $this->makeTest('m1', [$this->singleQuestion('Q-1', 1)], ['minutes' => 45]);
+        $this->actingAs($this->student())->get('/student/test?test=m1')->assertOk();
+        $attempt = Attempt::firstOrFail();
+        $this->putJson("/api/attempts/{$attempt->id}", ['answers' => ['Q-1' => [1]]])->assertOk();
+        // Процесс сдачи сняли посреди оценки: отметка «оценивается» осталась, оценка откатилась
+        Attempt::query()->update(['status' => 'grading']);
+
+        $this->artisan('attempts:finalize')->expectsOutputToContain('Сдано попыток: 0')->assertSuccessful();
+        $this->assertSame('grading', $attempt->fresh()->status);   // свежая сдача ещё может идти — не трогаем
+
+        $this->travel(11)->minutes();
+        $this->artisan('attempts:finalize')->expectsOutputToContain('Сдано попыток: 1')->assertSuccessful();
+
+        $attempt->refresh();
+        $this->assertSame('confirmed', $attempt->status);
+        $this->assertEquals(1, $attempt->score);
+    }
+
+    public function test_timer_ends_at_deadline_when_it_comes_before_attempt_time(): void
+    {
+        $this->travelTo(today()->setTime(12, 0));   // «сегодня до …» не должно зависеть от того, когда запущены тесты
+        $this->makeTest('m1', [$this->singleQuestion('Q-1', 1)], ['minutes' => 45, 'deadline_at' => now()->addMinutes(20)]);
+        $this->makeTest('m2', [$this->singleQuestion('Q-2', 1)], ['minutes' => 45, 'deadline_at' => now()->addHours(3)]);
+        $this->makeTest('m3', [$this->singleQuestion('Q-3', 1)], ['minutes' => 0]);
+        $this->actingAs($this->student());
+
+        $cut = $this->get('/student/test?test=m1')->assertOk()->viewData('appData')['attempt'];
+        $this->assertSame(now()->addMinutes(20)->getTimestampMs(), $cut['endsAt']);
+        $this->assertTrue($cut['cutByDeadline']);
+        $this->assertSame(now()->addMinutes(20)->format('H:i'), $cut['deadlineTime']);   // по часам сервера, не устройства
+
+        $full = $this->get('/student/test?test=m2')->assertOk()->viewData('appData')['attempt'];
+        $this->assertSame(now()->addMinutes(45)->getTimestampMs(), $full['endsAt']);
+        $this->assertFalse($full['cutByDeadline']);
+
+        $free = $this->get('/student/test?test=m3')->assertOk()->viewData('appData')['attempt'];
+        $this->assertNull($free['endsAt']);
+
+        $list = collect($this->get('/student/tests')->assertOk()->viewData('appData')['tests'])->keyBy('id');
+        $this->assertSame('Сегодня до '.now()->addMinutes(20)->format('H:i'), $list['m1']['deadline']);
+    }
+
     public function test_answer_of_wrong_shape_does_not_break_submission(): void
     {
         $this->makeTest('m1', [$this->question('Q-1', ['type' => 'sql', 'points' => 2, 'text' => 'Все студенты', 'reference' => 'SELECT * FROM students']),

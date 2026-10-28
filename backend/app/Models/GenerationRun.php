@@ -10,12 +10,17 @@ class GenerationRun extends Model
 {
     protected $fillable = [
         'course_id', 'user_id', 'status', 'params', 'total', 'written', 'checked', 'rejected',
-        'disputed', 'catalog_progress', 'agent_states', 'error', 'started_at', 'finished_at',
+        'disputed', 'catalog_progress', 'agent_states', 'state', 'error', 'started_at', 'finished_at',
     ];
+
+    // Разборы материалов в state весят сотни килобайт — экрану «Работа агентов» они не нужны
+    protected $hidden = ['state'];
 
     protected $casts = [
         'params' => 'array',
         'agent_states' => 'array',
+        // Прогресс между частями запуска (GenerationPipeline::step): разборы, план, курсор, счётчики
+        'state' => 'array',
         'started_at' => 'datetime',
         'finished_at' => 'datetime',
     ];
