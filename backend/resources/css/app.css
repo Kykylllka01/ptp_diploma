@@ -493,6 +493,19 @@ a.table__title:hover { color: var(--tsu-blue); text-decoration: underline; text-
 .checks__flag--amber { background: var(--amber-soft); border: 1px solid var(--amber-border); }
 .checks__flag--red { background: var(--red-soft); border: 1px solid var(--red-border); }
 .q-context { margin: 16px 0 0; padding: 14px 16px; border-radius: 10px; background: var(--surface-2); font-family: ui-monospace, Consolas, monospace; font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-x: auto; color: var(--text); }
+.q-context + .q-context { margin-top: 8px; }
+/* Состав теста в окне «Изменить тест»: убранный вопрос зачёркнут до сохранения */
+.test-qs { list-style: none; margin: 8px 0 0; padding: 0; max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; }
+.test-qs li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--divider); font-size: 14px; }
+.test-qs li:last-child { border-bottom: none; }
+.test-qs__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.test-qs li.is-removed .test-qs__text { text-decoration: line-through; color: var(--text-3, #8A93A3); }
+/* Таблица из исходных данных вопроса: широкая — прокручивается внутри рамки, а не растягивает страницу */
+.q-context--table { padding: 0; white-space: normal; }
+.q-context--table table { border-collapse: collapse; min-width: 100%; font-size: 14px; }
+.q-context--table th, .q-context--table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--divider); white-space: nowrap; }
+.q-context--table th { font-weight: 600; background: rgba(15, 23, 42, .05); }
+.q-context--table tbody tr:last-child td { border-bottom: none; }
 .match-row { display: grid; grid-template-columns: minmax(140px, 1fr) 2fr; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--border, #E3E6EB); border-radius: 10px; }
 .match-row .select { width: 100%; }
 .match-defs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.5; }

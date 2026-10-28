@@ -31,7 +31,7 @@
       t.count && main.indexOf('preview?') < 0 ? { label: 'Пройти самому', href: 'preview?test=' + q } : null,
       t.status !== 'draft' && main.indexOf('analytics?') < 0 ? { label: 'Результаты и аналитика', href: 'analytics?test=' + q } : null,
       // Менять тест — срок, группы, приём, название — может только автор
-      t.mine !== false ? { label: t.status === 'training' ? 'Срок и группы' : 'Срок, группы и прокторинг', attrs: 'data-settings="' + id + '"' } : null,
+      t.mine !== false ? { label: 'Изменить тест', attrs: 'data-settings="' + id + '"' } : null,
       t.mine !== false && t.graded ? { label: t.weight != null ? 'Баллы в Модеус: ' + A.num(t.weight) : 'Задать баллы в Модеус', attrs: 'data-weight="' + id + '"' } : null,
       t.mine !== false && t.status === 'running' ? { label: 'Закрыть приём', attrs: 'data-status="closed" data-id="' + id + '"' } : null,
       t.mine !== false && t.status === 'closed' && main.indexOf('data-status') < 0 ? { label: 'Открыть приём снова', attrs: 'data-status="running" data-id="' + id + '"' } : null,
@@ -139,32 +139,94 @@
     A.keepFocus(render);
   }
 
-  // Срок сдачи, группы-участники и прокторинг после публикации
+  // Правка теста после публикации: сроки, время и попытки, группы, проведение, разбор и состав вопросов
+  var MINUTES = [15, 20, 25, 30, 45, 60, 90, 0], ATTEMPTS = [1, 2, 3, 5, 99];
+  function opts(list, cur, label) {
+    if (list.indexOf(cur) < 0) list = list.concat([cur]);
+    return list.map(function (v) { return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + label(v) + '</option>'; }).join('');
+  }
   function settings(t) {
     var proctor = t.status !== 'training';
-    var html = '<label class="field">Срок сдачи<input class="input" type="datetime-local" id="set-deadline" value="' + esc(t.deadlineLocal || '') + '">' +
-        '<span class="field__hint">Пусто — без срока. После срока начатые попытки досдаются автоматически.</span></label>' +
+    var s = t.settings || {};
+    var html = '<div class="grid-fields">' +
+        '<label class="field">Открыт с<input class="input" type="datetime-local" id="set-opens" value="' + esc(s.opensLocal || '') + '"></label>' +
+        '<label class="field">Срок сдачи<input class="input" type="datetime-local" id="set-deadline" value="' + esc(t.deadlineLocal || '') + '"></label>' +
+        '<label class="field">Время на попытку<select class="select" id="set-minutes">' + opts(MINUTES, +t.minutes, function (v) { return v ? v + ' минут' : 'Без ограничения'; }) + '</select></label>' +
+        '<label class="field">Попыток<select class="select" id="set-attempts">' + opts(ATTEMPTS, +t.attempts, function (v) { return v >= 99 ? 'Без ограничений' : String(v); }) + '</select></label>' +
+      '</div>' +
+      '<p class="field__hint" style="margin: -6px 0 0">Пусто в сроке — без срока; после срока начатые попытки досдаются автоматически. Новое время действует и для уже начатых попыток.</p>' +
       (groups.length ? '<div class="field"><span>Кто проходит <span class="field__hint">ни одной группы — все студенты курса</span></span><div class="pick" id="set-groups">' +
         groups.map(function (g) { var on = t.groups.indexOf(g.id) >= 0; return '<button type="button" aria-pressed="' + on + '" data-g="' + g.id + '">' + esc(g.name) + ' <small>' + g.students + '</small></button>'; }).join('') +
         '</div></div>' : '') +
+      // Перемешивание задаёт порядок по номеру попытки: после первых попыток его не меняем
+      '<div class="tg"><div><div>Перемешивать вопросы и варианты</div>' + (t.started ? '<div class="muted xsmall" style="margin-top: 2px">Тест уже проходили — порядок не меняется</div>' : '') + '</div>' +
+        '<button type="button" class="sw" id="set-shuffle" aria-label="Перемешивать вопросы и варианты" aria-pressed="' + (s.shuffle !== false) + '"' + (t.started ? ' disabled' : '') + '><span></span></button></div>' +
+      '<div class="tg"><div><div>Разбор после сдачи</div><div class="muted xsmall" style="margin-top: 2px">Откроется, когда закончатся попытки или тест закроется</div></div>' +
+        '<select class="select" id="set-review" aria-label="Разбор после сдачи" style="width: auto">' +
+        [['full', 'С правильными ответами'], ['answers', 'Только ответы и баллы'], ['none', 'Без разбора']].map(function (o) {
+          return '<option value="' + o[0] + '"' + ((s.review || 'full') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+        }).join('') + '</select></div>' +
       (proctor ? '<div class="tg"><div><div>Жёсткий прокторинг</div><div class="muted xsmall" style="margin-top: 2px" id="set-proctoring-hint">Уход на другие вкладки и окна прячет вопросы и записывается — видно в ответах студента</div></div>' +
-        '<button type="button" class="sw" id="set-proctoring" aria-label="Жёсткий прокторинг" aria-describedby="set-proctoring-hint" aria-pressed="' + !!t.proctoring + '"><span></span></button></div>' : '');
-    A.form({ title: proctor ? 'Срок, группы и прокторинг' : 'Срок и группы', text: '«' + t.title + '»', html: html, ok: 'Сохранить', collect: function (d) {
-      var v = d.querySelector('#set-deadline').value;
+        '<button type="button" class="sw" id="set-proctoring" aria-label="Жёсткий прокторинг" aria-describedby="set-proctoring-hint" aria-pressed="' + !!t.proctoring + '"><span></span></button></div>' : '') +
+      '<div class="field"><span>Вопросы теста <span class="field__hint">' + (t.started
+        ? 'тест уже проходили — состав заморожен, чтобы результаты были сравнимы'
+        : 'убрать — крестиком; добавить — в <a href="bank">банке</a>: отметьте вопросы и «Добавить в тест»') + '</span></span>' +
+        '<ul class="test-qs" id="set-questions"><li class="muted small">Загружаю вопросы…</li></ul></div>';
+    A.form({ title: 'Изменить тест', text: '«' + t.title + '»', html: html, ok: 'Сохранить', collect: function (d) {
+      var val = function (sel) { return d.querySelector(sel).value; };
+      var on = function (sel) { var b = d.querySelector(sel); return b ? b.getAttribute('aria-pressed') === 'true' : null; };
+      var opens = val('#set-opens'), deadline = val('#set-deadline');
+      if (opens && deadline && deadline <= opens) return { error: 'Срок сдачи должен быть позже открытия теста' };
       var data = { groups: A.$$('#set-groups [aria-pressed="true"]', d).map(function (b) { return +b.getAttribute('data-g'); }) };
-      var sw = d.querySelector('#set-proctoring');
-      if (sw && (sw.getAttribute('aria-pressed') === 'true') !== !!t.proctoring) data.proctoring = sw.getAttribute('aria-pressed') === 'true';
-      if ((v || '') !== (t.deadlineLocal || '')) data.deadline_at = v || null;   // срок отправляем, только если его поменяли
-      return { value: data };
-    } }).then(function (data) {
-      if (!data) return;
+      // Отправляем только изменённое: срок в прошлом сервер не примет, если его не трогали
+      if ((deadline || '') !== (t.deadlineLocal || '')) data.deadline_at = deadline || null;
+      if ((opens || '') !== (s.opensLocal || '')) data.opens_at = opens || null;
+      if (+val('#set-minutes') !== +t.minutes) data.minutes = +val('#set-minutes');
+      if (+val('#set-attempts') !== +t.attempts) data.attempts = +val('#set-attempts');
+      if (!t.started && on('#set-shuffle') !== (s.shuffle !== false)) data.shuffle = on('#set-shuffle');
+      if (val('#set-review') !== (s.review || 'full')) data.review = val('#set-review');
+      if (on('#set-proctoring') !== null && on('#set-proctoring') !== !!t.proctoring) data.proctoring = on('#set-proctoring');
+      var removed = A.$$('#set-questions [data-q].is-removed', d).map(function (li) { return li.getAttribute('data-q'); });
+      if (removed.length && removed.length === A.$$('#set-questions [data-q]', d).length && (t.status === 'running' || t.status === 'training')) {
+        return { error: 'В открытом тесте должен остаться хотя бы один вопрос' };
+      }
+      return { value: { data: data, removed: removed } };
+    } }).then(function (res) {
+      if (!res) return;
+      var data = res.data;
       if (!groups.length) delete data.groups;
-      A.api('PATCH', 'tests/' + encodeURIComponent(t.id), data).then(function (fresh) { replace(fresh); A.toast('Настройки теста сохранены'); });
+      A.api('PATCH', 'tests/' + encodeURIComponent(t.id), data).then(function (fresh) {
+        if (!res.removed.length) { replace(fresh); A.toast('Тест сохранён'); return; }
+        return A.api('DELETE', 'tests/' + encodeURIComponent(t.id) + '/questions', { ids: res.removed }).then(function (r) {
+          replace(r.test);
+          A.toast('Тест сохранён · убрано вопросов: ' + r.removed);
+        });
+      });
+    });
+    // Состав подгружается после открытия окна: в списке тестов его нет
+    A.api('GET', 'tests/' + encodeURIComponent(t.id) + '/questions').then(function (r) {
+      var box = A.$('#set-questions');
+      if (!box) return;
+      box.innerHTML = r.questions.map(function (q, i) {
+        return '<li data-q="' + esc(q.id) + '"><span class="mono muted">' + (i + 1) + '</span><span class="test-qs__text">' + esc(q.text) + '</span>' +
+          '<span class="muted xsmall">' + esc((M.types || {})[q.type] || q.type) + ' · ' + q.points + ' б.</span>' +
+          (t.started ? '' : '<button type="button" class="btn btn--icon btn--sm" data-q-remove aria-label="Убрать вопрос ' + (i + 1) + ' из теста">' + A.icons.x + '</button>') + '</li>';
+      }).join('') || '<li class="muted small">В тесте пока нет вопросов</li>';
+    }, function () {
+      var box = A.$('#set-questions');
+      if (box) box.innerHTML = '<li class="t-red small">Не удалось загрузить вопросы теста</li>';
     });
   }
   document.addEventListener('click', function (e) {
     var b = e.target.closest('#set-groups button');
     if (b) b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+    // Убрать вопрос: строка зачёркивается, повторное нажатие возвращает; применяется по «Сохранить»
+    var rm = e.target.closest('[data-q-remove]');
+    if (rm) {
+      var li = rm.closest('[data-q]'), off = li.classList.toggle('is-removed');
+      rm.setAttribute('aria-label', (off ? 'Вернуть' : 'Убрать') + ' вопрос в тест');
+      rm.innerHTML = off ? A.icons.plus : A.icons.x;
+    }
   });
 
   A.$('#tests').addEventListener('click', function (e) {

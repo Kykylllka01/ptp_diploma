@@ -36,6 +36,8 @@ class Kernel extends HttpKernel
             \Illuminate\Session\Middleware\StartSession::class,
             // Смена пароля (в кабинете или выданный преподавателем) выводит из аккаунта на других устройствах
             \App\Http\Middleware\EndSessionAfterPasswordChange::class,
+            // Новый вход под той же учётной записью выводит из неё на прежнем устройстве
+            \App\Http\Middleware\OneSessionPerAccount::class,
             \Illuminate\View\Middleware\ShareErrorsFromSession::class,
             \App\Http\Middleware\VerifyCsrfToken::class,
             \Illuminate\Routing\Middleware\SubstituteBindings::class,

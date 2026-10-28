@@ -38,6 +38,8 @@ Route::middleware(['web', 'auth'])->group(function () {
         Route::get('bank-stats', [TestController::class, 'bankStats']);
         Route::post('tests', [TestController::class, 'store']);
         Route::post('tests/{test}/questions', [TestController::class, 'attachQuestions']);
+        Route::get('tests/{test}/questions', [TestController::class, 'questions']);
+        Route::delete('tests/{test}/questions', [TestController::class, 'detachQuestions']);
         Route::patch('tests/{test}', [TestController::class, 'update']);
         Route::post('tests/{test}/transferred', [TestController::class, 'transferred']);
         Route::delete('tests/{test}', [TestController::class, 'destroy']);
