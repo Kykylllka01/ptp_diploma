@@ -119,11 +119,21 @@
   }
 
   function renderSide() {
-    var c = draft.critic;
-    A.$('#critic-score').textContent = c ? c.score + ' / 10' : '';
-    A.$('#critic').innerHTML = c
-      ? c.checks.map(function (ch) { return '<li>' + (ch.ok ? A.icons.ok : A.icons.warn) + '<span><span class="sr-only">' + (ch.ok ? 'Пройдено: ' : 'Замечание: ') + '</span>' + esc(ch.text) + '</span></li>'; }).join('')
-      : '<li>' + A.icons.info + '<span>Критик этот вопрос не проверял: он создан или изменён вручную.</span></li>';
+    var c = draft.critic, flag = draft.flag;
+    // Оценка — общий вывод Критика о готовности вопроса: 10 — брать как есть, чем ниже, тем больше правок
+    var score = A.$('#critic-score');
+    score.textContent = c && c.score != null ? 'оценка ' + c.score + ' из 10' : '';
+    score.title = 'Общая оценка Критика: 10 — замечаний нет, 7–9 — мелкие правки, ниже — вопрос стоит переделать';
+    var problems = c ? c.checks.filter(function (ch) { return !ch.ok; }).length : 0;
+    // Замечание (спорный вопрос, похожий в банке, сбой проверки) — первым и заметно, а не только значком в банке
+    A.$('#critic').innerHTML =
+      (flag ? '<li class="checks__flag checks__flag--' + (flag.level === 'red' ? 'red' : 'amber') + '">' + A.icons.warn +
+        '<span><b class="strong">Замечание:</b> ' + esc(flag.text) +
+        (c && !problems && c.checks.length ? '<br><span class="muted small">Отдельные проверки ниже пройдены — замечание относится к вопросу в целом.</span>' : '') +
+        '</span></li>' : '') +
+      (c
+        ? c.checks.map(function (ch) { return '<li>' + (ch.ok ? A.icons.ok : A.icons.warn) + '<span><span class="sr-only">' + (ch.ok ? 'Пройдено: ' : 'Замечание: ') + '</span>' + esc(ch.text) + '</span></li>'; }).join('')
+        : '<li>' + A.icons.info + '<span>Критик этот вопрос не проверял: он создан или изменён вручную.</span></li>');
     A.$('#apply-fix').hidden = !(c && c.fix && !draft.fixApplied);
     A.$('#source').textContent = draft.source;
     if (draft.materialId) A.$('#source').href = 'bank?status=all&source=' + draft.materialId;

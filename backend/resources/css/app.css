@@ -489,6 +489,9 @@ a.table__title:hover { color: var(--tsu-blue); text-decoration: underline; text-
 .checks { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 12px; font-size: 14px; line-height: 1.45; }
 .checks li { display: flex; gap: 10px; }
 .checks svg { flex: none; margin-top: 1px; }
+.checks__flag { padding: 10px 12px; border-radius: 10px; }
+.checks__flag--amber { background: var(--amber-soft); border: 1px solid var(--amber-border); }
+.checks__flag--red { background: var(--red-soft); border: 1px solid var(--red-border); }
 .q-context { margin: 16px 0 0; padding: 14px 16px; border-radius: 10px; background: var(--surface-2); font-family: ui-monospace, Consolas, monospace; font-size: 14px; line-height: 1.6; white-space: pre-wrap; overflow-x: auto; color: var(--text); }
 .match-row { display: grid; grid-template-columns: minmax(140px, 1fr) 2fr; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--border, #E3E6EB); border-radius: 10px; }
 .match-row .select { width: 100%; }
@@ -627,6 +630,7 @@ mark.good { background: #DDF1E5; }
 .ans svg { flex: none; margin-top: 2px; }
 .ans--bad { background: var(--red-bg); color: #7A1712; }
 .ans--good { background: var(--green-bg); color: #134A2F; }
+.ans--part { background: var(--amber-bg); color: #6B4100; }
 .ans--neutral { background: var(--surface-2); color: var(--text-2); }
 
 /* ---------- Вход и регистрация ---------- */

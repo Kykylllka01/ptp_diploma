@@ -297,6 +297,11 @@
     }
     html = r.correct
       ? '<div class="ans ans--good">' + A.icons.check + '<span><b class="strong">Верно' + (r.max > 1 ? ' · ' + r.score + ' из ' + r.max : '') + '.</b> ' + esc(r.explanation || '') + '</span></div>'
+      // Часть ответа верна: так и говорим, а не «Неверно»; вопрос с выбором в тесте засчитывается только целиком
+      : r.partial
+      ? '<div class="ans ans--part">' + A.icons.warn + '<span><b class="strong">Частично верно · ' + esc(r.partial) + '.</b> ' +
+        (q.type === 'sql' ? '' : 'В тесте такой ответ не засчитывается — нужен полностью верный. ') +
+        (preview ? '' : 'Подсказка: ') + esc(r.explanation || '') + ' <span class="muted">(' + esc(r.ref || '') + ')</span></span></div>'
       : '<div class="ans ans--bad">' + A.icons.cross + '<span><b class="strong">Неверно' + (q.type === 'sql' ? ' · ' + r.score + ' из ' + r.max : '') + '.</b> ' + (preview ? '' : 'Подсказка: ') + esc(r.explanation || '') + ' <span class="muted">(' + esc(r.ref || '') + ')</span></span></div>';
     if (q.type === 'sql' && r.criteria && r.criteria.length) {
       html += '<ul class="small" style="margin: 10px 0 0; padding-left: 20px; line-height: 1.6">' + r.criteria.map(function (c) { return '<li>' + c[0] + ' / ' + c[1] + ' — ' + esc(c[2]) + '</li>'; }).join('') + '</ul>';

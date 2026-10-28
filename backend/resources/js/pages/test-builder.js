@@ -170,9 +170,22 @@
   // Свой вариант каждому: итог и запас пересчитываются под переключатель
   A.$('#sw-individual').addEventListener('click', function () { setTimeout(summary); });
 
+  // Попыток: готовые 1, 2, 3, 5, без ограничений — или своё число (99 сборщик хранит как «без ограничений»)
+  A.$('#attempts').addEventListener('change', function () {
+    var own = this.value === 'own';
+    A.$('#attempts-own-field').hidden = !own;
+    if (own) A.$('#attempts-own').focus();
+  });
+  function attempts() {
+    if (A.$('#attempts').value !== 'own') return +A.$('#attempts').value;
+    var n = Math.round(+A.$('#attempts-own').value);
+    return n >= 1 && n <= 98 ? n : null;
+  }
+
   A.$('#builder').addEventListener('submit', function (e) {
     e.preventDefault();
     var mode = A.$('input[name=mode]:checked').value;
+    if (attempts() === null) { A.$('#attempts-own').focus(); A.toast('Число попыток — от 1 до 98', true); return; }
     if (mode !== 'manual' && !+A.$('#s-count').textContent) { A.toast('Добавьте в тест хотя бы один вопрос'); return; }
     var title = A.$('#test-title').value.trim();
     if (!title) { A.$('#test-title').focus(); A.toast('Введите название теста', true); return; }
@@ -194,7 +207,7 @@
       opens_at: A.$('#opens-at').value || null,
       deadline_at: A.$('#deadline-at').value || null,
       minutes: +A.$('#minutes').value,
-      attempts: +A.$('#attempts').value,
+      attempts: attempts(),
       weight: A.$('#weight').value === '' ? null : +A.$('#weight').value,
       training: training,
       publish: true,

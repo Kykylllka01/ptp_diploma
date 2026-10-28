@@ -417,11 +417,48 @@ class QuestionController extends Controller
 
         $r = $grading->grade($q, $answer);
         $out += ['score' => $r['score'], 'correct' => $r['score'] >= $r['max'], 'criteria' => $r['criteria'] ?? []];
+        $out['partial'] = $out['correct'] ? null : $this->partial($q, $answer, $r);
         if ($withKey || $q->type === 'sql') {
             $out['key'] = $this->keyText($q);
         }
 
         return $out;
+    }
+
+    /**
+     * Ответ неверен, но не целиком: часть верных вариантов, часть пар или часть баллов за SQL.
+     * Подсказка для самопроверки; в тесте вопросы с выбором и сопоставлением засчитываются только целиком.
+     *
+     * @return string|null что именно верно; null — верного нет совсем
+     */
+    private function partial(Question $q, mixed $answer, array $r): ?string
+    {
+        if ($q->type === 'sql') {
+            return $r['score'] > 0 ? $r['score'].' из '.$r['max'].' '.$this->balls($r['max']) : null;
+        }
+        if ($q->type === 'match') {
+            $key = $q->matchParts()['key'];
+            $given = array_map('intval', array_values((array) ($answer ?? [])));
+            $hit = count(array_filter($key, fn ($v, $i) => ($given[$i] ?? -1) === $v, ARRAY_FILTER_USE_BOTH));
+
+            return $hit > 0 ? 'верно сопоставлено '.$hit.' из '.count($key) : null;
+        }
+        if ($q->type !== 'multiple') {
+            return null;
+        }
+        $correct = $q->correctIndexes();
+        $given = array_unique(array_map('intval', (array) ($answer ?? [])));
+        $hit = count(array_intersect($given, $correct));
+        $extra = count(array_diff($given, $correct));
+
+        return $hit > 0 ? 'выбрано верных '.$hit.' из '.count($correct).($extra ? ', неверных — '.$extra : '') : null;
+    }
+
+    private function balls(int $n): string
+    {
+        $n %= 100;
+
+        return $n > 10 && $n < 20 ? 'баллов' : match ($n % 10) { 1 => 'балла', default => 'баллов' };
     }
 
     /** Верный ответ словами — для разбора. */

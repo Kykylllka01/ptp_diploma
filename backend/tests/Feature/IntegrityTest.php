@@ -126,6 +126,31 @@ class IntegrityTest extends TestCase
         $this->assertSame('Сегодня до '.now()->addMinutes(20)->format('H:i'), $list['m1']['deadline']);
     }
 
+    public function test_check_tells_partly_right_answer_from_wrong_one(): void
+    {
+        $this->question('Q-M', ['type' => 'multiple', 'points' => 2, 'text' => 'Что верно о 1НФ?', 'options' => [
+            ['text' => 'Атомарные значения', 'correct' => true], ['text' => 'Нет повторяющихся групп', 'correct' => true],
+            ['text' => 'Нет транзитивных зависимостей'], ['text' => 'Есть внешний ключ'],
+        ]]);
+        $match = $this->question('Q-P', ['type' => 'match', 'points' => 2, 'text' => 'Сопоставьте', 'options' => [
+            ['text' => '1НФ — атомарные значения', 'correct' => true], ['text' => '2НФ — нет частичных зависимостей', 'correct' => true],
+            ['text' => '3НФ — нет транзитивных зависимостей', 'correct' => true],
+        ]]);
+        $this->actingAs($this->teacher());
+        $check = fn ($code, $answer) => $this->postJson("/api/questions/{$code}/preview-check", ['answer' => $answer])->assertOk()->json();
+
+        $this->assertSame('выбрано верных 1 из 2, неверных — 1', $check('Q-M', [0, 2])['partial']);
+        $this->assertSame('выбрано верных 1 из 2', $check('Q-M', [1])['partial']);
+        $this->assertNull($check('Q-M', [2, 3])['partial']);                     // ни одного верного — просто «неверно»
+        $this->assertNull($check('Q-M', [0, 1])['partial']);                     // полностью верно
+        $this->assertSame(0, $check('Q-M', [0, 2])['score']);                    // засчитывается только целиком, как в тесте
+
+        $key = $match->matchParts()['key'];
+        $twoOfThree = [$key[0], $key[1], $key[1]];
+        $this->assertSame('верно сопоставлено 2 из 3', $check('Q-P', $twoOfThree)['partial']);
+        $this->assertTrue($check('Q-P', $key)['correct']);
+    }
+
     public function test_answer_of_wrong_shape_does_not_break_submission(): void
     {
         $this->makeTest('m1', [$this->question('Q-1', ['type' => 'sql', 'points' => 2, 'text' => 'Все студенты', 'reference' => 'SELECT * FROM students']),
